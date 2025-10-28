@@ -3,6 +3,7 @@ import LegoHeader from "./components/LegoHeader";
 import Home from "./pages/Home";
 import SetsSearch from "./pages/SetsSearch";
 import OwnedSets from "./pages/OwnedSets";
+import NewCreations from "./pages/NewCreations";
 import Inventory from "./pages/Inventory";
 import Buildability from "./pages/Buildability";
 
