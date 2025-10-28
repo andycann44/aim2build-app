@@ -1,27 +1,73 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-type Inv = { part_num: string; color_id: number|null; qty_total: number; notes?: string|null };
+
+type InvRow = {
+  part_num: string;
+  color_id: number | null;
+  qty: number;
+  notes?: string | null;
+  name?: string | null;
+  img_url?: string | null;
+  color_rgb?: string | null;
+};
+
+function thumbUrl(row: InvRow): string | undefined {
+  // Prefer backend-provided image; otherwise show nothing (UI has fallback tile)
+  return row.img_url ?? undefined;
+}
 
 export default function Inventory(){
-  const [rows,setRows]=useState<Inv[]>([]);
-  const [f,setF]=useState({part_num:"",color_id:"",qty:"1",notes:""});
-  const load=async()=> setRows(await api("/api/inventory"));
-  useEffect(()=>{ load(); },[]);
-  const save=async()=>{
-    await api("/api/inventory",{method:"POST",body:JSON.stringify({
-      part_num:f.part_num, color_id:f.color_id?Number(f.color_id):null, qty:Number(f.qty||0), notes:f.notes||null
-    })});
-    setF({part_num:"",color_id:"",qty:"1",notes:""}); load();
-  };
-  return <div style={{padding:16}}>
-    <h3>Inventory</h3>
-    <div style={{display:"flex",gap:8,marginBottom:8}}>
-      <input placeholder="part num" value={f.part_num} onChange={e=>setF(s=>({...s,part_num:e.target.value}))}/>
-      <input placeholder="color id" value={f.color_id} onChange={e=>setF(s=>({...s,color_id:e.target.value}))}/>
-      <input placeholder="qty" value={f.qty} onChange={e=>setF(s=>({...s,qty:e.target.value}))}/>
-      <input placeholder="notes" value={f.notes} onChange={e=>setF(s=>({...s,notes:e.target.value}))}/>
-      <button onClick={save} disabled={!f.part_num}>Save</button>
+  const [rows,setRows] = useState<InvRow[]>([]);
+  const [msg,setMsg]   = useState<string>("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await api<InvRow[]>("/api/inventory");
+        setRows(data);
+      } catch (e:any) {
+        setMsg(String(e?.message || e));
+      }
+    })();
+  }, []);
+
+  return (
+    <div style={{padding:16}}>
+      <h3>Inventory</h3>
+      {msg && <div style={{color:"#b00", marginBottom:8}}>{msg}</div>}
+      {rows.length === 0 ? <p>No parts yet. Add some via the Inventory page.</p> : null}
+      <div style={{
+        display:"grid",
+        gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))",
+        gap:12
+      }}>
+        {rows.map((r,idx) => (
+          <div key={`${r.part_num}-${r.color_id ?? "x"}-${idx}`} style={{
+            border:"1px solid #e5e7eb",
+            borderRadius:8,
+            padding:10,
+            background:"#fff"
+          }}>
+            <div style={{
+              height:110, display:"flex", alignItems:"center", justifyContent:"center",
+              background:"#fafafa", borderRadius:6, marginBottom:8, overflow:"hidden"
+            }}>
+              {thumbUrl(r)
+                ? <img src={thumbUrl(r)} alt={r.part_num}
+                       style={{maxWidth:"100%", maxHeight:"100%", objectFit:"contain"}}
+                       onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display="none";}}/>
+                : <div style={{
+                    width:64,height:40,background:"#ff2d2d",
+                    border:"3px solid #b81b1b",borderRadius:6
+                  }}/>}
+            </div>
+            <div style={{fontWeight:600}}>{r.part_num} × {r.qty}</div>
+            <div style={{fontSize:12, opacity:.75}}>
+              C{r.color_id ?? "-"} {r.name ? `· ${r.name}` : ""}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
-    <ul>{rows.map((r,i)=> <li key={i}>{r.part_num} C{r.color_id??"-"} × {r.qty_total} {r.notes?`— ${r.notes}`:""}</li>)}</ul>
-  </div>;
+  );
 }
