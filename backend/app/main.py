@@ -1,7 +1,7 @@
 import os, sqlite3, json
 from typing import Optional
 from fastapi import FastAPI, HTTPException
-from app.routers import lego_sync, buildability, catalog, inv_aggregate
+from app.routers import images, lego_sync, buildability, catalog, inv_aggregate
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from dotenv import load_dotenv
@@ -44,7 +44,7 @@ def init_db():
         """)
 init_db()
 
-from app.routers import lego_sync, buildability, catalog, inv_aggregate
+from app.routers import images, lego_sync, buildability, catalog, inv_aggregate
 app = FastAPI(title="Aim2Build API", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
@@ -151,3 +151,5 @@ app.include_router(lego_sync.router, prefix="/api/v1", tags=["rebrickable"])
 app.include_router(catalog.router, prefix="/api/v1", tags=["catalog"])
 
 app.include_router(inv_aggregate.router, prefix="/api/v1", tags=["inventory"])
+
+app.include_router(images.router, prefix="/api/v1", tags=["images"])

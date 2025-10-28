@@ -1,18 +1,14 @@
 INFO:     Will watch for changes in these directories: ['/Users/andrewcannell/aim2build-app/backend']
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [94434] using WatchFiles
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [12369] using WatchFiles
 /Users/andrewcannell/aim2build-app/backend/.venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
   warnings.warn(
-INFO:     Started server process [94439]
+INFO:     Started server process [12373]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     127.0.0.1:49656 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49657 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49658 - "POST /api/v1/sync/rebrickable/sets/31112-1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49660 - "GET /api/v1/catalog/sets HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49663 - "OPTIONS /api/inventory HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49664 - "OPTIONS /api/inventory HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49663 - "GET /api/inventory HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49664 - "GET /api/inventory HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49676 - "GET /api/inventory HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49676 - "GET /api/inventory HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55314 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [12373]
+INFO:     Stopping reloader process [12369]
