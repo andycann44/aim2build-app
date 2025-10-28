@@ -1,58 +1,141 @@
-import sqlite3, os
-from typing import List, Tuple, Dict
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
+from typing import List, Dict, Any
 
-router = APIRouter()
-DB = os.getenv("A2B_DB", "data/aim2build.db")
+# We reuse the existing db() context manager defined in app.main
+try:
+    from ..main import db  # type: ignore
+except Exception as e:
+    # Fallback: small local helper if import path differs (won't be used if main.db exists)
+    import sqlite3
+    from contextlib import contextmanager
+    @contextmanager
+    def db():
+        con = sqlite3.connect("aim2build.db")
+        con.row_factory = sqlite3.Row
+        try:
+            yield con
+        finally:
+            con.commit()
+            con.close()
 
-def db():
-    con = sqlite3.connect(DB)
-    con.row_factory = sqlite3.Row
-    return con
+router = APIRouter(prefix="/buildability", tags=["buildability"])
 
-def load_inventory(con) -> Dict[Tuple[str,int], int]:
-    con.execute("""
-    CREATE TABLE IF NOT EXISTS inventory (
-      part_num TEXT NOT NULL,
-      color_id INTEGER NOT NULL,
-      qty_total INTEGER NOT NULL DEFAULT 0,
-      qty_loose INTEGER NOT NULL DEFAULT 0,
-      qty_in_sets INTEGER NOT NULL DEFAULT 0,
-      notes TEXT,
-      PRIMARY KEY (part_num, color_id)
-    )""")
-    rows = con.execute("SELECT part_num,color_id,qty_total FROM inventory").fetchall()
-    return {(r["part_num"], int(r["color_id"])): int(r["qty_total"]) for r in rows}
-
-def load_bom(con, set_num: str):
-    rows = con.execute("""
-        SELECT part_num,color_id,qty
-        FROM set_bom
-        WHERE set_num=? AND COALESCE(is_spare,0)=0
-    """, (set_num,)).fetchall()
-    if not rows:
-        raise HTTPException(404, f"BOM not cached for {set_num}")
-    return [(r["part_num"], int(r["color_id"]), int(r["qty"])) for r in rows]
-
-def coverage(inv, bom_rows):
-    total_req = 0; total_have = 0; missing = []
-    for p,c,req in bom_rows:
-        have = inv.get((p,c), 0)
-        total_req += req
-        total_have += min(have, req)
-        if have < req:
-            missing.append({"part_num": p, "color_id": c, "need": req-have})
-    pct = 0.0 if total_req == 0 else round(100.0 * total_have / total_req, 2)
-    return pct, missing
-
-@router.get("/buildability/sets")
-def buildability_sets(targets: List[str] = Query(..., alias="targets")):
+@router.get("/sets")
+def buildability_sets(limit: int = 25, offset: int = 0) -> List[Dict[str, Any]]:
+    """
+    Returns sets ranked by completeness %, computed fully in SQL for speed.
+    Completeness = sum(min(have, need)) / sum(need).
+    """
     with db() as con:
-        inv = load_inventory(con)
-        out = []
-        for set_num in targets:
-            bom = load_bom(con, set_num)
-            pct, missing = coverage(inv, bom)
-            out.append({"set_num": set_num, "coverage_pct": pct, "buildable": pct==100.0, "missing": missing})
-        out.sort(key=lambda x: (not x["buildable"], -x["coverage_pct"]))
-        return {"results": out}
+        q = """
+        WITH need AS (
+          SELECT sp.set_num,
+                 sp.part_num,
+                 sp.color_id,
+                 SUM(sp.qty_per_set) AS need_qty
+          FROM set_parts sp
+          GROUP BY sp.set_num, sp.part_num, sp.color_id
+        ),
+        have AS (
+          SELECT part_num,
+                 color_id,
+                 SUM(COALESCE(qty_total,0)) AS have_qty
+          FROM inventories
+          WHERE color_id IS NOT NULL  -- guard against NULLs
+          GROUP BY part_num, color_id
+        ),
+        joined AS (
+          SELECT n.set_num,
+                 n.need_qty,
+                 COALESCE(h.have_qty, 0) AS have_qty
+          FROM need n
+          LEFT JOIN have h
+            ON h.part_num = n.part_num
+           AND h.color_id = n.color_id
+        )
+        SELECT s.set_num,
+               s.name,
+               s.year,
+               ROUND(
+                 100.0 * SUM(CASE WHEN j.have_qty >= j.need_qty THEN j.need_qty ELSE j.have_qty END)
+                 / NULLIF(SUM(j.need_qty),0),
+               2) AS completeness
+        FROM joined j
+        JOIN sets s ON s.set_num = j.set_num
+        GROUP BY s.set_num, s.name, s.year
+        ORDER BY completeness DESC, s.year DESC
+        LIMIT ? OFFSET ?;
+        """
+        rows = con.execute(q, (limit, offset)).fetchall()
+        return [dict(r) for r in rows]
+
+@router.get("/{set_num}")
+def buildability_detail(set_num: str) -> Dict[str, Any]:
+    """
+    Detailed breakdown for one set: which parts are covered and which are missing.
+    """
+    with db() as con:
+        # Basic set existence
+        meta = con.execute("SELECT set_num, name, year, img_url FROM sets WHERE set_num = ?", (set_num,)).fetchone()
+        if not meta:
+            raise HTTPException(status_code=404, detail="Set not found")
+
+        q = """
+        WITH need AS (
+          SELECT sp.part_num,
+                 sp.color_id,
+                 SUM(sp.qty_per_set) AS need_qty
+          FROM set_parts sp
+          WHERE sp.set_num = ?
+          GROUP BY sp.part_num, sp.color_id
+        ),
+        have AS (
+          SELECT part_num,
+                 color_id,
+                 SUM(COALESCE(qty_total,0)) AS have_qty
+          FROM inventories
+          WHERE color_id IS NOT NULL
+          GROUP BY part_num, color_id
+        )
+        SELECT n.part_num,
+               n.color_id,
+               n.need_qty,
+               COALESCE(h.have_qty, 0) AS have_qty,
+               CASE
+                 WHEN COALESCE(h.have_qty,0) >= n.need_qty THEN 0
+                 ELSE n.need_qty - COALESCE(h.have_qty,0)
+               END AS missing_qty
+        FROM need n
+        LEFT JOIN have h
+          ON h.part_num = n.part_num
+         AND h.color_id = n.color_id
+        ORDER BY missing_qty DESC, n.need_qty DESC;
+        """
+        parts = [dict(r) for r in con.execute(q, (set_num,)).fetchall()]
+
+        totals = con.execute("""
+            SELECT
+              ROUND(
+                100.0 * SUM(CASE WHEN have_qty >= need_qty THEN need_qty ELSE have_qty END)
+                / NULLIF(SUM(need_qty),0), 2
+              ) AS completeness,
+              SUM(need_qty) AS total_needed,
+              SUM(CASE WHEN have_qty >= need_qty THEN need_qty ELSE have_qty END) AS total_have
+            FROM (
+              SELECT n.need_qty AS need_qty, COALESCE(h.have_qty,0) AS have_qty
+              FROM (SELECT part_num, color_id, SUM(qty_per_set) AS need_qty
+                    FROM set_parts WHERE set_num = ?
+                    GROUP BY part_num, color_id) n
+              LEFT JOIN (SELECT part_num, color_id, SUM(COALESCE(qty_total,0)) AS have_qty
+                         FROM inventories
+                         WHERE color_id IS NOT NULL
+                         GROUP BY part_num, color_id) h
+                ON h.part_num = n.part_num AND h.color_id = n.color_id
+            );
+        """, (set_num,)).fetchone()
+
+        return {
+            "set": dict(meta),
+            "summary": dict(totals) if totals else {},
+            "parts": parts
+        }

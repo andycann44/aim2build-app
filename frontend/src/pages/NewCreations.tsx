@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, img } from "../lib/api";
+import { api } from "../lib/api";
 
 interface BuildSet {
   set_num: string;

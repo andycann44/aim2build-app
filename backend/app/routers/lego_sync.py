@@ -26,7 +26,7 @@ def catalog_stats():
             "parts": get("SELECT COUNT(*) FROM parts"),
             "colors": get("SELECT COUNT(*) FROM colors"),
             "inventories": get("SELECT COUNT(*) FROM inventories"),
-            "inventory_parts": get("SELECT COUNT(*) FROM inventory_parts"),
+            "inventory_parts": get("SELECT COUNT(*) FROM inventories_parts"),
             "set_parts": get("SELECT COUNT(*) FROM set_parts"),
         }
     except sqlite3.Error:

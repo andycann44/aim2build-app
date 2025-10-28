@@ -485,3 +485,4 @@ INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
 INFO:     Finished server process [16270]
+INFO:     Stopping reloader process [16266]

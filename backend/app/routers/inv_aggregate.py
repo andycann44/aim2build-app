@@ -20,12 +20,12 @@ def aggregate_inventory():
           )
         """)
         # recompute from set_bom (all cached sets count as owned qty=1)
-        con.execute("DELETE FROM inventory")
+        con.execute("DELETE FROM inventories")
         con.execute("""
           INSERT INTO inventory(part_num,color_id,qty_total,qty_in_sets,qty_loose)
           SELECT part_num, color_id, SUM(qty) AS qty_total, SUM(qty) AS qty_in_sets, 0
           FROM set_bom WHERE COALESCE(is_spare,0)=0
           GROUP BY part_num,color_id
         """)
-        n = con.execute("SELECT COUNT(*) FROM inventory").fetchone()[0]
+        n = con.execute("SELECT COUNT(*) FROM inventories").fetchone()[0]
         return {"ok": True, "rows": n}
