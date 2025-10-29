@@ -1,6 +1,13 @@
 from fastapi import FastAPI
-from .routers import catalog, sets
+from backend.app.routers import catalog, sets, inventory
 
-app = FastAPI()
-app.include_router(catalog.router)
-app.include_router(sets.router)
+app = FastAPI(title="Aim2Build API v0.2.0", version="0.2.0")
+
+# Mount routers
+app.include_router(catalog.router, prefix="/catalog")
+app.include_router(sets.router, prefix="/sets")
+app.include_router(inventory.router, prefix="/inventory")
+
+@app.get("/")
+def root():
+    return {"msg": "Aim2Build backend is running"}
