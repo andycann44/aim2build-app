@@ -16,7 +16,7 @@ app.add_middleware(
 
 # Router mounts (one each)
 app.include_router(catalog.router,   prefix="/api/catalog")
-app.include_router(owned_sets.router, prefix="/api")
+app.include_router(my_sets.router, prefix="/api/my-sets")
 
 if buildability is not None:
     pass  # placeholder until buildability is wired
