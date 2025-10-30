@@ -4,9 +4,9 @@ type Owned = { set_num: string; name?: string; year?: number; img_url?: string }
 
 export default function OwnedSets(){
   const [rows,setRows]=useState<Owned[]>([]);
-  const load=async()=> setRows(await api("/api/owned_sets"));
+  const load=async()=> setRows(await api("/api/my-sets"));
   useEffect(()=>{ load(); },[]);
-  const del=async (sn:string)=>{ await api(`/api/owned_sets/${encodeURIComponent(sn)}`,{method:"DELETE"}); load(); };
+  const del=async (sn:string)=>{ await api(`/api/my-sets/${encodeURIComponent(sn)}`,{method:"DELETE"}); load(); };
   return <div style={{padding:16}}>
     <h3>My Sets</h3>
     <ul style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12,listStyle:"none",padding:0}}>

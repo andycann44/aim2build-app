@@ -1,27 +1,22 @@
 #!/bin/bash
 : "${HISTTIMEFORMAT:=}"
 set -euo pipefail
-[ -f ./a2p_bash_compat.sh ] && source ./a2p_bash_compat.sh
-[ -f /tmp/a2p_env.sh ] && source /tmp/a2p_env.sh
-
 cd ~/aim2build-app
 
-BRANCH="a2p/2025-10-30-my-sets-rename"
-git switch -c "$BRANCH"
+# Rename file
+mv backend/app/routers/owned_sets.py backend/app/routers/my_sets.py || true
 
-# Rename backend route
-sed -i '' 's/owned_sets/my_sets/g' backend/app/routers/owned_sets.py || true
-mv backend/app/routers/owned_sets.py backend/app/routers/my_sets.py
+# Update route paths in router
+sed -i '' 's@/owned_sets@/my-sets@g' backend/app/routers/my_sets.py
 
-# Update main.py router import and mount
-sed -i '' 's/from .routers import owned_sets/from .routers import my_sets/' backend/app/main.py
-sed -i '' 's/app.include_router(owned_sets.router/app.include_router(my_sets.router/' backend/app/main.py
-sed -i '' 's|prefix="/api"|prefix="/api/my-sets"|' backend/app/main.py
+# Patch main.py
+sed -i '' '/from \.routers import/c\
+from .routers import catalog, sets, inventory, my_sets, search_online
+' backend/app/main.py
 
-# Frontend page rename (basic)
-find frontend/src/pages -type f -name "*.tsx" -exec sed -i '' 's/Owned Sets/My Sets/g' {} +
+# Rename frontend file
 mv frontend/src/pages/OwnedSets.tsx frontend/src/pages/MySets.tsx || true
+sed -i '' 's@/api/owned_sets@/api/my-sets@g' frontend/src/pages/MySets.tsx
+sed -i '' 's@Owned Sets@My Sets@g' frontend/src/pages/MySets.tsx
 
-git add .
-git commit -m "Rename Owned Sets to My Sets (backend + frontend)"
-git push --set-upstream origin "$BRANCH"
+echo "[ok] My Sets rename complete."
