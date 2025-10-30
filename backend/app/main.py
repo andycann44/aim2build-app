@@ -24,3 +24,5 @@ if buildability is not None:
 @app.get("/")
 def root():
     return {"msg": "Aim2Build backend is running"}
+from .routers import search_online
+app.include_router(search_online.router, prefix='/api')
