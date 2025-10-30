@@ -29,3 +29,6 @@ frontend/dist/
 uvicorn.out
 .a2p_trash_*/
 .DS_Store
+.venv/
+venv/
+.a2p_trash_venv_*/
