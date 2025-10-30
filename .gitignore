@@ -21,3 +21,11 @@ backend/data/*.db
 .env
 backend/.env
 frontend/.env*
+.venv/
+venv/
+node_modules/
+frontend/dist/
+*.db
+uvicorn.out
+.a2p_trash_*/
+.DS_Store
