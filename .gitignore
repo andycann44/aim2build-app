@@ -1,0 +1,23 @@
+# OS/Editor
+.DS_Store
+.vscode/
+
+# Python
+backend/.venv/
+__pycache__/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Local data/cache
+backend/data/img/
+backend/data/rebrickable/
+backend/data/*.db
+*.log
+*.out
+
+# Env
+.env
+backend/.env
+frontend/.env*
