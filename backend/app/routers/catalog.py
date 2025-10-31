@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from backend.app.config import DB_PATH
+from app.config import DB_PATH
 import sqlite3, csv, pathlib
 
 router = APIRouter()  # mounted under /api/catalog

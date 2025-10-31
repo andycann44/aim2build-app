@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query
 from typing import List, Dict, Any, Optional
 import os, sqlite3
 import requests
-from backend.app.config import DB_PATH
+from app.config import DB_PATH
 
 router = APIRouter()  # mounted under /api/sets in main.py
 

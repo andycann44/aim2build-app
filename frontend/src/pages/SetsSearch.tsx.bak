@@ -1,0 +1,48 @@
+import { useState } from "react";
+import { API } from "../lib/api";
+type Result = { set_num: string; name?: string; year?: number; img_url?: string };
+
+export default function SetsSearch(){
+  const [q,setQ]=useState(""); 
+  const [results,setResults]=useState<Result[]>([]);
+  const [busy,setBusy]=useState(false); 
+  const [error,setError]=useState<string>("");
+  // optional toast removed for simplified UI
+
+  const go=async()=>{
+    if(!q.trim()) return;
+    setBusy(true);
+    setError("");
+    try{
+      const url = `${API}/api/sets/search_sets?q=${encodeURIComponent(q)}&limit=20`;
+      const r = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      const data = await r.json();
+      const items = Array.isArray(data) ? data : (data?.results ?? []);
+      setResults(items);
+    } catch (e:any){
+      setError(e?.message || String(e));
+    } finally { setBusy(false); }
+  };
+
+  // add-to-owned handler intentionally omitted here per simplified results list
+
+  const loading = busy;
+  return <div style={{padding:16}}>
+    <h3>Search Sets</h3>
+    <input value={q} onChange={e=>setQ(e.target.value)} placeholder="e.g. train" /> 
+    <button onClick={go} disabled={!q||busy}>Search</button>
+    {loading && <p>Searching…</p>}
+    {error && <p style={{color:'#b00'}}>Error: {error}</p>}
+  {/* toast removed */}
+    {results.length > 0 ? (
+      <ul style={{marginTop:12}}>
+        {results.map((s:any) => (
+          <li key={s.set_num} style={{margin:'6px 0'}}>
+            <strong>{s.set_num}</strong> — {s.name} {s.year ? `(${s.year})` : ''}
+          </li>
+        ))}
+      </ul>
+    ) : (!loading && !error ? <p style={{color:'#666'}}>No results.</p> : null)}
+  </div>;
+}
