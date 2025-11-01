@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { api } from "../lib/api";
 
 // ---------- Config ----------
 const API = (import.meta as any)?.env?.VITE_API_BASE || 'http://127.0.0.1:8000';
@@ -44,6 +45,11 @@ export default function SetsSearch() {
   const [results, setResults] = useState<SetItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // Add-to-my-sets UI state
+  const [addingId, setAddingId] = React.useState<string | null>(null);
+  const [addedIds, setAddedIds] = React.useState<Record<string, boolean>>({});
+  const [toast, setToast] = React.useState<string>("");
 
   // UI
   const [cardSize, setCardSize] = useState<'small'|'medium'|'large'>('medium');
@@ -131,8 +137,29 @@ export default function SetsSearch() {
     if (e.key === 'Enter' && eligible && !busy) go();
   };
 
+  // Add to My Sets handler
+  async function addToMySets(item: SetItem){
+    try{
+      setAddingId(item.set_num);
+      await api("/api/my-sets/", {
+        method: "POST",
+        body: JSON.stringify(item),
+      });
+      setAddedIds(prev => ({ ...prev, [item.set_num]: true }));
+      setToast(`Added to My Sets: ${item.name ?? item.set_num}`);
+      setTimeout(() => setToast(""), 1500);
+    } finally {
+      setAddingId(null);
+    }
+  }
+
   return (
     <div style={{ maxWidth: 980, margin: '0 auto', padding: '16px' }}>
+      {toast && (
+        <div style={{position:"fixed", right:16, bottom:16, background:"#111827", color:"#fff", padding:"10px 12px", borderRadius:8, boxShadow:"0 4px 12px rgba(0,0,0,.25)"}}>
+          {toast}
+        </div>
+      )}
       <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
         Search Sets
         <span style={{ fontSize: 11, padding: '2px 6px', border: '1px solid #e5e5e5', borderRadius: 6, color: '#555' }}>ui-smart-spell</span>
@@ -198,7 +225,16 @@ export default function SetsSearch() {
                 )}
               </div>
               <div className="set-body">
-                <div className="set-actions"><button title="Add to My Sets" disabled>+ Add to My Sets</button></div>
+                <div className="set-actions">
+                  <button
+                    title="Add to My Sets"
+                    disabled={addingId === s.set_num || !!addedIds[s.set_num]}
+                    onClick={() => addToMySets(s)}
+                    style={{ padding: "8px 10px", borderRadius: 8, cursor: (addingId === s.set_num || !!addedIds[s.set_num]) ? "default" : "pointer" }}
+                  >
+                    {addedIds[s.set_num] ? "Added ✓" : (addingId === s.set_num ? "Saving…" : "Add to My Sets")}
+                  </button>
+                </div>
               </div>
             </div>
           );
