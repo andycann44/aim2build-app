@@ -14,7 +14,7 @@ export default function App(){
       <nav style={{padding:"8px 16px", display:"flex", gap:12}}>
         <Link to="/">Home</Link>
         <Link to="/search">Search</Link>
-        <Link to="/owned">Owned</Link>
+        <Link to="/owned">My Sets</Link>
         <Link to="/inventory">Inventory</Link>
         <Link to="/build">Buildability</Link>
       </nav>

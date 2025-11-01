@@ -8,7 +8,7 @@ export default function OwnedSets(){
   useEffect(()=>{ load(); },[]);
   const del=async (sn:string)=>{ await api(`/api/owned_sets/${encodeURIComponent(sn)}`,{method:"DELETE"}); load(); };
   return <div style={{padding:16}}>
-    <h3>Owned Sets</h3>
+    <h3>My Sets</h3>
     <ul style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12,listStyle:"none",padding:0}}>
       {rows.map(r=>(
         <li key={r.set_num} style={{border:"1px solid #ddd",borderRadius:8,padding:10,display:"flex",gap:12}}>
