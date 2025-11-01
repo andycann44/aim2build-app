@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 load_dotenv()
-from app.routers import catalog, sets, my_sets
+from app.routers import catalog, sets, my_sets, inventory
 try:
     from app.routers import buildability  # optional future router
 except Exception:
@@ -13,6 +13,9 @@ from app.routers import search_online
 
 app = FastAPI(title="Aim2Build API", version="0.2.0", redirect_slashes=False)
 
+
+# Inventory API
+app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_credentials=True,

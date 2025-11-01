@@ -1,73 +1,72 @@
-import { useEffect, useState } from "react";
+import React from "react";
 import { api } from "../lib/api";
 
-type InvRow = {
+type PartRow = {
   part_num: string;
-  color_id: number | null;
+  part_name: string;
+  color_id: number;
+  color_name: string;
+  img_url?: string;
   qty: number;
-  notes?: string | null;
-  name?: string | null;
-  img_url?: string | null;
-  color_rgb?: string | null;
 };
 
-function thumbUrl(row: InvRow): string | undefined {
-  // Prefer backend-provided image; otherwise show nothing (UI has fallback tile)
-  return row.img_url ?? undefined;
-}
-
 export default function Inventory(){
-  const [rows,setRows] = useState<InvRow[]>([]);
-  const [msg,setMsg]   = useState<string>("");
+  const [rows, setRows] = React.useState<PartRow[]>([]);
+  const [busy, setBusy] = React.useState(false);
+  const [minQty, setMinQty] = React.useState(1);
+  const [q, setQ] = React.useState("");
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await api<InvRow[]>("/api/inventory");
-        setRows(data);
-      } catch (e:any) {
-        setMsg(String(e?.message || e));
-      }
-    })();
-  }, []);
+  async function load(){
+    setBusy(true);
+    try{
+      const data = await api(`/api/inventory/parts?min_qty=${minQty}&q=${encodeURIComponent(q)}`);
+      setRows(Array.isArray(data) ? data : []);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rebuild(){
+    setBusy(true);
+    try{
+      await api(`/api/inventory/rebuild`, { method: "POST" });
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  React.useEffect(()=>{ load(); }, []); // initial
 
   return (
     <div style={{padding:16}}>
-      <h3>Inventory</h3>
-      {msg && <div style={{color:"#b00", marginBottom:8}}>{msg}</div>}
-      {rows.length === 0 ? <p>No parts yet. Add some via the Inventory page.</p> : null}
-      <div style={{
-        display:"grid",
-        gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))",
-        gap:12
-      }}>
-        {rows.map((r,idx) => (
-          <div key={`${r.part_num}-${r.color_id ?? "x"}-${idx}`} style={{
-            border:"1px solid #e5e7eb",
-            borderRadius:8,
-            padding:10,
-            background:"#fff"
-          }}>
-            <div style={{
-              height:110, display:"flex", alignItems:"center", justifyContent:"center",
-              background:"#fafafa", borderRadius:6, marginBottom:8, overflow:"hidden"
-            }}>
-              {thumbUrl(r)
-                ? <img src={thumbUrl(r)} alt={r.part_num}
-                       style={{maxWidth:"100%", maxHeight:"100%", objectFit:"contain"}}
-                       onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display="none";}}/>
-                : <div style={{
-                    width:64,height:40,background:"#ff2d2d",
-                    border:"3px solid #b81b1b",borderRadius:6
-                  }}/>}
-            </div>
-            <div style={{fontWeight:600}}>{r.part_num} × {r.qty}</div>
-            <div style={{fontSize:12, opacity:.75}}>
-              C{r.color_id ?? "-"} {r.name ? `· ${r.name}` : ""}
-            </div>
-          </div>
-        ))}
+      <h3>Inventory Parts {busy && <small style={{opacity:.6}}>(working…)</small>}</h3>
+
+      <div style={{display:"flex", gap:8, alignItems:"center", margin:"8px 0"}}>
+        <button onClick={rebuild} style={{padding:"8px 12px", borderRadius:8}}>Rebuild from My Sets</button>
+        <label> Min qty&nbsp;
+          <input type="number" min={1} value={minQty} onChange={e=>setMinQty(parseInt(e.target.value||"1"))} style={{width:64}}/>
+        </label>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="filter part name/num" style={{flex:1, padding:"8px 10px", borderRadius:8, border:"1px solid #ddd"}}/>
+        <button onClick={load} style={{padding:"8px 12px", borderRadius:8}}>Apply</button>
       </div>
+
+      {!rows.length && <div style={{opacity:.7}}>No parts yet. Click “Rebuild from My Sets”.</div>}
+
+      <ul style={{display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:12, listStyle:"none", padding:0, marginTop:12}}>
+        {rows.map((r, i) => (
+          <li key={r.part_num + ":" + r.color_id + ":" + i}
+              style={{border:"1px solid #ddd", borderRadius:12, padding:10, display:"flex", gap:12, alignItems:"center", background:"#fff"}}>
+            <div style={{width:96, height:72, display:"flex", alignItems:"center", justifyContent:"center", background:"#f5f5f5", borderRadius:8}}>
+              {r.img_url ? <img src={r.img_url} alt={r.part_name} style={{maxWidth:"100%", maxHeight:"100%", objectFit:"cover"}}/> : null}
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:600}}>{r.part_name} <span style={{opacity:.6}}>({r.part_num})</span></div>
+              <div style={{opacity:.75, fontSize:13}}>Color: {r.color_name} · Qty: {r.qty}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
