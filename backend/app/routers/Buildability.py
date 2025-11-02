@@ -57,7 +57,7 @@ def _need_for_set(set_num: str) -> List[Dict[str,Any]]:
     return res if isinstance(res, list) else []
 
 @router.get("/check")
-def check_buildability(set_num: str) -> Dict[str,Any]:
+def check_buildability(set_num: str, ignore_color: bool = False) -> Dict[str,Any]:
     set_num = (set_num or "").strip()
     if not set_num:
         raise HTTPException(status_code=422, detail="set_num required")
@@ -77,7 +77,7 @@ def check_buildability(set_num: str) -> Dict[str,Any]:
         cid = int(color.get("id") or 0)
         if not pn: 
             continue
-        have_qty = int(have.get((pn, cid), 0))
+        have_qty = int(have.get((pn, cid), 0)) if not ignore_color else sum(v for (pp,cc),v in have.items() if pp==pn)
         use_qty = min(have_qty, qty)
         total_needed += qty
         total_have += use_qty

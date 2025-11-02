@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pathlib import Path
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import logging
 logger = logging.getLogger("aim2build.inventory")
 if not logger.handlers:
@@ -29,7 +29,7 @@ def _save(rows: List[Dict[str, Any]]) -> None:
     tmp.write_text(json.dumps(rows, indent=2))
     tmp.replace(INV_FILE)
 
-@router.get("/", response_model=list)
+@router.get("", response_model=list)
 def list_inventory():
     return _load()
 
@@ -118,7 +118,6 @@ def _aggregate() -> list:
 def _agg_load() -> list:
     if AGG_FILE.exists():
         try:
-            import json
             data = json.loads(AGG_FILE.read_text() or "[]")
             return data if isinstance(data, list) else []
         except Exception:
@@ -126,7 +125,6 @@ def _agg_load() -> list:
     return []
 
 def _agg_save(rows: list):
-    import json
     tmp = AGG_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(rows or [], indent=2))
     tmp.replace(AGG_FILE)
@@ -156,3 +154,56 @@ def parts_clear():
     except Exception:
         pass
     return {"ok": True}
+
+
+# A2B: inventory summary
+
+RES_FILE = DATA_DIR / "reservations.json"
+
+def _to_bins(rows:List[Dict[str,Any]]) -> Dict[Tuple[str,int], int]:
+    bins={}
+    for r in rows or []:
+        pn=str(r.get("part_num") or "")
+        cid=int(r.get("color_id") or 0)
+        qty=int(r.get("qty") or 0)
+        if pn and qty>0:
+            bins[(pn,cid)] = bins.get((pn,cid),0)+qty
+    return bins
+
+def _load_json(f:Path):
+    if not f.exists(): return []
+    try: return json.loads(f.read_text() or "[]")
+    except Exception: return []
+
+def _free_bins():
+    have=_to_bins(_load_json(AGG_FILE))
+    res=_to_bins(_load_json(RES_FILE))
+    for k,v in res.items():
+        if k in have:
+            have[k]=max(0, have[k]-v)
+    return {k:v for k,v in have.items() if v>0}
+
+@router.get("/summary", tags=["inventory"])
+def inventory_summary():
+    have=_to_bins(_load_json(AGG_FILE))
+    res=_to_bins(_load_json(RES_FILE))
+    free=_free_bins()
+    have_total=sum(have.values())
+    res_total=sum(res.values())
+    free_total=sum(free.values())
+    return {
+        "ok": True,
+        "totals": {
+            "have_total": int(have_total),
+            "reserved_total": int(res_total),
+            "free_total": int(free_total),
+            "distinct_parts_free": int(len(free)),
+        }
+    }
+
+@router.get("/free")
+def inventory_free(limit: int = Query(500, ge=1, le=5000), offset: int = 0):
+    free=_free_bins()
+    rows=[{"part_num":pn, "color_id":cid, "qty":qty} for (pn,cid),qty in free.items()]
+    rows.sort(key=lambda r:(-r["qty"], r["part_num"], r["color_id"]))
+    return {"ok": True, "rows": rows[offset:offset+limit], "total": len(rows)}
