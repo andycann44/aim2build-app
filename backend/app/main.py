@@ -3,6 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 load_dotenv()
 from app.routers import catalog, sets, my_sets, inventory
+import app.routers.buildability as buildability
+import app.routers.reservations as reservations
+import app.routers.buildability as buildability
+import app.routers.reservations as reservations
+import app.routers.buildability as buildability
 try:
     from app.routers import buildability  # optional future router
 except Exception:
@@ -24,6 +29,7 @@ app.add_middleware(
 
 # Router mounts (one each)
 app.include_router(catalog.router,   prefix="/api/catalog")
+app.include_router(reservations.router, prefix="/api/reservations", tags=["reservations"])
 app.include_router(sets.router,      prefix="/api/sets")
 app.include_router(my_sets.router,   prefix="/api/my-sets")
 app.include_router(search_online.router, prefix='/api/search')

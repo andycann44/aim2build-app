@@ -5,56 +5,49 @@
       "name": "Home Alone",
       "year": 2021,
       "img_url": "https://cdn.rebrickable.com/media/sets/21330-1/94025.jpg",
-      "num_parts": 3955,
-      "in_inventory": true
+      "num_parts": 3955
     },
     {
       "set_num": "42115-1",
       "name": "Lamborghini Sián FKP 37",
       "year": 2020,
       "img_url": "https://cdn.rebrickable.com/media/sets/42115-1/63711.jpg",
-      "num_parts": 3696,
-      "in_inventory": true
+      "num_parts": 3696
     },
     {
       "set_num": "76218-1",
       "name": "Sanctum Sanctorum",
       "year": 2022,
       "img_url": "https://cdn.rebrickable.com/media/sets/76218-1/104030.jpg",
-      "num_parts": 2713,
-      "in_inventory": true
+      "num_parts": 2713
     },
     {
       "set_num": "5008076-1",
       "name": "Taxi",
       "year": 2023,
       "img_url": "https://cdn.rebrickable.com/media/sets/5008076-1/132451.jpg",
-      "num_parts": 150,
-      "in_inventory": true
+      "num_parts": 150
     },
     {
       "set_num": "42141-1",
       "name": "McLaren Formula 1 Team 2022 (First Edition)",
       "year": 2022,
       "img_url": "https://cdn.rebrickable.com/media/sets/42141-1/98512.jpg",
-      "num_parts": 1432,
-      "in_inventory": true
+      "num_parts": 1432
     },
     {
       "set_num": "42172-1",
       "name": "McLaren P1",
       "year": 2024,
       "img_url": "https://cdn.rebrickable.com/media/sets/42172-1/142568.jpg",
-      "num_parts": 3893,
-      "in_inventory": true
+      "num_parts": 3893
     },
     {
       "set_num": "76108-1",
       "name": "Sanctum Sanctorum Showdown",
       "year": 2018,
       "img_url": "https://cdn.rebrickable.com/media/sets/76108-1/15543.jpg",
-      "num_parts": 1011,
-      "in_inventory": true
+      "num_parts": 1011
     }
   ]
 }
