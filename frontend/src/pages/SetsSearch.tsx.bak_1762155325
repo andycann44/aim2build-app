@@ -15,7 +15,7 @@ type SetItem = {
 };
 
 // Suggestion helper: built-ins + optional external map
-function suggestQuery(raw: string, in_inventory: false,  extMap?: Record<string, string>): { alt: string; changed: boolean } {
+function suggestQuery(raw: string, extMap?: Record<string, string>): { alt: string; changed: boolean } {
   const q = (raw || '').trim();
   if (!q) return { alt: q, changed: false };
   const BASE: Record<string, string> = {
