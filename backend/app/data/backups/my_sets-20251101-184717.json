@@ -1,0 +1,32 @@
+{
+  "sets": [
+    {
+      "set_num": "TEST-1",
+      "name": "Test",
+      "year": 0,
+      "img_url": "",
+      "num_parts": null
+    },
+    {
+      "set_num": "21330-1",
+      "name": "Home Alone",
+      "year": 2021,
+      "img_url": "https://cdn.rebrickable.com/media/sets/21330-1/94025.jpg",
+      "num_parts": 3955
+    },
+    {
+      "set_num": "42115-1",
+      "name": "Lamborghini Sián FKP 37",
+      "year": 2020,
+      "img_url": "https://cdn.rebrickable.com/media/sets/42115-1/63711.jpg",
+      "num_parts": 3696
+    },
+    {
+      "set_num": "76218-1",
+      "name": "Sanctum Sanctorum",
+      "year": 2022,
+      "img_url": "https://cdn.rebrickable.com/media/sets/76218-1/104030.jpg",
+      "num_parts": 2713
+    }
+  ]
+}
