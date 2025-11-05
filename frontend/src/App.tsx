@@ -5,6 +5,7 @@ import SetsSearch from "./pages/SetsSearch";
 import MySets from "./pages/MySets";
 import Inventory from "./pages/Inventory";
 import Buildability from "./pages/Buildability";
+import BuildabilityCompare from "./pages/BuildabilityCompare"; // ← add this
 
 export default function App(){
   return (
@@ -23,8 +24,9 @@ export default function App(){
         <Route path="/my-sets" element={<MySets/>}/>
         <Route path="/inventory" element={<Inventory/>}/>
         <Route path="/buildability" element={<Buildability/>}/>
-        {/* old alias */}
+        <Route path="/buildability/compare/:id" element={<BuildabilityCompare/>}/>
         <Route path="/owned" element={<Navigate to="/my-sets" replace />} />
+        <Route path="/buildability/compare/:set_id" element={<BuildabilityCompare/>} />
       </Routes>
     </BrowserRouter>
   );

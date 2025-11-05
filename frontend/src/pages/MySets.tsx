@@ -6,22 +6,22 @@ type Saved = { set_num: string; name: string; year?: number; img_url?: string; n
 export default function MySets(){
   const [rows, setRows] = useState<Saved[]>([]);
   const [busy, setBusy] = useState(false);
-  const [inv, setInv] = useState<Record<string, boolean>>({});
-  const [big, setBig] = useState<boolean>(() => localStorage.getItem("a2b.bigTiles")==="1");
-
+  const [inv,  setInv ] = useState<Record<string, boolean>>({});
+  const [big, setBig]   = useState<boolean>(() => localStorage.getItem("a2b.bigTiles")==="1");
   const cardSize = useMemo(()=> big ? {w:140,h:110} : {w:96,h:72}, [big]);
 
   async function load(){
     setBusy(true);
     try{
-      // load saved sets
+      // 1) my sets
       const data = await api(`/api/my-sets/`);
       const list = Array.isArray(data) ? data : (data?.sets ?? []);
       const safe = Array.isArray(list) ? list : [];
       setRows(safe);
-      // load inventory to mark toggles
+
+      // 2) inventory sets (ticks)
       const invData = await api(`/api/inventory/`);
-      const ids = new Set<string>((Array.isArray(invData) ? invData : []).map((r:any)=>r.set_num));
+      const ids = new Set<string>((Array.isArray(invData) ? invData : []).map((r:any)=> String(r.set_num)));
       const map: Record<string, boolean> = {};
       safe.forEach(r => { map[r.set_num] = ids.has(r.set_num); });
       setInv(map);
@@ -30,16 +30,31 @@ export default function MySets(){
     }
   }
 
-  async function toggleInv(item: Saved, on: boolean){
-    setInv(prev => ({ ...prev, [item.set_num]: on }));
-    await api("/api/inventory/toggle", {
-      method: "POST",
-      body: JSON.stringify({ ...item, on }),
-    });
-  }
-
   useEffect(() => { load(); }, []);
   useEffect(() => { localStorage.setItem("a2b.bigTiles", big ? "1" : "0"); }, [big]);
+
+  async function toggleInv(item: Saved, on: boolean){
+    // optimistic update
+    setInv(prev => ({ ...prev, [item.set_num]: on }));
+    try{
+      const res = await api("/api/inventory/toggle", {
+        method: "POST",
+        body: JSON.stringify({ ...item, on }),
+      });
+      if (!res?.ok) throw new Error("toggle failed");
+
+      // harden: re-read server truth to avoid drift
+      const invData = await api(`/api/inventory/`);
+      const ids = new Set<string>((Array.isArray(invData) ? invData : []).map((r:any)=> String(r.set_num)));
+      setInv(prev => ({ ...prev, [item.set_num]: ids.has(item.set_num) }));
+      // optional: broadcast so Inventory page refreshes live
+      window.dispatchEvent(new CustomEvent("a2p-inventory-updated"));
+    } catch {
+      // revert on error
+      setInv(prev => ({ ...prev, [item.set_num]: !on }));
+      alert("Could not update inventory; please try again.");
+    }
+  }
 
   return (
     <div style={{padding:16}}>
@@ -71,7 +86,13 @@ export default function MySets(){
                 In Inventory
               </label>
             </div>
-            <button onClick={async ()=>{ await api(`/api/my-sets/${encodeURIComponent(r.set_num)}`, { method: "DELETE" }); load(); }} style={{padding:"8px 10px", borderRadius:8}}>
+            <button
+              onClick={async ()=>{
+                await api(`/api/my-sets/${encodeURIComponent(r.set_num)}`, { method: "DELETE" });
+                await load();
+              }}
+              style={{padding:"8px 10px", borderRadius:8}}
+            >
               Remove
             </button>
           </li>
