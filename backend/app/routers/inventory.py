@@ -1,161 +1,168 @@
 from __future__ import annotations
-import json, os
-from pathlib import Path
-from typing import Dict, Tuple, List
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+from typing import List, Dict, Tuple, Optional
+from collections import defaultdict
+import os, json
 
-# ---- paths -------------------------------------------------
 router = APIRouter()
-DATA_DIR        = Path(__file__).resolve().parents[1] / "data"
-INV_SETS_PATH   = DATA_DIR / "inventory.json"          # { "sets": [ { set_num, name?, year?, img_url?, qty? } ] }
-INV_PARTS_PATH  = DATA_DIR / "inventory_parts.json"    # [ { part_num, color_id, qty_total, img_url? } ]
-CACHE_DIR       = DATA_DIR / "parts_cache"
 
-# optional: use API when cache is missing
+# ---- paths & files
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+INV_SETS_PATH = os.path.join(DATA_DIR, "inventory.json")
+INV_PARTS_PATH = os.path.join(DATA_DIR, "inventory_parts.json")
+PARTS_CACHE_DIR = os.path.join(DATA_DIR, "parts_cache")
+
+# lazy import so file loads without the service in tests
 def _ensure_cached_parts(set_num: str) -> List[dict]:
-    """
-    Return list of parts for set_num. Prefer local cache; if missing try to fetch via services.rebrickable.
-    Each row shape: { part_num, color_id, quantity, part_img_url? }
-    """
-    sid_dash = set_num if "-" in set_num else f"{set_num}-1"
-    sid_plain = sid_dash.split("-")[0]
-    for key in (f"{sid_dash}.json", f"{sid_plain}.json"):
-        p = CACHE_DIR / key
-        if p.exists():
-            try:
-                data = json.loads(p.read_text(encoding="utf-8"))
-                if isinstance(data, list) and data and isinstance(data[0], dict):
-                    return data
-            except Exception:
-                pass
-
-    # fallback: try fetch
     try:
         from app.services.rebrickable import ensure_cached_parts
-        parts = ensure_cached_parts(sid_dash)
-        # persist under both names for tolerance
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        (CACHE_DIR / f"{sid_dash}.json").write_text(json.dumps(parts, ensure_ascii=False, indent=2), encoding="utf-8")
-        (CACHE_DIR / f"{sid_plain}.json").write_text(json.dumps(parts, ensure_ascii=False, indent=2), encoding="utf-8")
-        return parts
-    except Exception:
-        # final fallback: empty
+        return ensure_cached_parts(set_num)
+    except Exception as e:
+        # non-fatal; aggregation will just not include it yet
+        print(f"[inventory] ensure_cached_parts failed for {set_num}: {e}")
         return []
 
-# ---- small JSON helpers -----------------------------------
-def _read_json(path: Path, default):
-    if not path.exists(): return default
+# ---- models
+class TogglePayload(BaseModel):
+    set_num: Optional[str] = None
+    set: Optional[str] = None
+    id: Optional[str] = None
+    name: Optional[str] = None
+    year: Optional[int] = None
+    img_url: Optional[str] = None
+    num_parts: Optional[int] = None
+    on: bool
+
+# ---- small io helpers
+def _read_json(path: str, default):
+    if not os.path.exists(path):
+        return default
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
     except Exception:
         return default
 
-def _load_inventory_sets() -> List[dict]:
-    obj = _read_json(INV_SETS_PATH, {"sets": []})
-    if isinstance(obj, dict) and "sets" in obj and isinstance(obj["sets"], list):
-        return obj["sets"]
-    if isinstance(obj, list):
-        return obj
+def _write_json(path: str, obj) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
+
+def _canon_set_id(v: str) -> str:
+    s = str(v).strip()
+    return s if "-" in s else f"{s}-1"
+
+# ---- inventory sets (which sets are toggled on)
+@router.get("")
+@router.get("/")
+def list_inventory_sets():
+    raw = _read_json(INV_SETS_PATH, {"sets": []})
+    return raw.get("sets", []) if isinstance(raw, dict) else raw
+
+@router.post("/toggle")
+def toggle_inventory(payload: TogglePayload):
+    sid = payload.set_num or payload.set or payload.id
+    if not sid:
+        raise HTTPException(422, "set_num required")
+    sid = _canon_set_id(sid)
+
+    store = _read_json(INV_SETS_PATH, {"sets": []})
+    rows = store.get("sets", []) if isinstance(store, dict) else (store if isinstance(store, list) else [])
+
+    if payload.on:
+        if not any(r.get("set_num") == sid for r in rows):
+            rows.append({
+                "set_num": sid,
+                "name": payload.name or "",
+                "year": payload.year or 0,
+                "img_url": payload.img_url or "",
+                "num_parts": payload.num_parts,
+                "qty": 1
+            })
+        # fetch/cache parts for this set (non-fatal if it fails)
+        _ensure_cached_parts(sid)
+    else:
+        rows = [r for r in rows if r.get("set_num") != sid]
+
+    _write_json(INV_SETS_PATH, {"sets": rows})
+
+    # always rebuild aggregated parts on toggle so UI shows qty immediately
+    _rebuild_inventory_parts()
+    return {"ok": True, "count": len(rows)}
+
+# ---- aggregation (build inventory_parts.json with qty_total)
+def _load_set_parts_from_cache(set_num: str) -> List[dict]:
+    dash = set_num if "-" in set_num else f"{set_num}-1"
+    plain = dash.split("-")[0]
+    for name in (f"{dash}.json", f"{plain}.json"):
+        p = os.path.join(PARTS_CACHE_DIR, name)
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                return json.load(f)
     return []
 
-def _save_inventory_sets(rows: List[dict]):
-    INV_SETS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp = INV_SETS_PATH.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"sets": rows}, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(INV_SETS_PATH)
+def _aggregate_inventory_parts() -> List[dict]:
+    inv = _read_json(INV_SETS_PATH, {"sets": []})
+    sets = inv.get("sets", []) if isinstance(inv, dict) else inv
 
-# ---- aggregation (authoritative) --------------------------
-def _rebuild_inventory_parts() -> List[dict]:
-    """
-    Read inventory sets -> load each set's cached parts -> aggregate to unique (part_num,color_id).
-    Write to inventory_parts.json and return the list.
-    """
-    sets = _load_inventory_sets()
-    tally: Dict[Tuple[str,int], Dict[str, int | str]] = {}
+    counts: Dict[Tuple[str, int], int] = defaultdict(int)
+    img_map: Dict[Tuple[str, int], str] = {}
 
     for s in sets:
         sid = str(s.get("set_num") or "").strip()
         if not sid:
             continue
-        parts = _ensure_cached_parts(sid)
-        for row in parts:
-            pn = row.get("part_num")
-            cid = row.get("color_id")
-            qty = row.get("quantity") or row.get("qty") or 0
-            if pn is None or cid is None: 
+        qty = int(s.get("qty") or 1)
+        parts = _load_set_parts_from_cache(sid)
+        # expected each: {"part_num","color_id","quantity", "part_img_url"?}
+        for r in parts:
+            pn = r.get("part_num")
+            cid = r.get("color_id")
+            need = r.get("quantity") or r.get("qty") or 0
+            if not pn or cid is None:
                 continue
-            key = (str(pn), int(cid))
-            item = tally.get(key)
-            if not item:
-                item = {"part_num": str(pn), "color_id": int(cid), "qty_total": 0}
-                # carry an image if present
-                img = row.get("part_img_url") or row.get("img_url") or row.get("element_img_url")
-                if img: item["img_url"] = img
-                tally[key] = item
-            item["qty_total"] = int(item["qty_total"]) + int(qty)
+            key = (pn, int(cid))
+            counts[key] += int(need) * qty
+            img = r.get("part_img_url") or r.get("img_url") or ""
+            if img and key not in img_map:
+                img_map[key] = img
 
-    out = list(tally.values())
-    INV_PARTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    INV_PARTS_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    return out
+    rows = [{
+        "part_num": pn,
+        "color_id": cid,
+        "qty_total": total,
+        **({"img_url": img_map[(pn, cid)]} if (pn, cid) in img_map else {})
+    } for (pn, cid), total in counts.items()]
 
-# ---- routes ------------------------------------------------
-@router.get("")      # /api/inventory
-@router.get("/")     # /api/inventory/
-def list_inventory_sets():
-    """Return sets currently marked as 'in inventory'."""
-    return _load_inventory_sets()
-
-@router.get("/parts")
-def list_inventory_parts(min_qty: int = 1, q: str = ""):
-    """
-    UI reader: return aggregated parts, filtered by min_qty and optional name/num query (client does the name filter).
-    """
-    rows = _read_json(INV_PARTS_PATH, [])
-    # backwards-compat: if file missing, rebuild once
-    if not rows:
-        rows = _rebuild_inventory_parts()
-
-    # apply min filter
-    rows = [r for r in rows if int(r.get("qty_total") or 0) >= int(min_qty)]
+    rows.sort(key=lambda x: (-x["qty_total"], x["part_num"], x["color_id"]))
     return rows
 
+def _rebuild_inventory_parts() -> int:
+    rows = _aggregate_inventory_parts()
+    _write_json(INV_PARTS_PATH, rows)
+    return len(rows)
+
 @router.post("/rebuild")
-def force_rebuild():
-    """Manual/UIButton: force rebuild from current inventory sets."""
-    out = _rebuild_inventory_parts()
-    return {"ok": True, "count": len(out)}
+def rebuild_inventory():
+    n = _rebuild_inventory_parts()
+    return {"ok": True, "rows": n}
 
-@router.post("/toggle")
-def toggle_inventory(payload: dict):
-    """
-    Authoritative toggle:
-    - on=true  => add set (if not present)
-    - on=false => remove set
-    Always followed by a rebuild so parts match the ticks.
-    """
-    set_num = str(payload.get("set_num") or "").strip()
-    on = bool(payload.get("on"))
-    if not set_num:
-        raise HTTPException(422, "set_num required")
-
-    rows = _load_inventory_sets()
-
-    if on:
-        if not any(str(r.get("set_num")) == set_num for r in rows):
-            rows.append({
-                "set_num": set_num,
-                "name": payload.get("name") or "",
-                "year": payload.get("year") or None,
-                "img_url": payload.get("img_url") or "",
-                "num_parts": payload.get("num_parts") or None,
-                "qty": payload.get("qty") or 1,
-            })
-        # warm cache so rebuild is instantaneous
-        _ensure_cached_parts(set_num)
-    else:
-        rows = [r for r in rows if str(r.get("set_num")) != set_num]
-
-    _save_inventory_sets(rows)
-    _rebuild_inventory_parts()
-    return {"ok": True, "on": on, "sets": rows}
+# ---- query parts for UI
+@router.get("/parts")
+def list_parts(min_qty: int = Query(1), q: str = Query("")):
+    rows = _read_json(INV_PARTS_PATH, [])
+    if not isinstance(rows, list):
+        rows = []
+    ql = q.strip().lower()
+    out = []
+    for r in rows:
+        if r.get("qty_total", 0) < int(min_qty):
+            continue
+        if ql:
+            if ql not in str(r.get("part_num", "")).lower():
+                continue
+        out.append(r)
+    return out
