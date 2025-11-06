@@ -1,97 +1,204 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { api } from "../lib/api";
+import React, { useEffect, useState } from "react";
 
-type Saved = { set_num: string; name: string; year?: number; img_url?: string; num_parts?: number };
+const API =
+  (import.meta as any)?.env?.VITE_API_BASE || "http://127.0.0.1:8000";
 
-export default function MySets(){
-  const [rows, setRows] = useState<Saved[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [inv,  setInv ] = useState<Record<string, boolean>>({});
-  const [big, setBig]   = useState<boolean>(() => localStorage.getItem("a2b.bigTiles")==="1");
-  const cardSize = useMemo(()=> big ? {w:140,h:110} : {w:96,h:72}, [big]);
+type SavedSet = {
+  set_num: string;
+  name: string;
+  year?: number;
+  img_url?: string;
+  num_parts?: number;
+  in_inventory?: boolean; // computed by backend
+};
 
-  async function load(){
-    setBusy(true);
-    try{
-      // 1) my sets
-      const data = await api(`/api/my-sets/`);
-      const list = Array.isArray(data) ? data : (data?.sets ?? []);
-      const safe = Array.isArray(list) ? list : [];
-      setRows(safe);
+async function api<T = any>(path: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(`${API}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+  if (!r.ok) throw new Error(`${path} ${r.status}`);
+  return r.json();
+}
 
-      // 2) inventory sets (ticks)
-      const invData = await api(`/api/inventory/`);
-      const ids = new Set<string>((Array.isArray(invData) ? invData : []).map((r:any)=> String(r.set_num)));
-      const map: Record<string, boolean> = {};
-      safe.forEach(r => { map[r.set_num] = ids.has(r.set_num); });
-      setInv(map);
+export default function MySets() {
+  const [rows, setRows] = useState<SavedSet[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      // backend returns { sets: [...] }
+      const data = await api<{ sets: SavedSet[] }>("/api/my-sets/");
+      const list = Array.isArray((data as any)?.sets) ? data.sets : [];
+      setRows(list);
+    } catch (e) {
+      console.error(e);
+      setRows([]);
     } finally {
-      setBusy(false);
+      setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, []);
-  useEffect(() => { localStorage.setItem("a2b.bigTiles", big ? "1" : "0"); }, [big]);
-
-  async function toggleInv(item: Saved, on: boolean){
-    // optimistic update
-    setInv(prev => ({ ...prev, [item.set_num]: on }));
-    try{
-      const res = await api("/api/inventory/toggle", {
+  async function toggleInventory(row: SavedSet, on: boolean) {
+    try {
+      // send a REAL boolean; backend expects set_num + on
+      await api("/api/inventory/toggle", {
         method: "POST",
-        body: JSON.stringify({ ...item, on }),
+        body: JSON.stringify({
+          set_num: row.set_num,
+          on,
+          name: row.name,
+          year: row.year,
+          img_url: row.img_url,
+          num_parts: row.num_parts,
+        }),
       });
-      if (!res?.ok) throw new Error("toggle failed");
 
-      // harden: re-read server truth to avoid drift
-      const invData = await api(`/api/inventory/`);
-      const ids = new Set<string>((Array.isArray(invData) ? invData : []).map((r:any)=> String(r.set_num)));
-      setInv(prev => ({ ...prev, [item.set_num]: ids.has(item.set_num) }));
-      // optional: broadcast so Inventory page refreshes live
-      window.dispatchEvent(new CustomEvent("a2p-inventory-updated"));
-    } catch {
-      // revert on error
-      setInv(prev => ({ ...prev, [item.set_num]: !on }));
-      alert("Could not update inventory; please try again.");
+      // ensure Inventory page forces a refresh next visit
+      sessionStorage.setItem("a2b.inventory.needsRefresh", "1");
+
+      // hard refresh My Sets so ticks stay in sync with backend truth
+      await load();
+    } catch (e) {
+      console.error(e);
+      alert("Could not update inventory. Please try again.");
     }
   }
+
+  async function removeSet(row: SavedSet) {
+    if (!confirm(`Remove "${row.name}" (${row.set_num}) from My Sets?`)) return;
+    try {
+      await api(`/api/my-sets/${encodeURIComponent(row.set_num)}`, {
+        method: "DELETE",
+      });
+      await load();
+      // also nudge inventory page since removal might affect parts
+      sessionStorage.setItem("a2b.inventory.needsRefresh", "1");
+    } catch (e) {
+      console.error(e);
+      alert("Could not remove set. Please try again.");
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
 
   return (
-    <div style={{padding:16}}>
-      <h3>My Sets {busy && <small style={{opacity:.6}}>(loading…)</small>}</h3>
+    <div style={{ padding: 16 }}>
+      <h3 style={{ margin: 0 }}>My Sets</h3>
+      {loading && <div style={{ opacity: 0.7, marginTop: 6 }}>Loading…</div>}
+      {!loading && rows.length === 0 && (
+        <div style={{ opacity: 0.75, marginTop: 8 }}>
+          No sets yet. Use the Search page to add some.
+        </div>
+      )}
 
-      <div style={{display:"flex", gap:12, alignItems:"center", margin:"8px 0 4px"}}>
-        <label style={{display:"inline-flex", alignItems:"center", gap:6}}>
-          <input type="checkbox" checked={big} onChange={e=>setBig(e.target.checked)}/> Bigger tiles
-        </label>
-      </div>
-
-      {!rows.length && <div style={{opacity:.7, marginTop:8}}>No sets yet. Add from Search.</div>}
-
-      <ul style={{display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:12, listStyle:"none", padding:0, marginTop:12}}>
-        {rows.map(r => (
-          <li key={r.set_num} style={{border:"1px solid #ddd", borderRadius:12, padding:10, display:"flex", gap:12, alignItems:"center", background:"#fff"}}>
-            <div style={{width:cardSize.w, height:cardSize.h, display:"flex", alignItems:"center", justifyContent:"center", background:"#f5f5f5", borderRadius:8}}>
-              {r.img_url ? <img src={r.img_url} alt={r.name} style={{maxWidth:"100%", maxHeight:"100%", objectFit:"cover"}} /> : null}
+      <ul
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+          gap: 12,
+          listStyle: "none",
+          padding: 0,
+          marginTop: 12,
+        }}
+      >
+        {rows.map((r) => (
+          <li
+            key={r.set_num}
+            style={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 12,
+              background: "#fff",
+              padding: 10,
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              boxShadow: "0 1px 2px rgba(0,0,0,.03)",
+            }}
+          >
+            {/* Image box – contain, not crop */}
+            <div
+              style={{
+                width: 120,
+                height: 90,
+                borderRadius: 8,
+                background: "#f4f5f7",
+                border: "1px solid #e5e7eb",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                flexShrink: 0,
+              }}
+            >
+              {r.img_url ? (
+                <img
+                  src={r.img_url}
+                  alt={r.name}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                    display: "block",
+                  }}
+                  loading="lazy"
+                />
+              ) : (
+                <span style={{ fontSize: 11, color: "#999" }}>no image</span>
+              )}
             </div>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:600}}>{r.name} <span style={{opacity:.6}}>({r.set_num})</span></div>
-              <div style={{opacity:.75, fontSize:13}}>{r.year ?? ""}</div>
-              <label style={{display:"inline-flex", alignItems:"center", gap:6, marginTop:8}}>
+
+            {/* Text + toggle */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Full name visible; falls to next line if long */}
+              <div
+                style={{
+                  fontWeight: 600,
+                  lineHeight: 1.2,
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere",
+                }}
+                title={r.name}
+              >
+                {r.name}
+              </div>
+              <div style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>
+                {r.set_num}
+                {r.year ? ` • ${r.year}` : ""}
+              </div>
+
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 8,
+                  userSelect: "none",
+                  cursor: "pointer",
+                }}
+              >
                 <input
                   type="checkbox"
-                  checked={!!inv[r.set_num]}
-                  onChange={e=>toggleInv(r, e.target.checked)}
+                  checked={!!r.in_inventory}
+                  onChange={(e) => toggleInventory(r, e.currentTarget.checked)}
                 />
                 In Inventory
               </label>
             </div>
+
             <button
-              onClick={async ()=>{
-                await api(`/api/my-sets/${encodeURIComponent(r.set_num)}`, { method: "DELETE" });
-                await load();
+              onClick={() => removeSet(r)}
+              style={{
+                padding: "8px 10px",
+                borderRadius: 8,
+                border: "1px solid #e5e7eb",
+                background: "#fff",
+                cursor: "pointer",
               }}
-              style={{padding:"8px 10px", borderRadius:8}}
+              title="Remove from My Sets"
             >
               Remove
             </button>
