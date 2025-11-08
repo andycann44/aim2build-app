@@ -22,19 +22,8 @@
 
 ## Buildability (compare set vs your inventory)
 - GET `/api/buildability/compare?set=<set_num>` (aliases: `set|set_num|id`)
-  - Response:
-    ```json
-    {
-      "set_num": "71819-1",
-      "coverage": 0.23,
-      "total_needed": 708,
-      "total_have": 162,
-      "missing_parts": [
-        { "part_num":"3001", "color_id":5, "need":4, "have":1, "short":3 },
-        ...
-      ]
-    }
-    ```
+  - Response example (fields):
+    - `set_num`, `coverage`, `total_needed`, `total_have`, `missing_parts[]`
   - `coverage = total_have / total_needed`
 
 ## My Sets (JSON file `backend/app/data/my_sets.json`)
@@ -58,4 +47,3 @@
 ## Known-good check
 - Set `71819-1` returns `total_needed: 708`.
 - Coverage responds to `inventory_parts.json` updates in real time.
-
