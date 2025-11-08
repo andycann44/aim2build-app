@@ -11,7 +11,7 @@ CREATE TABLE sets_new(
 );
 
 .mode csv
-.import sets.csv sets_new
+.import backend/app/data/sets.csv sets_new
 DELETE FROM sets_new WHERE set_num='set_num';  -- drop header row if present
 
 DROP TABLE IF EXISTS sets;
