@@ -147,3 +147,29 @@ def compare_many(body: CompareManyBody):
         })
     con.close()
     return out
+
+
+def normalize_set_num(raw: str) -> str:
+    sn = str(raw).strip()
+    if "-" in sn:
+        return sn
+    con = _db(); cur = con.cursor()
+    cur.execute("SELECT set_num FROM sets WHERE set_num LIKE ? ORDER BY year DESC LIMIT 1", (sn+'-%',))
+    row = cur.fetchone()
+    con.close()
+    return row[0] if row else sn
+
+
+def load_inventory_map():
+    import json, os
+    inv_path = os.path.join(os.path.dirname(__file__), "..", "data", "inventory_parts.json")
+    try:
+        with open(inv_path, "r") as f:
+            rows = json.load(f) or []
+    except (FileNotFoundError, json.JSONDecodeError):
+        rows = []
+    m = {}
+    for r in rows:
+        k = (str(r.get("part_num")), int(r.get("color_id", 0)))
+        m[k] = int(r.get("qty_total", 0))
+    return m
