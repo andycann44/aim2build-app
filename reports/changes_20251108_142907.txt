@@ -1,0 +1,16 @@
+=== Sat  8 Nov 2025 14:29:07 GMT ===
+ M backend/app/data/inventory_parts.json
+ M backend/app/main.py
+?? a2b_refresh_catalog.sh.bak
+?? csv/
+?? reports/
+
+Name-status:
+M	backend/app/data/inventory_parts.json
+M	backend/app/main.py
+
+Untracked:
+a2b_refresh_catalog.sh.bak
+csv/import_csv.py
+reports/changes_20251108_114344.txt
+reports/changes_20251108_142907.txt
