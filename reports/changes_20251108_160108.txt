@@ -1,0 +1,17 @@
+=== Sat  8 Nov 2025 16:01:08 GMT ===
+ M backend/app/data/inventory_parts.json
+ M backend/app/main.py
+?? backend/app/data/my_sets.json
+?? backend/app/data/wishlist.json
+?? backend/docs/
+?? reports/changes_20251108_160108.txt
+
+Name-status:
+M	backend/app/data/inventory_parts.json
+M	backend/app/main.py
+
+Untracked:
+backend/app/data/my_sets.json
+backend/app/data/wishlist.json
+backend/docs/BACKEND_SPECS.md
+reports/changes_20251108_160108.txt
