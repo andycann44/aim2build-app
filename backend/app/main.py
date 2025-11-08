@@ -1,3 +1,4 @@
+from app.routers import buildability, inventory, catalog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -35,3 +36,7 @@ try_include_routers()
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+app.include_router(inventory.router,   prefix="/api/inventory")
+
+app.include_router(catalog.router,     prefix="/api/catalog")
