@@ -39,7 +39,6 @@ def health():
 
 app.include_router(inventory.router,   prefix="/api/inventory")
 
-app.include_router(catalog.router,     prefix="/api/catalog")
 
 app.include_router(mysets.router,   prefix="/api/mysets")
 app.include_router(wishlist.router, prefix="/api/wishlist")
