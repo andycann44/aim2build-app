@@ -1,7 +1,1 @@
-[
-  { "part_num":"3001", "color_id":5,  "qty_total":12 },
-  { "part_num":"3002", "color_id":1,  "qty_total":6  },
-  { "part_num":"3020", "color_id":5,  "qty_total":14 },
-  { "part_num":"3622", "color_id":85, "qty_total":4  },
-  { "part_num":"3004", "color_id":0,  "qty_total":10 }
-]
+[{"part_num": "4070", "color_id": 71, "qty_total": 10}, {"part_num": "3069b", "color_id": 41, "qty_total": 100}, {"part_num": "2431", "color_id": 41, "qty_total": 100}, {"part_num": "3024", "color_id": 41, "qty_total": 12}]
