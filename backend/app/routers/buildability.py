@@ -99,3 +99,51 @@ def compare(
         "total_have": total_have,
         "missing_parts": missing_parts
     }
+
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class CompareManyBody(BaseModel):
+    sets: List[str]
+
+@router.post("/compare_many")
+def compare_many(body: CompareManyBody):
+    """
+    Bulk coverage for many set_nums — fast badges for search results.
+    Returns list of {set_num, coverage, total_needed, total_have}.
+    """
+    con = _db(); cur = con.cursor()
+    # preload inventory map once
+    inv = load_inventory_map()
+
+    out = []
+    for raw in body.sets:
+        set_num = normalize_set_num(raw)
+        # validate set exists
+        cur.execute("SELECT 1 FROM sets WHERE set_num=? LIMIT 1", (set_num,))
+        if not cur.fetchone():
+            out.append({"set_num": set_num, "coverage": 0.0, "total_needed": 0, "total_have": 0})
+            continue
+        # sum required parts (non-spares already enforced in the table)
+        cur.execute("""
+            SELECT part_num, color_id, quantity
+            FROM inventory_parts
+            WHERE set_num=?
+        """, (set_num,))
+        total_needed = 0
+        total_have   = 0
+        for part_num, color_id, need in cur.fetchall():
+            need = int(need or 0)
+            have = int(inv.get((str(part_num), int(color_id)), 0))
+            total_needed += need
+            total_have   += min(need, have)
+        cov = (total_have / total_needed) if total_needed > 0 else 0.0
+        out.append({
+            "set_num": set_num,
+            "coverage": cov,
+            "total_needed": total_needed,
+            "total_have": total_have
+        })
+    con.close()
+    return out
