@@ -1,4 +1,4 @@
-from app.routers import buildability, inventory, catalog
+from app.routers import mysets, wishlist, buildability, inventory, catalog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
