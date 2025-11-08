@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Python venv
+backend/venv/
+
+# Local data dumps & DBs
+backend/app/data/*.csv
+backend/app/data/*.db
+backend/app/data/parts_cache/*.json
+
+# Raw CSV mirror
+csv/*.csv
+csv/*.json
+
+# Node modules (if any)
+frontend/node_modules/
