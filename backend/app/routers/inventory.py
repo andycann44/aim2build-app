@@ -55,6 +55,75 @@ def delete_part(part_num: str = Query(...), color_id: int = Query(...)):
     _save(rows)
     return {"ok": True, "removed": removed, "remaining": len(rows)}
 
+
+from typing import List, Optional
+from pydantic import BaseModel, Field
+
+class DecrementOne(BaseModel):
+    part_num: str
+    color_id: int
+    qty: int = Field(..., gt=0, description="How many to remove")
+
+class DeleteKey(BaseModel):
+    part_num: str
+    color_id: int
+
+def _keymatch(r, part_num, color_id):
+    return str(r.get("part_num")) == str(part_num) and int(r.get("color_id", 0)) == int(color_id)
+
+@router.post("/decrement")
+def decrement(body: DecrementOne):
+    rows = _load()
+    changed = False
+    for r in rows:
+        if _keymatch(r, body.part_num, body.color_id):
+            newq = max(0, int(r.get("qty_total",0)) - body.qty)
+            r["qty_total"] = newq
+            changed = True
+            break
+    if not changed:
+        raise HTTPException(status_code=404, detail=f"Item {body.part_num}/{body.color_id} not found")
+    # drop zeros
+    rows = [r for r in rows if int(r.get("qty_total",0)) > 0]
+    _save(rows)
+    return {"ok": True, "remaining": len(rows)}
+
+class BatchDecItem(BaseModel):
+    part_num: str
+    color_id: int
+    qty: int = Field(..., gt=0)
+
+@router.post("/batch_decrement")
+def batch_decrement(items: List[BatchDecItem]):
+    rows = _load()
+    removed = 0
+    touched = 0
+    for it in items:
+        for r in rows:
+            if _keymatch(r, it.part_num, it.color_id):
+                newq = max(0, int(r.get("qty_total",0)) - it.qty)
+                if newq != int(r.get("qty_total",0)):
+                    touched += 1
+                r["qty_total"] = newq
+                break
+    # drop zeros
+    before = len(rows)
+    rows = [r for r in rows if int(r.get("qty_total",0)) > 0]
+    removed = before - len(rows)
+    _save(rows)
+    return {"ok": True, "touched": touched, "auto_deleted_zero_qty": removed, "remaining": len(rows)}
+
+@router.post("/batch_delete")
+def batch_delete(keys: List[DeleteKey]):
+    rows = _load()
+    keyset = {(k.part_num, k.color_id) for k in keys}
+    before = len(rows)
+    rows = [r for r in rows if (str(r.get("part_num")), int(r.get("color_id",0))) not in {(str(p), int(c)) for (p,c) in keyset}]
+    removed = before - len(rows)
+    _save(rows)
+    if removed == 0:
+        raise HTTPException(status_code=404, detail="No matching items found to delete")
+    return {"ok": True, "removed": removed, "remaining": len(rows)}
 @router.delete("/clear")
 def clear_inventory(confirm: str = Query(..., description='Type "YES" to confirm')):
     if confirm != "YES":
