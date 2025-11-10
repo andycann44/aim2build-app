@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0055BF">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>LEGO Brick Scanner - Aim2Build</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧱 LEGO Brick Scanner</h1>
+            <p class="subtitle">Scan bricks and build your inventory</p>
+        </header>
+
+        <main id="app">
+            <!-- Camera View -->
+            <div id="camera-view" class="view active">
+                <div class="camera-container">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <div class="camera-overlay">
+                        <div class="scan-frame"></div>
+                        <p class="instruction">Position LEGO brick in frame</p>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button id="capture-btn" class="btn btn-primary">
+                        📸 Capture & Scan
+                    </button>
+                    <button id="view-inventory-btn" class="btn btn-secondary">
+                        📦 View Inventory
+                    </button>
+                </div>
+
+                <div id="status" class="status"></div>
+            </div>
+
+            <!-- Scanning Results View -->
+            <div id="results-view" class="view">
+                <div class="results-container">
+                    <h2>Scan Results</h2>
+                    <img id="captured-image" alt="Captured brick">
+                    <div id="analysis-results"></div>
+                    <div class="controls">
+                        <button id="add-to-inventory-btn" class="btn btn-primary">
+                            ✅ Add to Inventory
+                        </button>
+                        <button id="rescan-btn" class="btn btn-secondary">
+                            🔄 Scan Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inventory View -->
+            <div id="inventory-view" class="view">
+                <div class="inventory-container">
+                    <h2>My Inventory</h2>
+                    <div class="inventory-stats">
+                        <div class="stat">
+                            <span class="stat-value" id="total-parts">0</span>
+                            <span class="stat-label">Total Parts</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value" id="unique-parts">0</span>
+                            <span class="stat-label">Unique Types</span>
+                        </div>
+                    </div>
+                    <div id="inventory-list" class="inventory-list"></div>
+                    <div class="controls">
+                        <button id="back-to-camera-btn" class="btn btn-primary">
+                            📷 Back to Scanner
+                        </button>
+                        <button id="clear-inventory-btn" class="btn btn-danger">
+                            🗑️ Clear All
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Aim2Build App - LEGO Brick Scanner v1.0</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+    <script src="lego-parts-database.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
