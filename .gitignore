@@ -15,3 +15,5 @@ csv/*.json
 
 # Node modules (if any)
 frontend/node_modules/
+data_csv/
+csv/
