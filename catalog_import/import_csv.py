@@ -1,3 +1,14 @@
+import importlib.util, sysconfig, os
+# --- force-load stdlib csv module ---
+import sys
+_stdlib = sysconfig.get_paths()["stdlib"]
+_csv_path = os.path.join(_stdlib, "csv.py")
+_spec = importlib.util.spec_from_file_location("csv_stdlib", _csv_path)
+_csv_stdlib = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_csv_stdlib)
+csv_module = _csv_stdlib
+# --- end shim ---
+
 import importlib
 import os
 from pathlib import Path
