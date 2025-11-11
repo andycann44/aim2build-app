@@ -1,19 +1,23 @@
-# macOS
-.DS_Store
-
-# Python venv
+# Python / venv
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
 backend/venv/
 
-# Local data dumps & DBs
-backend/app/data/*.csv
+# SQLite & runtime JSON (not versioned)
 backend/app/data/*.db
-backend/app/data/parts_cache/*.json
+backend/app/data/*.db-shm
+backend/app/data/*.db-wal
+backend/app/data/my_sets.json
+backend/app/data/wishlist.json
 
-# Raw CSV mirror
-csv/*.csv
-csv/*.json
-
-# Node modules (if any)
+# Node
 frontend/node_modules/
-data_csv/
-csv/
+frontend/dist/
+
+# OS / logs
+.DS_Store
+*.log
