@@ -62,7 +62,7 @@ def compare(
         # Required parts for this set
         cur.execute("""
             SELECT part_num, color_id, quantity
-            FROM inventory_parts
+            FROM inventory_parts_summary
             WHERE set_num=?
             ORDER BY part_num, color_id
         """, (target,))
@@ -128,7 +128,7 @@ def compare_many(body: CompareManyBody):
         # sum required parts (non-spares already enforced in the table)
         cur.execute("""
             SELECT part_num, color_id, quantity
-            FROM inventory_parts
+            FROM inventory_parts_summary
             WHERE set_num=?
         """, (set_num,))
         total_needed = 0

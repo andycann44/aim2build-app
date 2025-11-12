@@ -7,7 +7,7 @@
 - GET `/api/catalog/parts?set=<set_num>` (aliases: `set|set_num|id`)
   - Validates set exists in `sets`
   - Returns `{ set_num, parts: [ { part_num, color_id, quantity } ] }`
-  - Uses table `inventory_parts` (pre-aggregated; **spares excluded**)
+  - Uses table `inventory_parts_summary` (pre-aggregated; **spares excluded**)
 
 ## Inventory (JSON file `backend/app/data/inventory_parts.json`)
 - GET `/api/inventory/parts` → `[ { part_num, color_id, qty_total }, ... ]`
@@ -40,8 +40,8 @@
 ## Data Sources / Tables
 - SQLite file: `backend/app/data/lego_catalog.db`
   - **sets**: `(set_num TEXT, name TEXT, year INT, num_parts INT, ... )`
-  - **inventory_parts**: `(set_num TEXT, part_num TEXT, color_id INT, quantity INT)`
-    - Built from `inventory_parts.csv` + `inventory_sets.csv`, **spares excluded**.
+  - **inventory_parts_summary**: `(set_num TEXT, part_num TEXT, color_id INT, quantity INT)`
+    - Built from Rebrickable `inventories.csv` + `inventory_parts.csv`, **spares excluded**.
 - Local inventory file: `backend/app/data/inventory_parts.json` (user-owned bricks)
 
 ## Known-good check
