@@ -8,6 +8,8 @@ type MissingPart = {
   needed?: number;
   have?: number;
   missing?: number;
+  need?: number;
+  short?: number;
 };
 
 type BuildabilityResponse = {
@@ -19,11 +21,13 @@ type BuildabilityResponse = {
   missing_parts: MissingPart[];
 };
 
+const suggestedSets = ['21330-1', '71819-1', '21318-1'];
+
 function computeMissing(part: MissingPart): { required: number; have: number; missing: number } {
-  const required = part.needed ?? part.quantity ?? 0;
-  const have = part.have ?? (required - (part.missing ?? 0));
+  const required = part.needed ?? part.quantity ?? part.need ?? 0;
+  const have = part.have ?? (required - (part.missing ?? part.short ?? 0));
   const normalizedHave = Number.isFinite(have) ? Math.max(have, 0) : 0;
-  const missing = part.missing ?? Math.max(required - normalizedHave, 0);
+  const missing = part.missing ?? part.short ?? Math.max(required - normalizedHave, 0);
   return {
     required,
     have: normalizedHave,
@@ -31,9 +35,7 @@ function computeMissing(part: MissingPart): { required: number; have: number; mi
   };
 }
 
-const suggestedSets = ['21330-1', '71819-1', '21318-1'];
-
-export default function BuildabilityChecker(): JSX.Element {
+export default function BuildabilityPage(): JSX.Element {
   const [setId, setSetId] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -100,12 +102,14 @@ export default function BuildabilityChecker(): JSX.Element {
   const coverageLabel = useMemo(() => `${(coverage * 100).toFixed(1)}%`, [coverage]);
 
   return (
-    <section>
-      <h2>
-        <span>🛠️</span> Buildability check
-      </h2>
+    <section className="panel">
+      <header>
+        <h2>Buildability</h2>
+        <p>Check your inventory coverage for any set in the catalog.</p>
+      </header>
+
       <form onSubmit={onSubmit} className="form-row">
-        <label htmlFor="set-id" style={{ flex: '1 1 220px' }}>
+        <label htmlFor="set-id" className="field">
           Set number
           <input
             id="set-id"
@@ -115,20 +119,25 @@ export default function BuildabilityChecker(): JSX.Element {
             onChange={(event) => setSetId(event.target.value)}
             autoComplete="off"
           />
-          <small className="help-text">Latest inventory version is used automatically.</small>
+          <small className="help-text">Latest inventory snapshot is used automatically.</small>
         </label>
-        <button type="submit" style={{ alignSelf: 'flex-end', minWidth: '140px' }}>
+        <button type="submit" disabled={status === 'loading'}>
           {status === 'loading' ? 'Checking…' : 'Check buildability'}
         </button>
       </form>
 
-      {status === 'error' && error ? (
-        <p className="status error">{error}</p>
-      ) : status === 'success' && result ? (
-        <div>
+      {status === 'idle' ? (
+        <p className="status">Try one of these sets: {suggestedSets.join(', ')}.</p>
+      ) : null}
+
+      {status === 'loading' ? <p className="status">Looking up inventory coverage…</p> : null}
+      {status === 'error' && error ? <p className="status error">{error}</p> : null}
+
+      {status === 'success' && result ? (
+        <div className="buildability-result">
           <p className="status success">
-            {result.name ? `${result.name} — ` : ''}
-            Coverage {coverageLabel} ({result.total_have} / {result.total_needed} parts)
+            {result.name ? `${result.name} — ` : ''}Coverage {coverageLabel} ({result.total_have} / {result.total_needed}{' '}
+            parts)
           </p>
           <div className="coverage-meter" aria-label={`Coverage ${coverageLabel}`}>
             <div className="coverage-bar">
@@ -140,7 +149,7 @@ export default function BuildabilityChecker(): JSX.Element {
           {result.missing_parts.length === 0 ? (
             <p className="status success">You have everything you need to build this set!</p>
           ) : (
-            <div>
+            <div className="missing-parts">
               <h3>Missing parts</h3>
               <table>
                 <thead>
@@ -171,12 +180,6 @@ export default function BuildabilityChecker(): JSX.Element {
           )}
         </div>
       ) : null}
-
-      {status === 'idle' && (
-        <p className="status">Try one of these sets: {suggestedSets.join(', ')}.</p>
-      )}
-
-      {status === 'loading' && <p className="status">Looking up inventory coverage…</p>}
     </section>
   );
 }
