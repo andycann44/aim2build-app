@@ -9,6 +9,12 @@
   - Returns `{ set_num, parts: [ { part_num, color_id, quantity } ] }`
   - Uses table `inventory_parts_summary` (pre-aggregated; **spares excluded**)
 
+### Refreshing the catalog database
+- `./a2b_refresh_catalog.sh`
+  - Downloads all 12 Rebrickable CSV exports, rebuilds the SQLite database, and prints table counts.
+- `./backend/scripts/a2b_catalog_reimport.sh [/path/to/csvs]`
+  - Rebuilds the same database from CSV files already on disk; pass the directory as the first argument or set `CSV_DIR`.
+
 ## Inventory (JSON file `backend/app/data/inventory_parts.json`)
 - GET `/api/inventory/parts` → `[ { part_num, color_id, qty_total }, ... ]`
 - POST `/api/inventory/add` body: `{ part_num, color_id, qty_total }`

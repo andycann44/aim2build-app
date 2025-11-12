@@ -1,9 +1,23 @@
 #!/bin/bash
+# Usage:
+#   ./backend/scripts/a2b_catalog_reimport.sh /path/to/rebrickable/csvs
+#   CSV_DIR=/path/to/rebrickable/csvs ./backend/scripts/a2b_catalog_reimport.sh
 : "${HISTTIMEFORMAT:=}"; set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo ~/aim2build-app)"
 
-CSV_DIR_INPUT="${CSV_DIR:-$PWD/csv}"
+CSV_DIR_ARG="${1:-}"
+
+if [ -n "$CSV_DIR_ARG" ]; then
+  CSV_DIR_INPUT="$CSV_DIR_ARG"
+else
+  CSV_DIR_INPUT="${CSV_DIR:-$PWD/csv}"
+fi
+
+if [ -z "$CSV_DIR_INPUT" ]; then
+  echo "CSV directory not provided"
+  exit 1
+fi
 DB="backend/app/data/lego_catalog.db"
 
 if [ ! -d "$CSV_DIR_INPUT" ]; then
