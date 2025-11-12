@@ -20,7 +20,7 @@ def parts(set: Optional[str] = Query(None), set_num: Optional[str] = Query(None)
         con.close(); raise HTTPException(status_code=404, detail=f"Set {raw} not found")
     cur.execute("""
       SELECT part_num, color_id, quantity
-      FROM inventory_parts
+      FROM inventory_parts_summary
       WHERE set_num=?
       ORDER BY part_num, color_id
     """, (raw,))

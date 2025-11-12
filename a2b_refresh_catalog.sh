@@ -2,94 +2,70 @@
 : "${HISTTIMEFORMAT:=}"; set -euo pipefail
 [ -f ./a2p_bash_compat.sh ] && source ./a2p_bash_compat.sh
 [ -f /tmp/a2p_env.sh ] && source /tmp/a2p_env.sh
+
 cd "$(dirname "$0")"
 
-mkdir -p csv backend/app/data
-pushd csv >/dev/null
-curl -fsSLO https://rebrickable.com/media/downloads/sets.csv.gz
-curl -fsSLO https://rebrickable.com/media/downloads/inventories.csv.gz
-curl -fsSLO https://rebrickable.com/media/downloads/inventory_parts.csv.gz
-gunzip -f sets.csv.gz inventories.csv.gz inventory_parts.csv.gz
+CSV_DIR="csv"
+DB_PATH="backend/app/data/lego_catalog.db"
+
+FILES=(
+  colors
+  part_categories
+  parts
+  part_relationships
+  elements
+  themes
+  sets
+  inventories
+  inventory_parts
+  inventory_minifigs
+  minifigs
+  minifig_parts
+)
+
+mkdir -p "$CSV_DIR" backend/app/data
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required to download the Rebrickable exports" >&2
+  exit 1
+fi
+
+echo "📥 Downloading Rebrickable export (12 files)"
+pushd "$CSV_DIR" >/dev/null
+for name in "${FILES[@]}"; do
+  URL="https://rebrickable.com/media/downloads/${name}.csv.gz"
+  echo "  • $name"
+  rm -f "${name}.csv" "${name}.csv.gz"
+  if ! curl --fail --location --silent --show-error \
+    --retry 5 --retry-delay 2 --retry-all-errors \
+    --output "${name}.csv.gz" "$URL"; then
+    status=$?
+    echo "    curl exited with status $status" >&2
+    if [ "$status" -eq 56 ]; then
+      echo "    Status 56 indicates a transient network read error (connection reset/closed)." >&2
+      echo "    Re-run the script or try the offline reimport if the error persists." >&2
+    fi
+    exit $status
+  fi
+  gunzip -f "${name}.csv.gz"
+done
 popd >/dev/null
 
-DB=backend/app/data/lego_catalog.db
-rm -f "$DB"
+echo "🧹 Rebuilding catalog database at $DB_PATH"
+rm -f "$DB_PATH"
 
-sqlite3 "$DB" <<'SQL'
-.mode csv
-.headers off
+python - <<'PY'
+from catalog_import.import_csv import import_catalog
+import json
 
--- Sets (6 cols, keep extra field)
-DROP TABLE IF EXISTS sets_new;
-CREATE TABLE sets_new(
-  set_num   TEXT PRIMARY KEY,
-  name      TEXT,
-  year      INTEGER,
-  theme_id  INTEGER,
-  num_parts INTEGER,
-  extra     TEXT
-);
-.import csv/sets.csv sets_new
-DELETE FROM sets_new WHERE set_num='set_num';
-DROP TABLE IF EXISTS sets;
-ALTER TABLE sets_new RENAME TO sets;
-CREATE INDEX IF NOT EXISTS idx_sets_num ON sets(set_num);
+result = import_catalog("csv")
+print(json.dumps(result, indent=2))
+PY
 
--- Raw inventories
-DROP TABLE IF EXISTS inventories_raw;
-CREATE TABLE inventories_raw(
-  id INTEGER,
-  version INTEGER,
-  set_num TEXT
-);
-.import csv/inventories.csv inventories_raw
-DELETE FROM inventories_raw WHERE id='id';
-
-DROP TABLE IF EXISTS inventory_parts_raw;
-CREATE TABLE inventory_parts_raw(
-  inventory_id INTEGER,
-  part_num TEXT,
-  color_id INTEGER,
-  quantity INTEGER,
-  is_spare INTEGER
-);
-.import csv/inventory_parts.csv inventory_parts_raw
-DELETE FROM inventory_parts_raw WHERE inventory_id='inventory_id';
-
--- Choose the LATEST inventory version per set, exclude spares
-WITH latest AS (
-  SELECT set_num, MAX(COALESCE(version,0)) AS version
-  FROM inventories_raw
-  GROUP BY set_num
-)
-, chosen AS (
-  SELECT i.id, i.set_num
-  FROM inventories_raw i
-  JOIN latest l ON l.set_num=i.set_num AND COALESCE(l.version,0)=COALESCE(i.version,0)
-)
-DROP TABLE IF EXISTS inventory_parts_new;
-CREATE TABLE inventory_parts_new(
-  set_num  TEXT,
-  part_num TEXT,
-  color_id INTEGER,
-  quantity INTEGER
-);
-INSERT INTO inventory_parts_new(set_num, part_num, color_id, quantity)
-SELECT c.set_num,
-       p.part_num,
-       p.color_id,
-       SUM(p.quantity) AS qty
-FROM inventory_parts_raw p
-JOIN chosen c ON c.id = p.inventory_id
-WHERE IFNULL(p.is_spare,0)=0
-GROUP BY c.set_num, p.part_num, p.color_id;
-
-DROP TABLE IF EXISTS inventory_parts;
-ALTER TABLE inventory_parts_new RENAME TO inventory_parts;
-CREATE INDEX IF NOT EXISTS idx_invparts_set ON inventory_parts(set_num);
-CREATE INDEX IF NOT EXISTS idx_invparts_part_color ON inventory_parts(part_num, color_id);
-SQL
-
-echo "✅ Catalog refreshed: $DB"
-echo -n "Home Alone total_needed now = "
-sqlite3 "$DB" "SELECT SUM(quantity) FROM inventory_parts WHERE set_num='21330-1';"
+echo "✅ Catalog refreshed: $DB_PATH"
+if command -v sqlite3 >/dev/null 2>&1; then
+  echo -n "Sets table rows: "
+  sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM sets;"
+  echo -n "Inventory summary rows: "
+  sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM inventory_parts_summary;"
+fi

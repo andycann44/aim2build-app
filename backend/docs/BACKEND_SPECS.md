@@ -7,7 +7,16 @@
 - GET `/api/catalog/parts?set=<set_num>` (aliases: `set|set_num|id`)
   - Validates set exists in `sets`
   - Returns `{ set_num, parts: [ { part_num, color_id, quantity } ] }`
-  - Uses table `inventory_parts` (pre-aggregated; **spares excluded**)
+  - Uses table `inventory_parts_summary` (pre-aggregated; **spares excluded**)
+
+### Refreshing the catalog database
+- `./a2b_refresh_catalog.sh`
+  - Downloads all 12 Rebrickable CSV exports, rebuilds the SQLite database, and prints table counts.
+  - If a download fails with `curl: (56)`, the script now surfaces that it is a network read error—rerun or use the offline re-import helper below.
+- `./backend/scripts/a2b_catalog_reimport.sh [/path/to/csvs]`
+  - Rebuilds the same database from CSV files already on disk; pass the directory as the first argument or set `CSV_DIR`.
+  - Expects the 12 core Rebrickable exports: `colors.csv`, `part_categories.csv`, `parts.csv`, `part_relationships.csv`, `elements.csv`, `themes.csv`, `sets.csv`, `inventories.csv`, `inventory_sets.csv`, `inventory_parts.csv`, `minifigs.csv`, and `inventory_minifigs.csv`.
+  - `minifig_parts.csv` is optional—if it is not present, the importer creates an empty table and continues.
 
 ## Inventory (JSON file `backend/app/data/inventory_parts.json`)
 - GET `/api/inventory/parts` → `[ { part_num, color_id, qty_total }, ... ]`
@@ -40,8 +49,8 @@
 ## Data Sources / Tables
 - SQLite file: `backend/app/data/lego_catalog.db`
   - **sets**: `(set_num TEXT, name TEXT, year INT, num_parts INT, ... )`
-  - **inventory_parts**: `(set_num TEXT, part_num TEXT, color_id INT, quantity INT)`
-    - Built from `inventory_parts.csv` + `inventory_sets.csv`, **spares excluded**.
+  - **inventory_parts_summary**: `(set_num TEXT, part_num TEXT, color_id INT, quantity INT)`
+    - Built from Rebrickable `inventories.csv` + `inventory_parts.csv`, **spares excluded**.
 - Local inventory file: `backend/app/data/inventory_parts.json` (user-owned bricks)
 
 ## Known-good check
