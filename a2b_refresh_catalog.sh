@@ -36,9 +36,17 @@ for name in "${FILES[@]}"; do
   URL="https://rebrickable.com/media/downloads/${name}.csv.gz"
   echo "  • $name"
   rm -f "${name}.csv" "${name}.csv.gz"
-  curl --fail --location --silent --show-error \
+  if ! curl --fail --location --silent --show-error \
     --retry 5 --retry-delay 2 --retry-all-errors \
-    --output "${name}.csv.gz" "$URL"
+    --output "${name}.csv.gz" "$URL"; then
+    status=$?
+    echo "    curl exited with status $status" >&2
+    if [ "$status" -eq 56 ]; then
+      echo "    Status 56 indicates a transient network read error (connection reset/closed)." >&2
+      echo "    Re-run the script or try the offline reimport if the error persists." >&2
+    fi
+    exit $status
+  fi
   gunzip -f "${name}.csv.gz"
 done
 popd >/dev/null

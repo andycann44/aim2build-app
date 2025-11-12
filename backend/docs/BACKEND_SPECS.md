@@ -12,6 +12,7 @@
 ### Refreshing the catalog database
 - `./a2b_refresh_catalog.sh`
   - Downloads all 12 Rebrickable CSV exports, rebuilds the SQLite database, and prints table counts.
+  - If a download fails with `curl: (56)`, the script now surfaces that it is a network read error—rerun or use the offline re-import helper below.
 - `./backend/scripts/a2b_catalog_reimport.sh [/path/to/csvs]`
   - Rebuilds the same database from CSV files already on disk; pass the directory as the first argument or set `CSV_DIR`.
 
