@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Sequence, Any
+from typing import Callable, Dict, List, Optional, Sequence, Any, Tuple
 
 from .csv_std import csv_module as csv
 from .db import db
@@ -67,6 +67,7 @@ class DatasetSpec:
     filename: str
     columns: Sequence[ColumnSpec]
     row_filter: Optional[Callable[[Dict[str, str]], bool]] = None
+    required: bool = True
 
 
 def _dataset_specs() -> Sequence[DatasetSpec]:
@@ -484,27 +485,33 @@ def _dataset_specs() -> Sequence[DatasetSpec]:
                     lambda row: _to_bool(_first(row, "is_spare")),
                 ),
             ],
+            required=False,
         ),
     ]
 
 
-def _ensure_exists(base_dir: str, filename: str) -> str:
-    path = os.path.join(base_dir, filename)
+def _create_table(con, spec: DatasetSpec) -> None:
+    con.execute(f"DROP TABLE IF EXISTS {spec.table}")
+    col_defs = ", ".join(f"{col.name} {col.sql_type}" for col in spec.columns)
+    con.execute(f"CREATE TABLE {spec.table} ({col_defs})")
+
+
+def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> Tuple[int, bool]:
+    path = os.path.join(base_dir, spec.filename)
     if not os.path.isfile(path):
-        raise FileNotFoundError(f"Missing required file: {filename} in {base_dir}")
-    return path
+        if spec.required:
+            raise FileNotFoundError(
+                f"Missing required file: {spec.filename} in {base_dir}"
+            )
+        _create_table(con, spec)
+        return 0, True
 
-
-def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
-    path = _ensure_exists(base_dir, spec.filename)
     with open(path, newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
         if reader.fieldnames is None:
             raise ValueError(f"{spec.filename} has no header")
 
-        con.execute(f"DROP TABLE IF EXISTS {spec.table}")
-        col_defs = ", ".join(f"{col.name} {col.sql_type}" for col in spec.columns)
-        con.execute(f"CREATE TABLE {spec.table} ({col_defs})")
+        _create_table(con, spec)
 
         placeholders = ", ".join("?" for _ in spec.columns)
         col_names = ", ".join(col.name for col in spec.columns)
@@ -533,7 +540,7 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
         if batch:
             con.executemany(insert_sql, batch)
             inserted += len(batch)
-    return inserted
+    return inserted, False
 
 
 def _build_summary_tables(con) -> Dict[str, int]:
@@ -616,16 +623,25 @@ def import_catalog(dir_path: str) -> Dict[str, Any]:
     base_dir = os.path.abspath(os.path.expanduser(dir_path))
     specs = _dataset_specs()
 
-    for spec in specs:
-        _ensure_exists(base_dir, spec.filename)
-
     inserted: Dict[str, int] = {}
     summary: Dict[str, int] = {}
+    skipped_optional: List[str] = []
 
     with db() as con:
         for spec in specs:
-            inserted[spec.table] = _load_dataset(con, base_dir, spec)
+            inserted_count, skipped = _load_dataset(con, base_dir, spec)
+            inserted[spec.table] = inserted_count
+            if skipped:
+                skipped_optional.append(spec.filename)
         summary = _build_summary_tables(con)
 
-    return {"ok": True, "dir": base_dir, "inserted": inserted, "summary": summary}
+    result: Dict[str, Any] = {
+        "ok": True,
+        "dir": base_dir,
+        "inserted": inserted,
+        "summary": summary,
+    }
+    if skipped_optional:
+        result["skipped_optional"] = skipped_optional
+    return result
 

@@ -15,6 +15,7 @@
   - If a download fails with `curl: (56)`, the script now surfaces that it is a network read error—rerun or use the offline re-import helper below.
 - `./backend/scripts/a2b_catalog_reimport.sh [/path/to/csvs]`
   - Rebuilds the same database from CSV files already on disk; pass the directory as the first argument or set `CSV_DIR`.
+  - `minifig_parts.csv` is optional—if it is not present, the importer creates an empty table and continues.
 
 ## Inventory (JSON file `backend/app/data/inventory_parts.json`)
 - GET `/api/inventory/parts` → `[ { part_num, color_id, qty_total }, ... ]`
