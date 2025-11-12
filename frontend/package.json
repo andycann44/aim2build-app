@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc --project tsconfig.app.json --noEmit && vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --project tsconfig.app.json --noEmit"
   },
   "dependencies": {
     "react": "^18.3.1",
