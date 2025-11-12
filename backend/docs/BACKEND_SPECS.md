@@ -15,6 +15,7 @@
   - If a download fails with `curl: (56)`, the script now surfaces that it is a network read error—rerun or use the offline re-import helper below.
 - `./backend/scripts/a2b_catalog_reimport.sh [/path/to/csvs]`
   - Rebuilds the same database from CSV files already on disk; pass the directory as the first argument or set `CSV_DIR`.
+  - Expects the 12 core Rebrickable exports: `colors.csv`, `part_categories.csv`, `parts.csv`, `part_relationships.csv`, `elements.csv`, `themes.csv`, `sets.csv`, `inventories.csv`, `inventory_sets.csv`, `inventory_parts.csv`, `minifigs.csv`, and `inventory_minifigs.csv`.
   - `minifig_parts.csv` is optional—if it is not present, the importer creates an empty table and continues.
 
 ## Inventory (JSON file `backend/app/data/inventory_parts.json`)

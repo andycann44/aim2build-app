@@ -358,6 +358,29 @@ def _dataset_specs() -> Sequence[DatasetSpec]:
             ],
         ),
         DatasetSpec(
+            table="inventory_sets",
+            filename="inventory_sets.csv",
+            columns=[
+                ColumnSpec(
+                    "inventory_id",
+                    "INTEGER NOT NULL",
+                    lambda row: _to_int(_first(row, "inventory_id", "id")),
+                    required=True,
+                ),
+                ColumnSpec(
+                    "set_num",
+                    "TEXT NOT NULL",
+                    lambda row: _to_text(_first(row, "set_num")) or "",
+                    required=True,
+                ),
+                ColumnSpec(
+                    "quantity",
+                    "INTEGER",
+                    lambda row: _to_int(_first(row, "quantity", "qty")),
+                ),
+            ],
+        ),
+        DatasetSpec(
             table="inventory_parts",
             filename="inventory_parts.csv",
             columns=[
