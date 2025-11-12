@@ -25,12 +25,20 @@ FILES=(
 
 mkdir -p "$CSV_DIR" backend/app/data
 
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required to download the Rebrickable exports" >&2
+  exit 1
+fi
+
 echo "📥 Downloading Rebrickable export (12 files)"
 pushd "$CSV_DIR" >/dev/null
 for name in "${FILES[@]}"; do
   URL="https://rebrickable.com/media/downloads/${name}.csv.gz"
   echo "  • $name"
-  curl -fsSLO "$URL"
+  rm -f "${name}.csv" "${name}.csv.gz"
+  curl --fail --location --silent --show-error \
+    --retry 5 --retry-delay 2 --retry-all-errors \
+    --output "${name}.csv.gz" "$URL"
   gunzip -f "${name}.csv.gz"
 done
 popd >/dev/null
