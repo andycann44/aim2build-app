@@ -543,10 +543,11 @@ def _build_summary_tables(con) -> Dict[str, int]:
     con.execute(
         """
         CREATE TABLE inventory_parts_summary(
-            set_num  TEXT NOT NULL,
-            part_num TEXT NOT NULL,
-            color_id INTEGER NOT NULL,
-            quantity INTEGER NOT NULL,
+            set_num      TEXT NOT NULL,
+            part_num     TEXT NOT NULL,
+            color_id     INTEGER NOT NULL,
+            quantity     INTEGER NOT NULL,
+            part_img_url TEXT,
             PRIMARY KEY (set_num, part_num, color_id)
         )
         """
@@ -558,17 +559,20 @@ def _build_summary_tables(con) -> Dict[str, int]:
             FROM inventories
             GROUP BY set_num
         )
-        INSERT INTO inventory_parts_summary(set_num, part_num, color_id, quantity)
+        INSERT INTO inventory_parts_summary(set_num, part_num, color_id, quantity, part_img_url)
         SELECT inv.set_num,
                ip.part_num,
                COALESCE(ip.color_id, 0) AS color_id,
-               COALESCE(SUM(COALESCE(ip.quantity, 0)), 0) AS qty
+               COALESCE(SUM(COALESCE(ip.quantity, 0)), 0) AS qty,
+               MAX(p.part_img_url) AS part_img_url
         FROM inventories AS inv
         JOIN latest AS l
           ON l.set_num = inv.set_num
          AND COALESCE(inv.version, 0) = COALESCE(l.version, 0)
         JOIN inventory_parts AS ip
           ON ip.inventory_id = inv.inventory_id
+        LEFT JOIN parts AS p
+          ON p.part_num = ip.part_num
         WHERE COALESCE(ip.is_spare, 0) = 0
         GROUP BY inv.set_num, ip.part_num, ip.color_id
         """
@@ -586,18 +590,19 @@ def _build_summary_tables(con) -> Dict[str, int]:
     con.execute(
         """
         CREATE TABLE set_parts(
-            set_num  TEXT NOT NULL,
-            part_num TEXT NOT NULL,
-            color_id INTEGER NOT NULL,
-            qty_per_set INTEGER NOT NULL,
+            set_num      TEXT NOT NULL,
+            part_num     TEXT NOT NULL,
+            color_id     INTEGER NOT NULL,
+            qty_per_set  INTEGER NOT NULL,
+            part_img_url TEXT,
             PRIMARY KEY (set_num, part_num, color_id)
         )
         """
     )
     con.execute(
         """
-        INSERT INTO set_parts(set_num, part_num, color_id, qty_per_set)
-        SELECT set_num, part_num, color_id, quantity
+        INSERT INTO set_parts(set_num, part_num, color_id, qty_per_set, part_img_url)
+        SELECT set_num, part_num, color_id, quantity, part_img_url
         FROM inventory_parts_summary
         """
     )

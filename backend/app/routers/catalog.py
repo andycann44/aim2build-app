@@ -18,12 +18,23 @@ def parts(set: Optional[str] = Query(None), set_num: Optional[str] = Query(None)
     cur.execute("SELECT 1 FROM sets WHERE set_num=? LIMIT 1", (raw,))
     if not cur.fetchone():
         con.close(); raise HTTPException(status_code=404, detail=f"Set {raw} not found")
-    cur.execute("""
-      SELECT part_num, color_id, quantity
+    cur.execute(
+        """
+      SELECT part_num, color_id, quantity, part_img_url
       FROM inventory_parts_summary
       WHERE set_num=?
       ORDER BY part_num, color_id
-    """, (raw,))
-    rows = [{"part_num": str(p), "color_id": int(c), "quantity": int(q)} for (p,c,q) in cur.fetchall()]
+    """,
+        (raw,),
+    )
+    rows = [
+        {
+            "part_num": str(p),
+            "color_id": int(c),
+            "quantity": int(q),
+            "part_img_url": img,
+        }
+        for (p, c, q, img) in cur.fetchall()
+    ]
     con.close()
     return {"set_num": raw, "parts": rows}

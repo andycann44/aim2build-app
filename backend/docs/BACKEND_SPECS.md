@@ -6,7 +6,7 @@
 ## Catalog (from SQLite `backend/app/data/lego_catalog.db`)
 - GET `/api/catalog/parts?set=<set_num>` (aliases: `set|set_num|id`)
   - Validates set exists in `sets`
-  - Returns `{ set_num, parts: [ { part_num, color_id, quantity } ] }`
+  - Returns `{ set_num, parts: [ { part_num, color_id, quantity, part_img_url? } ] }`
   - Uses table `inventory_parts_summary` (pre-aggregated; **spares excluded**)
 
 ## Inventory (JSON file `backend/app/data/inventory_parts.json`)
@@ -24,6 +24,7 @@
 - GET `/api/buildability/compare?set=<set_num>` (aliases: `set|set_num|id`)
   - Response example (fields):
     - `set_num`, `coverage`, `total_needed`, `total_have`, `missing_parts[]`
+    - Each missing part now includes `part_img_url` when available
   - `coverage = total_have / total_needed`
 
 ## My Sets (JSON file `backend/app/data/my_sets.json`)
@@ -40,7 +41,7 @@
 ## Data Sources / Tables
 - SQLite file: `backend/app/data/lego_catalog.db`
   - **sets**: `(set_num TEXT, name TEXT, year INT, num_parts INT, ... )`
-  - **inventory_parts_summary**: `(set_num TEXT, part_num TEXT, color_id INT, quantity INT)`
+  - **inventory_parts_summary**: `(set_num TEXT, part_num TEXT, color_id INT, quantity INT, part_img_url TEXT)`
     - Built from Rebrickable `inventories.csv` + `inventory_parts.csv`, **spares excluded**.
 - Local inventory file: `backend/app/data/inventory_parts.json` (user-owned bricks)
 
