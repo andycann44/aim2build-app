@@ -53,6 +53,32 @@ def _to_text(value: Optional[str]) -> Optional[str]:
     return value if value else None
 
 
+def _extract_part_img_url(row: Dict[str, str]) -> Optional[str]:
+    return _to_text(
+        _first(
+            row,
+            "part_img_url",
+            "part_img_url_large",
+            "part_img_url_small",
+            "img_url",
+        )
+    )
+
+
+def _extract_part_thumb_url(row: Dict[str, str]) -> Optional[str]:
+    return _to_text(
+        _first(
+            row,
+            "part_img_url_small",
+            "part_thumb_url",
+            "img_url_small",
+            "part_img_url",
+            "part_img_url_large",
+            "img_url",
+        )
+    )
+
+
 @dataclass
 class ColumnSpec:
     name: str
@@ -153,12 +179,12 @@ def _dataset_specs() -> Sequence[DatasetSpec]:
                 ColumnSpec(
                     "part_img_url",
                     "TEXT",
-                    lambda row: _to_text(_first(row, "part_img_url", "img_url")),
+                    _extract_part_img_url,
                 ),
                 ColumnSpec(
                     "part_thumb_url",
                     "TEXT",
-                    lambda row: _to_text(_first(row, "part_img_url_small", "part_thumb_url")),
+                    _extract_part_thumb_url,
                 ),
                 ColumnSpec(
                     "year_from",
@@ -452,39 +478,6 @@ def _dataset_specs() -> Sequence[DatasetSpec]:
                 ),
             ],
         ),
-        DatasetSpec(
-            table="minifig_parts",
-            filename="minifig_parts.csv",
-            columns=[
-                ColumnSpec(
-                    "fig_num",
-                    "TEXT NOT NULL",
-                    lambda row: _to_text(_first(row, "fig_num")) or "",
-                    required=True,
-                ),
-                ColumnSpec(
-                    "part_num",
-                    "TEXT NOT NULL",
-                    lambda row: _to_text(_first(row, "part_num")) or "",
-                    required=True,
-                ),
-                ColumnSpec(
-                    "color_id",
-                    "INTEGER",
-                    lambda row: _to_int(_first(row, "color_id")),
-                ),
-                ColumnSpec(
-                    "quantity",
-                    "INTEGER",
-                    lambda row: _to_int(_first(row, "quantity", "qty")),
-                ),
-                ColumnSpec(
-                    "is_spare",
-                    "INTEGER",
-                    lambda row: _to_bool(_first(row, "is_spare")),
-                ),
-            ],
-        ),
     ]
 
 
@@ -543,10 +536,11 @@ def _build_summary_tables(con) -> Dict[str, int]:
     con.execute(
         """
         CREATE TABLE inventory_parts_summary(
-            set_num  TEXT NOT NULL,
-            part_num TEXT NOT NULL,
-            color_id INTEGER NOT NULL,
-            quantity INTEGER NOT NULL,
+            set_num      TEXT NOT NULL,
+            part_num     TEXT NOT NULL,
+            color_id     INTEGER NOT NULL,
+            quantity     INTEGER NOT NULL,
+            part_img_url TEXT,
             PRIMARY KEY (set_num, part_num, color_id)
         )
         """
@@ -558,17 +552,20 @@ def _build_summary_tables(con) -> Dict[str, int]:
             FROM inventories
             GROUP BY set_num
         )
-        INSERT INTO inventory_parts_summary(set_num, part_num, color_id, quantity)
+        INSERT INTO inventory_parts_summary(set_num, part_num, color_id, quantity, part_img_url)
         SELECT inv.set_num,
                ip.part_num,
                COALESCE(ip.color_id, 0) AS color_id,
-               COALESCE(SUM(COALESCE(ip.quantity, 0)), 0) AS qty
+               COALESCE(SUM(COALESCE(ip.quantity, 0)), 0) AS qty,
+               MAX(p.part_img_url) AS part_img_url
         FROM inventories AS inv
         JOIN latest AS l
           ON l.set_num = inv.set_num
          AND COALESCE(inv.version, 0) = COALESCE(l.version, 0)
         JOIN inventory_parts AS ip
           ON ip.inventory_id = inv.inventory_id
+        LEFT JOIN parts AS p
+          ON p.part_num = ip.part_num
         WHERE COALESCE(ip.is_spare, 0) = 0
         GROUP BY inv.set_num, ip.part_num, ip.color_id
         """
@@ -586,18 +583,19 @@ def _build_summary_tables(con) -> Dict[str, int]:
     con.execute(
         """
         CREATE TABLE set_parts(
-            set_num  TEXT NOT NULL,
-            part_num TEXT NOT NULL,
-            color_id INTEGER NOT NULL,
-            qty_per_set INTEGER NOT NULL,
+            set_num      TEXT NOT NULL,
+            part_num     TEXT NOT NULL,
+            color_id     INTEGER NOT NULL,
+            qty_per_set  INTEGER NOT NULL,
+            part_img_url TEXT,
             PRIMARY KEY (set_num, part_num, color_id)
         )
         """
     )
     con.execute(
         """
-        INSERT INTO set_parts(set_num, part_num, color_id, qty_per_set)
-        SELECT set_num, part_num, color_id, quantity
+        INSERT INTO set_parts(set_num, part_num, color_id, qty_per_set, part_img_url)
+        SELECT set_num, part_num, color_id, quantity, part_img_url
         FROM inventory_parts_summary
         """
     )
@@ -626,6 +624,11 @@ def import_catalog(dir_path: str) -> Dict[str, Any]:
         for spec in specs:
             inserted[spec.table] = _load_dataset(con, base_dir, spec)
         summary = _build_summary_tables(con)
+        summary["parts_with_images"] = (
+            con.execute(
+                "SELECT COUNT(*) FROM parts WHERE part_img_url IS NOT NULL AND part_img_url <> ''"
+            ).fetchone()[0]
+        )
 
     return {"ok": True, "dir": base_dir, "inserted": inserted, "summary": summary}
 

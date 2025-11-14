@@ -60,12 +60,15 @@ def compare(
             raise HTTPException(status_code=404, detail=f"Set {target} not found")
 
         # Required parts for this set
-        cur.execute("""
-            SELECT part_num, color_id, quantity
+        cur.execute(
+            """
+            SELECT part_num, color_id, quantity, part_img_url
             FROM inventory_parts_summary
             WHERE set_num=?
             ORDER BY part_num, color_id
-        """, (target,))
+        """,
+            (target,),
+        )
         req_rows = cur.fetchall()
     finally:
         con.close()
@@ -75,7 +78,7 @@ def compare(
     total_have = 0
     missing_parts = []
 
-    for part_num, color_id, qty_req in req_rows:
+    for part_num, color_id, qty_req, part_img_url in req_rows:
         total_needed += int(qty_req)
         have = int(inv.get((str(part_num), int(color_id)), 0))
         used = min(have, int(qty_req))
@@ -87,7 +90,8 @@ def compare(
                 "color_id": int(color_id),
                 "need": int(qty_req),
                 "have": have,
-                "short": short
+                "short": short,
+                "part_img_url": part_img_url,
             })
 
     coverage = (float(total_have) / float(total_needed)) if total_needed else 1.0

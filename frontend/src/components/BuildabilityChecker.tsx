@@ -5,9 +5,10 @@ type MissingPart = {
   part_num: string;
   color_id: number;
   quantity?: number;
-  needed?: number;
+  need?: number;
   have?: number;
-  missing?: number;
+  short?: number;
+  part_img_url?: string;
 };
 
 type BuildabilityResponse = {
@@ -20,10 +21,10 @@ type BuildabilityResponse = {
 };
 
 function computeMissing(part: MissingPart): { required: number; have: number; missing: number } {
-  const required = part.needed ?? part.quantity ?? 0;
-  const have = part.have ?? (required - (part.missing ?? 0));
+  const required = part.need ?? part.quantity ?? 0;
+  const have = part.have ?? (required - (part.short ?? 0));
   const normalizedHave = Number.isFinite(have) ? Math.max(have, 0) : 0;
-  const missing = part.missing ?? Math.max(required - normalizedHave, 0);
+  const missing = part.short ?? Math.max(required - normalizedHave, 0);
   return {
     required,
     have: normalizedHave,
@@ -145,6 +146,7 @@ export default function BuildabilityChecker(): JSX.Element {
               <table>
                 <thead>
                   <tr>
+                    <th scope="col">Image</th>
                     <th scope="col">Part #</th>
                     <th scope="col">Color</th>
                     <th scope="col">Required</th>
@@ -157,6 +159,22 @@ export default function BuildabilityChecker(): JSX.Element {
                     const metrics = computeMissing(part);
                     return (
                       <tr key={`${part.part_num}-${part.color_id}`}>
+                        <td>
+                          {part.part_img_url ? (
+                            <img
+                              src={part.part_img_url}
+                              alt={`Part ${part.part_num}`}
+                              width={64}
+                              height={64}
+                              loading="lazy"
+                              style={{ maxWidth: '64px', maxHeight: '64px', objectFit: 'contain' }}
+                            />
+                          ) : (
+                            <span aria-label="No image" title="No image available">
+                              —
+                            </span>
+                          )}
+                        </td>
                         <td>{part.part_num}</td>
                         <td>{part.color_id}</td>
                         <td>{metrics.required}</td>
