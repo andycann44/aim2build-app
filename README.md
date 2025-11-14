@@ -134,12 +134,12 @@ That opens the file for reading, while the `./a2b_refresh_catalog.sh` helper han
 **`curl: (56) The requested URL returned error: 404`**
 
 Rebrickable periodically moves the CSV export into date-stamped directories. The refresh script now
-tries to auto-detect the newest directory before downloading, and if the download still fails it
-prints a reminder about refreshing the base URL. The script also inserts a horizontal divider plus a
-blank line and echoes the exact URL and curl exit status so you can see which download broke before
-re-running the detector.
-Resolve the issue by letting the script re-detect (`unset REBRICKABLE_EXPORT_BASE`) or by exporting
-the value that the helper prints:
+tries to auto-detect the newest directory before downloading, and if a manual
+`REBRICKABLE_EXPORT_BASE` override fails it automatically falls back to the detected directory and
+retries the download once. Any failure still emits a horizontal divider, the attempted URL, and the
+curl exit status so you can see which download broke before re-running the detector. Resolve the
+issue by letting the script re-detect (`unset REBRICKABLE_EXPORT_BASE`) or by exporting the value
+that the helper prints:
 
 ```bash
 export REBRICKABLE_EXPORT_BASE=$(python3 catalog_import/discover_rebrickable_export_base.py)
