@@ -55,7 +55,7 @@ for name in "${FILES[@]}"; do
   echo "  • $name"
   if ! curl -fsSLO "$URL"; then
     status=$?
-    printf '\n' >&2
+    printf '\n%s\n\n' '────────────────────────────────────────────────────────────' >&2
     cat <<EOF >&2
 ❌ curl could not download one of the CSVs. Rebrickable rotates the date-stamped
    export directory periodically, so stale values for REBRICKABLE_EXPORT_BASE

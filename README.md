@@ -135,8 +135,9 @@ That opens the file for reading, while the `./a2b_refresh_catalog.sh` helper han
 
 Rebrickable periodically moves the CSV export into date-stamped directories. The refresh script now
 tries to auto-detect the newest directory before downloading, and if the download still fails it
-prints a reminder about refreshing the base URL. The script also inserts a blank line and echoes the
-exact URL and curl exit status so you can see which download broke before re-running the detector.
+prints a reminder about refreshing the base URL. The script also inserts a horizontal divider plus a
+blank line and echoes the exact URL and curl exit status so you can see which download broke before
+re-running the detector.
 Resolve the issue by letting the script re-detect (`unset REBRICKABLE_EXPORT_BASE`) or by exporting
 the value that the helper prints:
 
