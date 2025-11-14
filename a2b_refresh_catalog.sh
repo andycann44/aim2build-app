@@ -40,7 +40,6 @@ FILES=(
   inventory_parts
   inventory_minifigs
   minifigs
-  minifig_parts
 )
 
 mkdir -p "$CSV_DIR" backend/app/data
@@ -48,7 +47,7 @@ mkdir -p "$CSV_DIR" backend/app/data
 EXPORT_BASE=$(resolve_export_base)
 echo "🌐 Using Rebrickable export base: $EXPORT_BASE"
 
-echo "📥 Downloading Rebrickable export (12 files)"
+echo "📥 Downloading Rebrickable export (11 files)"
 pushd "$CSV_DIR" >/dev/null
 for name in "${FILES[@]}"; do
   URL="${EXPORT_BASE}/${name}.csv.gz"
