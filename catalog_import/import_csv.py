@@ -53,6 +53,32 @@ def _to_text(value: Optional[str]) -> Optional[str]:
     return value if value else None
 
 
+def _extract_part_img_url(row: Dict[str, str]) -> Optional[str]:
+    return _to_text(
+        _first(
+            row,
+            "part_img_url",
+            "part_img_url_large",
+            "part_img_url_small",
+            "img_url",
+        )
+    )
+
+
+def _extract_part_thumb_url(row: Dict[str, str]) -> Optional[str]:
+    return _to_text(
+        _first(
+            row,
+            "part_img_url_small",
+            "part_thumb_url",
+            "img_url_small",
+            "part_img_url",
+            "part_img_url_large",
+            "img_url",
+        )
+    )
+
+
 @dataclass
 class ColumnSpec:
     name: str
@@ -153,12 +179,12 @@ def _dataset_specs() -> Sequence[DatasetSpec]:
                 ColumnSpec(
                     "part_img_url",
                     "TEXT",
-                    lambda row: _to_text(_first(row, "part_img_url", "img_url")),
+                    _extract_part_img_url,
                 ),
                 ColumnSpec(
                     "part_thumb_url",
                     "TEXT",
-                    lambda row: _to_text(_first(row, "part_img_url_small", "part_thumb_url")),
+                    _extract_part_thumb_url,
                 ),
                 ColumnSpec(
                     "year_from",
@@ -598,6 +624,11 @@ def import_catalog(dir_path: str) -> Dict[str, Any]:
         for spec in specs:
             inserted[spec.table] = _load_dataset(con, base_dir, spec)
         summary = _build_summary_tables(con)
+        summary["parts_with_images"] = (
+            con.execute(
+                "SELECT COUNT(*) FROM parts WHERE part_img_url IS NOT NULL AND part_img_url <> ''"
+            ).fetchone()[0]
+        )
 
     return {"ok": True, "dir": base_dir, "inserted": inserted, "summary": summary}
 

@@ -79,7 +79,7 @@ popd >/dev/null
 echo "🧹 Rebuilding catalog database at $DB_PATH"
 rm -f "$DB_PATH"
 
-python - <<'PY'
+python3 - <<'PY'
 from catalog_import.import_csv import import_catalog
 import json
 
@@ -89,8 +89,9 @@ PY
 
 echo "✅ Catalog refreshed: $DB_PATH"
 if command -v sqlite3 >/dev/null 2>&1; then
-  echo -n "Sets table rows: "
+  echo "📊 sqlite3 sanity checks"
+  echo "SELECT COUNT(*) FROM sets;"
   sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM sets;"
-  echo -n "Inventory summary rows: "
+  echo "SELECT COUNT(*) FROM inventory_parts_summary;"
   sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM inventory_parts_summary;"
 fi

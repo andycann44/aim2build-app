@@ -20,21 +20,30 @@ def parts(set: Optional[str] = Query(None), set_num: Optional[str] = Query(None)
         con.close(); raise HTTPException(status_code=404, detail=f"Set {raw} not found")
     cur.execute(
         """
-      SELECT part_num, color_id, quantity, part_img_url
-      FROM inventory_parts_summary
-      WHERE set_num=?
-      ORDER BY part_num, color_id
+      SELECT ips.part_num,
+             ips.color_id,
+             ips.quantity,
+             p.part_img_url,
+             p.part_thumb_url
+      FROM inventory_parts_summary AS ips
+      LEFT JOIN parts AS p
+        ON p.part_num = ips.part_num
+      WHERE ips.set_num=?
+      ORDER BY ips.part_num, ips.color_id
     """,
         (raw,),
     )
-    rows = [
-        {
-            "part_num": str(p),
-            "color_id": int(c),
-            "quantity": int(q),
-            "part_img_url": img,
-        }
-        for (p, c, q, img) in cur.fetchall()
-    ]
+    rows = []
+    for part_num, color_id, quantity, part_img_url, part_thumb_url in cur.fetchall():
+        img_url = part_thumb_url or part_img_url or None
+        rows.append(
+            {
+                "part_num": str(part_num),
+                "color_id": int(color_id),
+                "quantity": int(quantity),
+                "img_url": img_url,
+                "part_img_url": part_img_url,
+            }
+        )
     con.close()
     return {"set_num": raw, "parts": rows}

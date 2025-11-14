@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-import os, json
-from typing import List
+import os, json, sqlite3
+from typing import Dict, List, Optional, Tuple
 
 router = APIRouter()
 INV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "inventory_parts.json")
+DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "lego_catalog.db")
 
 def _load() -> List[dict]:
     if not os.path.exists(INV_PATH): return []
@@ -20,6 +21,22 @@ def _save(rows: List[dict]):
     os.makedirs(os.path.dirname(INV_PATH), exist_ok=True)
     with open(INV_PATH, "w") as f: json.dump(rows, f)
 
+
+def _load_part_images(part_nums: List[str]) -> Dict[str, Tuple[Optional[str], Optional[str]]]:
+    unique = sorted({p for p in part_nums if p})
+    if not unique or not os.path.exists(DB_PATH):
+        return {}
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    placeholders = ",".join("?" for _ in unique)
+    query = f"SELECT part_num, part_img_url, part_thumb_url FROM parts WHERE part_num IN ({placeholders})"
+    cur.execute(query, unique)
+    lookup: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+    for part_num, part_img_url, part_thumb_url in cur.fetchall():
+        lookup[str(part_num)] = (part_img_url, part_thumb_url)
+    con.close()
+    return lookup
+
 class InvLine(BaseModel):
     part_num: str
     color_id: int
@@ -27,7 +44,19 @@ class InvLine(BaseModel):
 
 @router.get("/parts")
 def get_inventory():
-    return _load()
+    rows = _load()
+    part_nums = [str(r.get("part_num")) for r in rows if r.get("part_num")]
+    image_lookup = _load_part_images(part_nums)
+    enriched = []
+    for row in rows:
+        part_num = str(row.get("part_num")) if row.get("part_num") is not None else None
+        part_img_url: Optional[str] = None
+        part_thumb_url: Optional[str] = None
+        if part_num and part_num in image_lookup:
+            part_img_url, part_thumb_url = image_lookup[part_num]
+        img_url = part_thumb_url or part_img_url or None
+        enriched.append({**row, "img_url": img_url, "part_img_url": part_img_url})
+    return enriched
 
 @router.post("/add")
 def add_part(line: InvLine):
@@ -56,8 +85,7 @@ def delete_part(part_num: str = Query(...), color_id: int = Query(...)):
     return {"ok": True, "removed": removed, "remaining": len(rows)}
 
 
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 class DecrementOne(BaseModel):
     part_num: str
