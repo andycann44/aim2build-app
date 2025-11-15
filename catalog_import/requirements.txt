@@ -1,0 +1,3 @@
+# The catalog importer currently relies only on the Python standard library.
+# This placeholder keeps the documented `pip install -r catalog_import/requirements.txt`
+# command working and provides a home for future third-party dependencies.
