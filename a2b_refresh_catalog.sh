@@ -20,7 +20,7 @@ FILES=(
   inventory_parts
   inventory_minifigs
   minifigs
-  minifig_parts
+
 )
 
 mkdir -p "$CSV_DIR" backend/app/data
