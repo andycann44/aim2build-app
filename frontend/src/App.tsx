@@ -1,37 +1,53 @@
-import BuildabilityChecker from './components/BuildabilityChecker';
-import InventoryManager from './components/InventoryManager';
-import MySetsPanel from './components/MySetsPanel';
-import WishlistPanel from './components/WishlistPanel';
+import React from "react";
+import { Routes, Route, NavLink } from "react-router-dom";
+import SearchPage from "./pages/SearchPage";
+import BuildabilityPage from "./pages/BuildabilityPage";
+import InventoryPage from "./pages/InventoryPage";
+import MySetsPage from "./pages/MySetsPage";
+import WishlistPage from "./pages/WishlistPage";
+import SettingsPage from "./pages/SettingsPage";
 
-export default function App(): JSX.Element {
+const App: React.FC = () => {
   return (
-    <>
-      <header>
-        <h1>Aim2Build Control Center</h1>
-        <p>Track your LEGO® bricks, evaluate buildability, and manage your dream sets.</p>
-      </header>
-      <main>
-        <BuildabilityChecker />
-        <section>
-          <h2>
-            <span>🧱</span> Inventory
-          </h2>
-          <p className="status">
-            Keep your brick counts in sync with the backend inventory service. Every change updates
-            buildability instantly.
-          </p>
-          <InventoryManager />
-        </section>
-        <section>
-          <h2>
-            <span>📚</span> Collections
-          </h2>
-          <div className="card-grid">
-            <MySetsPanel />
-            <WishlistPanel />
-          </div>
-        </section>
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-main">Aim2Build</span>
+          <span className="brand-sub">LEGO helper</span>
+        </div>
+        <nav className="nav">
+          <NavLink to="/" end className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+            Search
+          </NavLink>
+          <NavLink to="/my-sets" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+            My Sets
+          </NavLink>
+          <NavLink to="/inventory" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+            Inventory
+          </NavLink>
+          <NavLink to="/buildability" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+            Buildability
+          </NavLink>
+          <NavLink to="/wishlist" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+            Wishlist
+          </NavLink>
+          <NavLink to="/settings" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+            Settings
+          </NavLink>
+        </nav>
+      </aside>
+      <main className="main">
+        <Routes>
+          <Route path="/" element={<SearchPage />} />
+          <Route path="/my-sets" element={<MySetsPage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/buildability" element={<BuildabilityPage />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Routes>
       </main>
-    </>
+    </div>
   );
-}
+};
+
+export default App;

@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { apiClient } from '../api/client';
+import { getInventoryParts } from '../api/client';
 
 type InventoryPart = {
   part_num: string;
@@ -35,7 +35,7 @@ export default function InventoryManager(): JSX.Element {
       }
       setError(null);
       try {
-        const data = await apiClient.get<InventoryPart[]>('/api/inventory/parts');
+        const data = await getInventoryParts();
         setInventory(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load inventory.');
@@ -98,11 +98,19 @@ export default function InventoryManager(): JSX.Element {
       setMessage(null);
 
       try {
-        await apiClient.post('/api/inventory/add', {
-          part_num: trimmedPart,
-          color_id: colorId,
-          qty_total: quantity
+        const res = await fetch(`/api/inventory/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            part_num: trimmedPart,
+            color_id: colorId,
+            qty_total: quantity
+          })
         });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(`Add failed: ${res.status} ${res.statusText} ${text}`);
+        }
         setMessage(`Added ${quantity}× ${trimmedPart} (color ${colorId}).`);
         resetForm();
         await loadInventory({ showSpinner: false });
@@ -121,9 +129,11 @@ export default function InventoryManager(): JSX.Element {
       setError(null);
       setMessage(null);
       try {
-        await apiClient.delete(
-          `/api/inventory/part?part_num=${encodeURIComponent(part.part_num)}&color_id=${part.color_id}`
-        );
+        const res = await fetch(`/api/inventory/part?part_num=${encodeURIComponent(part.part_num)}&color_id=${part.color_id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(`Remove failed: ${res.status} ${res.statusText} ${text}`);
+        }
         setMessage(`Removed ${part.part_num} (color ${part.color_id}).`);
         await loadInventory({ showSpinner: false });
       } catch (err) {

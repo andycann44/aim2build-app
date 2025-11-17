@@ -1,4 +1,5 @@
-from app.routers import mysets, wishlist, buildability, inventory, catalog
+from app.routers import (mysets, wishlist, buildability, inventory, catalog, search, inventory_images,
+)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -37,8 +38,11 @@ try_include_routers()
 def health():
     return {"ok": True}
 
-app.include_router(inventory.router,   prefix="/api/inventory")
+app.include_router(inventory.router, prefix="/api/inventory")
+app.include_router(inventory_images.router)  # ⬅️ no extra prefix
 
-
-app.include_router(mysets.router,   prefix="/api/mysets")
-app.include_router(wishlist.router, prefix="/api/wishlist")
+app.include_router(mysets.router,      prefix="/api/mysets")
+app.include_router(wishlist.router,    prefix="/api/wishlist")
+app.include_router(buildability.router, prefix="/api/buildability")
+app.include_router(search.router,      prefix="/api")
+app.include_router(catalog.router,     prefix="/api/catalog")
