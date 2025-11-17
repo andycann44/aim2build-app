@@ -22,3 +22,7 @@ frontend/dist/
 .DS_Store
 *.log
 frontend/.vite/
+backend_experiment_20251116_090044/app/data/lego_catalog.db
+csv/inventory_parts.csv
+backend_experiment_20251116_090044/app/data/lego_catalog.db
+csv/inventory_parts.csv
