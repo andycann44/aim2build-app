@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getWishlist, removeWishlist, SetSummary } from "../api/client";
+import SetTile from "../components/SetTile";
 
 const WishlistPage: React.FC = () => {
   const [sets, setSets] = useState<SetSummary[]>([]);
@@ -25,8 +26,7 @@ const WishlistPage: React.FC = () => {
   }
 
   return (
-    
-  <div className="page page-wishlist">
+    <div className="page page-wishlist">
       {/* HERO HEADER – same style as Search, just without the search box */}
       <div
         className="wishlist-hero"
@@ -89,59 +89,45 @@ const WishlistPage: React.FC = () => {
         >
           Wishlist
         </h1>
-          <div className="page-subtitle">
-            Sets you would like to build in the future.
-          </div>
-     </div>
-     
+        <div className="page-subtitle">
+          Sets you would like to build in the future.
+        </div>
+      </div>
 
       <div className="card">
         {loading && <div className="small-muted">Loading...</div>}
-        <div className="tile-grid">
-          {sets.map((s) => (
-            <div key={s.set_num} className="tile">
-              <div className="set-tile-layout">
-                {s.img_url && (
-                  <div className="set-thumb-box">
-                    <img
-                      src={s.img_url}
-                      alt={s.name}
-                      className="set-thumb"
-                    />
-                  </div>
-                )}
-                <div className="set-tile-body">
-                  <div className="tile-header">
-                    <div>
-                      <div className="tile-title">{s.name}</div>
-                      <div className="tile-meta">
-                        {s.set_num} • {s.year}
-                      </div>
-                    </div>
-                    <span className="badge">
-                      {s.num_parts ? `${s.num_parts} pcs` : "Set"}
-                    </span>
-                  </div>
-                  <div className="row-space" style={{ marginTop: 8 }}>
-                    <button
-                      type="button"
-                      className="button danger"
-                      onClick={() => handleRemove(s.set_num)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
+
+        {!loading && sets.length > 0 && (
+          <div className="tile-grid">
+            {sets.map((s) => (
+              <div
+                key={s.set_num}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+              >
+                {/* Re-use the Search tile layout, but without action buttons */}
+                <SetTile set={s} />
+                <button
+                  type="button"
+                  className="button danger"
+                  onClick={() => handleRemove(s.set_num)}
+                >
+                  Remove
+                </button>
               </div>
-            </div>
-          ))}
-        </div>
-        {!loading && sets.length === 0 && (
-          <div className="small-muted" style={{ marginTop: 8 }}>
-            No items in wishlist yet. Add from the Search page.
+            ))}
           </div>
         )}
       </div>
+
+      {!loading && sets.length === 0 && (
+        <div className="small-muted" style={{ marginTop: 8 }}>
+          No items in wishlist yet. Add from the Search page.
+        </div>
+      )}
     </div>
   );
 };

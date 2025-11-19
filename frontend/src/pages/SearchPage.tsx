@@ -3,11 +3,14 @@ import React, {
   useCallback,
   useMemo,
   useState,
+  useEffect,
 } from "react";
 import {
   searchSets,
   addMySet,
   addWishlist,
+  getMySets,
+  getWishlist,
   SetSummary,
 } from "../api/client";
 import SetTile from "../components/SetTile";
@@ -20,6 +23,36 @@ const SearchPage: React.FC = () => {
   const [lastQuery, setLastQuery] = useState("");
   const [mySetIds, setMySetIds] = useState<Set<string>>(new Set());
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMembership = async () => {
+      try {
+        const [mySets, wishlist] = await Promise.all([
+          getMySets(),
+          getWishlist(),
+        ]);
+
+        if (cancelled) return;
+
+        setMySetIds(
+          new Set((mySets || []).map((s: SetSummary) => s.set_num))
+        );
+        setWishlistIds(
+          new Set((wishlist || []).map((s: SetSummary) => s.set_num))
+        );
+      } catch (err) {
+        console.error("Failed to load existing My Sets / Wishlist", err);
+        // Don't block search if this fails.
+      }
+    };
+
+    loadMembership();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const hasResults = results.length > 0;
 
@@ -120,10 +153,7 @@ const SearchPage: React.FC = () => {
           width: "100%",
           maxWidth: "100%",
           boxSizing: "border-box",
-          marginTop: "1.5rem",
-          marginRight: "2.5rem",
-          marginBottom: "1.5rem",
-          marginLeft: "0",
+          margin: "1.5rem 0", //",
           borderRadius: "18px",
           padding: "1.75rem 1.5rem 1.5rem",
           background:
@@ -173,17 +203,11 @@ const SearchPage: React.FC = () => {
           >
             Find your next LEGO build
           </h1>
-          <p
-            style={{
-              marginBottom: "1.1rem",
-              fontSize: "0.95rem",
-              opacity: 0.92,
-            }}
-          >
-            Type a set name like <strong>Home Alone</strong>, a theme like{" "}
-            <strong>Star Wars</strong>, or a set number. We’ll pull live data
-            from your LEGO catalog.
+          <p className="text-xs md:text-sm opacity-80 mt-3">
+            Try something like <strong>Home Alone</strong>, <strong>Star Wars</strong>, or a set
+            number like <strong>21330</strong>.
           </p>
+          
 
           <form
             onSubmit={handleSubmit}
@@ -263,7 +287,7 @@ const SearchPage: React.FC = () => {
       </div>
 
       {/* RESULTS GRID */}
-      <div className="page-body">
+     <div className="page-body" style={{ marginRight: "2.5rem" }}>
         <div className="tile-grid">
           {results.map((s) => (
             <SetTile

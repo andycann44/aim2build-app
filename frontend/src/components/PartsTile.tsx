@@ -4,73 +4,65 @@ export type InventoryPart = {
   part_num: string;
   color_id: number;
   qty_total: number;
-  // optional, for later if backend sends a direct URL
-  part_img_url?: string;
+  part_img_url?: string; // comes from backend when available
 };
 
 type PartsTileProps = {
   part: InventoryPart;
 };
 
-const pillBase: React.CSSProperties = {
-  borderRadius: 999,
-  border: "2px solid rgba(255,255,255,0.95)",
-  background:
-    "linear-gradient(135deg, #020617 0%, #020617 35%, #111827 100%)",
-  color: "#f9fafb",
-  fontSize: "0.75rem",
-  fontWeight: 700,
-  letterSpacing: "0.04em",
-  textTransform: "uppercase",
-  padding: "0.25rem 0.75rem",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "0 6px 14px rgba(15,23,42,0.7)",
-  whiteSpace: "nowrap",
-};
-
 const PartsTile: React.FC<PartsTileProps> = ({ part }) => {
+  // Prefer the URL the backend gives us. If it's missing/blank, we just
+  // fall back to "No image" instead of guessing a CDN path.
   const imgUrl =
-    part.part_img_url ??
-    `https://cdn.rebrickable.com/media/parts/ldraw/${part.color_id}/${part.part_num}.png`;
+    part.part_img_url && part.part_img_url.trim().length > 0
+      ? part.part_img_url
+      : undefined;
+
+  const [imageError, setImageError] = React.useState(false);
 
   return (
     <div
-      className="part-tile-frame"
+      className="part-tile"
       style={{
+        backgroundColor: "#ffffff",
         borderRadius: 22,
-        padding: 2,
-        background:
-          "linear-gradient(135deg,#f97316,#facc15,#22c55e,#38bdf8,#6366f1)",
-        boxShadow: "0 14px 30px rgba(15,23,42,0.5)",
+        padding: "0.85rem 0.85rem 0.75rem",
+        boxShadow: "0 10px 24px rgba(15,23,42,0.18)",
+        border: "1px solid rgba(148,163,184,0.4)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.6rem",
+        height: "100%",
       }}
     >
+      {/* IMAGE BLOCK – white behind the part so it looks clean */}
       <div
-        className="part-tile"
         style={{
-          borderRadius: 20,
-          background: "#020617",
-          padding: "0.8rem 0.8rem 0.75rem",
+          borderRadius: 18,
+          backgroundColor: "#ffffff",
+          padding: "0.75rem",
           display: "flex",
-          flexDirection: "column",
-          gap: "0.55rem",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: 110,
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        {/* IMAGE */}
-        <div
-          style={{
-            borderRadius: 16,
-            overflow: "hidden",
-            background: "#0f172a",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: 150,
-            width: "100%",
-            position: "relative",
-          }}
-        >
+        {imgUrl && !imageError ? (
+          <img
+            src={imgUrl}
+            alt={part.part_num}
+            style={{
+              maxWidth: "100%",
+              maxHeight: 110,
+              objectFit: "contain",
+              display: "block",
+            }}
+            onError={() => setImageError(true)}
+          />
+        ) : (
           <span
             style={{
               position: "absolute",
@@ -79,77 +71,58 @@ const PartsTile: React.FC<PartsTileProps> = ({ part }) => {
               alignItems: "center",
               justifyContent: "center",
               fontSize: "0.8rem",
-              opacity: 0.4,
-              color: "#e5e7eb",
+              color: "#9ca3af",
             }}
           >
             No image
           </span>
+        )}
+      </div>
 
-          <img
-            src={imgUrl}
-            alt={`Part ${part.part_num} colour ${part.color_id}`}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "100%",
-              objectFit: "contain",
-              position: "relative",
-              zIndex: 1,
-              display: "block",
-            }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-        </div>
-
-        {/* META + QTY PILL */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "0.5rem",
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: "0.9rem",
-                fontWeight: 700,
-                color: "#f9fafb",
-                marginBottom: 2,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-              title={part.part_num}
-            >
-              {part.part_num}
-            </div>
-            <div
-              style={{
-                fontSize: "0.8rem",
-                color: "#9ca3af",
-              }}
-            >
-              Colour {part.color_id}
-            </div>
-          </div>
-
+      {/* TEXT + GREEN PILL – simple for inventory */}
+      <div
+        style={{
+          backgroundColor: "#ffffff",
+          borderRadius: 16,
+          padding: "0.55rem 0.65rem 0.5rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "0.5rem",
+        }}
+      >
+        <div>
           <div
             style={{
-              ...pillBase,
-              padding: "0.2rem 0.9rem",
-              fontSize: "0.78rem",
-              background:
-                "linear-gradient(135deg,#22c55e,#a3e635)",
-              color: "#052e16",
-              borderColor: "rgba(34,197,94,0.9)",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              color: "#111827",
             }}
           >
-            x{part.qty_total}
+            {part.part_num}
           </div>
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "#6b7280",
+            }}
+          >
+            Colour {part.color_id}
+          </div>
+        </div>
+        <div
+          style={{
+            borderRadius: 999,
+            padding: "0.25rem 0.7rem",
+            backgroundColor: "#22c55e",
+            fontSize: "0.8rem",
+            fontWeight: 700,
+            color: "#022c22",
+            minWidth: "3rem",
+            textAlign: "center",
+          }}
+        >
+          x{part.qty_total}
         </div>
       </div>
     </div>

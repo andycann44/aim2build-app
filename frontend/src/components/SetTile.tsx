@@ -13,13 +13,15 @@ export interface SetTileProps {
   onAddMySet?: (setNum: string) => void;
   onAddWishlist?: (setNum: string) => void;
   onAddInventory?: (setNum: string) => void;
+  onRemoveMySet?: (setNum: string) => void; // 👈 NEW
   inMySets?: boolean;
   inWishlist?: boolean;
+  onOpenDetails?: (setNum: string) => void;
 }
 
 const pillBase: React.CSSProperties = {
   borderRadius: 999,
-  border: "2px solid rgba(255,255,255,0.95)", // white outline
+  border: "2px solid rgba(255,255,255,0.95)",
   background:
     "linear-gradient(135deg, #020617 0%, #020617 35%, #111827 100%)",
   color: "#f9fafb",
@@ -41,8 +43,10 @@ const SetTile: React.FC<SetTileProps> = ({
   onAddMySet,
   onAddWishlist,
   onAddInventory,
+  onRemoveMySet,
   inMySets,
   inWishlist,
+  onOpenDetails,
 }) => {
   const { set_num, name, year, num_parts, img_url, in_inventory } = set;
   const inInventory = !!in_inventory;
@@ -51,12 +55,20 @@ const SetTile: React.FC<SetTileProps> = ({
     if (onAddMySet) onAddMySet(set_num);
   };
 
+  const handleRemoveMySet = () => {
+    if (onRemoveMySet) onRemoveMySet(set_num);
+  };
+
   const handleAddWishlist = () => {
     if (onAddWishlist) onAddWishlist(set_num);
   };
 
   const handleAddInventory = () => {
     if (onAddInventory) onAddInventory(set_num);
+  };
+
+  const handleOpenDetails = () => {
+    if (onOpenDetails) onOpenDetails(set_num);
   };
 
   return (
@@ -69,6 +81,7 @@ const SetTile: React.FC<SetTileProps> = ({
           "linear-gradient(135deg,#f97316,#facc15,#22c55e,#38bdf8,#6366f1)",
         boxShadow: "0 18px 40px rgba(15,23,42,0.45)",
       }}
+      onDoubleClick={handleOpenDetails}
     >
       <div
         className="set-tile"
@@ -81,16 +94,16 @@ const SetTile: React.FC<SetTileProps> = ({
           gap: "0.75rem",
         }}
       >
-        {/* IMAGE – fixed sized white box for all tiles */}
+        {/* IMAGE */}
         <div
           style={{
             borderRadius: 22,
             overflow: "hidden",
-            background: "#e5edf5",
+            background: "#ffffffff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            height: 240,         // 🔒 same height for all
+            height: 240,
             width: "100%",
           }}
         >
@@ -154,7 +167,6 @@ const SetTile: React.FC<SetTileProps> = ({
             </div>
           </div>
 
-          {/* pcs pill */}
           <div
             style={{
               ...pillBase,
@@ -165,7 +177,7 @@ const SetTile: React.FC<SetTileProps> = ({
               color: "#111827",
             }}
           >
-            {num_parts}pcs
+            {num_parts}-pcs
           </div>
         </div>
 
@@ -178,13 +190,13 @@ const SetTile: React.FC<SetTileProps> = ({
             gap: "0.6rem",
           }}
         >
-          {/* My Sets / Wishlist chips */}
-          {(onAddMySet || onAddWishlist) && (
+          {(onAddMySet || onAddWishlist || onRemoveMySet) && (
             <div
               style={{
                 display: "flex",
                 flexWrap: "wrap",
                 gap: "0.5rem",
+                alignItems: "center",
               }}
             >
               {onAddMySet && (
@@ -220,10 +232,27 @@ const SetTile: React.FC<SetTileProps> = ({
                   {inWishlist ? "In Wishlist" : "+ Wishlist"}
                 </button>
               )}
+
+              {onRemoveMySet && (
+                <button
+                  type="button"
+                  onClick={handleRemoveMySet}
+                  style={{
+                    borderRadius: 999,
+                    border: "1px solid rgba(148,163,184,0.9)",
+                    background: "transparent",
+                    color: "#6b7280",
+                    fontSize: "0.75rem",
+                    padding: "0.3rem 0.7rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  Remove
+                </button>
+              )}
             </div>
           )}
 
-          {/* Add to Inventory – full width hero pill */}
           {(onAddInventory || inInventory) && (
             <button
               type="button"

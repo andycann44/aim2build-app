@@ -26,3 +26,11 @@ backend_experiment_20251116_090044/app/data/lego_catalog.db
 csv/inventory_parts.csv
 backend_experiment_20251116_090044/app/data/lego_catalog.db
 csv/inventory_parts.csv
+
+# Local Python/Node stuff
+.venv/
+venv/
+__pycache__/
+node_modules/
+
+csv/

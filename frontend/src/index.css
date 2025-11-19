@@ -8,10 +8,13 @@
   --text-muted: #6b7280;
 
   /* Accent colours (brick-inspired but not LEGO exact) */
-  --accent: #2563eb;        /* blue */
+  --accent: #2563eb;
+  /* blue */
   --accent-soft: rgba(37, 99, 235, 0.06);
-  --accent-yellow: #facc15; /* yellow */
-  --accent-red: #f97316;    /* warm orange-red */
+  --accent-yellow: #facc15;
+  /* yellow */
+  --accent-red: #f97316;
+  /* warm orange-red */
 
   --danger: #ef4444;
   --danger-soft: rgba(239, 68, 68, 0.08);
@@ -388,6 +391,11 @@ body.aim2-root {
     padding: 12px;
   }
 
+  /* Make the main content always fill the space next to the sidebar */
+  .app-shell>.main {
+    flex: 1 1 auto;
+  }
+
   .app-maxwidth {
     flex-direction: column;
   }
@@ -486,6 +494,7 @@ nav {
 /* Each pill takes full nav width */
 nav a {
   display: flex;
-  width: 180px;      /* tweak this width if you want tighter/wider */
+  width: 180px;
+  /* tweak this width if you want tighter/wider */
   justify-content: center;
 }
