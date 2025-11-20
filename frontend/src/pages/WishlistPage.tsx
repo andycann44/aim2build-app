@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
+import SetTile from "../components/SetTile";
 import { getWishlist, removeWishlist, SetSummary } from "../api/client";
+import { authHeaders } from "../utils/auth";
 
 const API =
   (import.meta as any)?.env?.VITE_API_BASE || "http://127.0.0.1:8000";
-import SetTile from "../components/SetTile";
 
 const WishlistPage: React.FC = () => {
   const [sets, setSets] = useState<SetSummary[]>([]);
@@ -23,7 +24,12 @@ const WishlistPage: React.FC = () => {
               const res = await fetch(
                 `${API}/api/buildability/compare?set=${encodeURIComponent(
                   s.set_num
-                )}`
+                )}`,
+                {
+                  headers: {
+                    ...authHeaders(),
+                  },
+                }
               );
               if (res.ok) {
                 const b = await res.json();
@@ -131,7 +137,10 @@ const WishlistPage: React.FC = () => {
         >
           Wishlist
         </h1>
-        <div className="page-subtitle">
+        <div
+          className="page-subtitle"
+          style={{ color: "rgba(229,231,235,0.9)", fontSize: "0.95rem" }}
+        >
           Sets you would like to build in the future.
         </div>
       </div>

@@ -1,21 +1,17 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Tuple
-import os
-import json
 
 from app.catalog_db import get_catalog_parts_for_set, get_set_num_parts
+from app.routers.auth import get_current_user, User
+from app.routers.inventory import load_inventory_parts
 router = APIRouter()
-
-# JSON inventory file (global, per current app design)
-INV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "inventory_parts.json")
-
 
 # -----------------------
 # Internal helpers
 # -----------------------
 
-def _load_inventory_json() -> List[dict]:
+def _load_inventory_json(user_id: int) -> List[dict]:
     """
     Load the current inventory JSON as a list of rows.
 
@@ -28,17 +24,10 @@ def _load_inventory_json() -> List[dict]:
       }
     """
     try:
-        with open(INV_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f) or []
-    except (FileNotFoundError, json.JSONDecodeError):
+        return load_inventory_parts(user_id)
+    except Exception:
+        # If the user file is missing or corrupt, treat as empty inventory.
         return []
-
-    if not isinstance(data, list):
-        # If someone manually edited the file into a weird shape,
-        # treat it as empty instead of crashing.
-        return []
-
-    return data
 
 
 def _inventory_map(rows: Optional[List[dict]] = None) -> Dict[Tuple[str, int], int]:
@@ -91,6 +80,7 @@ def compare_buildability(
     set: Optional[str] = Query(None),
     set_num: Optional[str] = Query(None),
     id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Compare inventory vs a single set.
@@ -128,7 +118,7 @@ def compare_buildability(
             detail=f"No catalog parts found for set {set_id}",
         )
 
-    inv_map = _inventory_map()
+    inv_map = _inventory_map(load_inventory_parts(current_user.id))
 
     total_needed = 0
     total_have = 0
@@ -173,7 +163,10 @@ def compare_buildability(
     }
 
 @router.post("/batch_compare")
-def batch_compare_buildability(payload: BatchCompareRequest):
+def batch_compare_buildability(
+    payload: BatchCompareRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Compare inventory against multiple sets in one call.
 
@@ -189,7 +182,7 @@ def batch_compare_buildability(payload: BatchCompareRequest):
     if not payload.sets:
         return []
 
-    inv_rows = _load_inventory_json()
+    inv_rows = _load_inventory_json(current_user.id)
     inv_map = _inventory_map(inv_rows)
 
     results: List[Dict[str, object]] = []
@@ -252,11 +245,11 @@ def batch_compare_buildability(payload: BatchCompareRequest):
 
 
 # Backwards-compatible helper retained for any older code that imports it.
-def load_inventory_map() -> Dict[Tuple[str, int], int]:
+def load_inventory_map(user_id: int) -> Dict[Tuple[str, int], int]:
     """
     Legacy helper kept for backwards compatibility.
 
     Returns a {(part_num, color_id): qty_total} map using the same logic
     as _inventory_map().
     """
-    return _inventory_map()
+    return _inventory_map(_load_inventory_json(user_id))

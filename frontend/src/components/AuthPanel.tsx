@@ -1,38 +1,17 @@
 // frontend/src/components/AuthPanel.tsx
 import React, { useEffect, useState } from "react";
+import {
+  getStoredAuth,
+  STORAGE_KEY,
+  type StoredAuth,
+} from "../utils/auth";
 
 const API_BASE =
   (import.meta as any).env?.VITE_API_BASE ?? "http://127.0.0.1:8000";
 
 type AuthMode = "login" | "register";
 
-interface AuthStorage {
-  email: string;
-  token: string;
-  userId: number;
-}
-
-const STORAGE_KEY = "aim2build_auth";
-
-const loadStoredAuth = (): AuthStorage | null => {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (
-      typeof parsed.email === "string" &&
-      typeof parsed.token === "string" &&
-      typeof parsed.userId === "number"
-    ) {
-      return parsed as AuthStorage;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-};
-
-const saveStoredAuth = (auth: AuthStorage | null) => {
+const saveStoredAuth = (auth: StoredAuth | null) => {
   try {
     if (!auth) {
       window.localStorage.removeItem(STORAGE_KEY);
@@ -51,10 +30,10 @@ const AuthPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<AuthStorage | null>(null);
+  const [currentUser, setCurrentUser] = useState<StoredAuth | null>(null);
 
   useEffect(() => {
-    const stored = loadStoredAuth();
+    const stored = getStoredAuth();
     if (stored) {
       setCurrentUser(stored);
       setEmail(stored.email);
@@ -122,7 +101,7 @@ const AuthPanel: React.FC = () => {
           const token: string = data.access_token || data.token || "";
           const userId: number = data.user_id ?? data.userId ?? 0;
 
-          const auth: AuthStorage = { email, token, userId };
+          const auth: StoredAuth = { email, token, userId };
           setCurrentUser(auth);
           saveStoredAuth(auth);
           setMessage("Logged in successfully.");

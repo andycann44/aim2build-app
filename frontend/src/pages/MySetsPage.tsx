@@ -8,6 +8,7 @@ import {
   BuildabilityResult,
   // future: reuse common settings if lifted to context
 } from "../api/client";
+import { authHeaders } from "../utils/auth";
 
 const API =
   (import.meta as any)?.env?.VITE_API_BASE || "http://127.0.0.1:8000";
@@ -19,7 +20,12 @@ type BuildabilityResultWithDisplay = BuildabilityResult & {
 async function addSetToInventory(setNum: string) {
   const res = await fetch(
     `${API}/api/inventory/add?set=${encodeURIComponent(setNum)}`,
-    { method: "POST" }
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+      },
+    }
   );
 
   if (!res.ok) {
@@ -150,7 +156,12 @@ const MySetsPage: React.FC = () => {
         // 1) Always remove from My Sets
         const res = await fetch(
           `${API}/api/mysets/remove?set=${encodeURIComponent(setNum)}`,
-          { method: "DELETE" }
+          {
+            method: "DELETE",
+            headers: {
+              ...authHeaders(),
+            },
+          }
         );
         if (!res.ok) {
           const msg = await res.text().catch(() => "");
@@ -166,7 +177,12 @@ const MySetsPage: React.FC = () => {
         if (removeAffectsInventory && inInventory) {
           const invRes = await fetch(
             `${API}/api/inventory/remove_set?set=${encodeURIComponent(setNum)}`,
-            { method: "POST" }
+            {
+              method: "POST",
+              headers: {
+                ...authHeaders(),
+              },
+            }
           );
           if (!invRes.ok) {
             console.warn("inventory remove_set failed", invRes.status);
@@ -188,7 +204,12 @@ const MySetsPage: React.FC = () => {
       try {
         const res = await fetch(
           `${API}/api/inventory/remove_set?set=${encodeURIComponent(setNum)}`,
-          { method: "POST" }
+          {
+            method: "POST",
+            headers: {
+              ...authHeaders(),
+            },
+          }
         );
         if (!res.ok) {
           const msg = await res.text().catch(() => "");

@@ -8,6 +8,7 @@ import WishlistPage from "./pages/WishlistPage";
 import SettingsPage from "./pages/SettingsPage";
 import BuildabilityDetailsPage from "./pages/BuildabilityDetailsPage";
 import HomePage from "./pages/HomePage";
+import AccountPage from "./pages/AccountPage";
 
 const App: React.FC = () => {
   return (
@@ -68,6 +69,14 @@ const App: React.FC = () => {
             Wishlist
           </NavLink>
           <NavLink
+            to="/account"
+            className={({ isActive }) =>
+              isActive ? "nav-link active" : "nav-link"
+            }
+          >
+            Account
+          </NavLink>
+          <NavLink
             to="/settings"
             className={({ isActive }) =>
               isActive ? "nav-link active" : "nav-link"
@@ -87,6 +96,7 @@ const App: React.FC = () => {
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/buildability" element={<BuildabilityPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
+          <Route path="/account" element={<AccountPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route
             path="/buildability/:setNum"

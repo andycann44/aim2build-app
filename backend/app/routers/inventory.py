@@ -1,24 +1,28 @@
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Tuple
-import os
+from pathlib import Path
 import json
 
 from app.catalog_db import get_catalog_parts_for_set
+from app.paths import DATA_DIR
+from app.routers.auth import get_current_user, User
 router = APIRouter()
 
-INV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "inventory_parts.json")
+def _inventory_file(user_id: int) -> Path:
+    return DATA_DIR / f"inventory_parts_user_{user_id}.json"
 
 
 # -----------------------
 # Internal helpers
 # -----------------------
 
-def _load() -> List[dict]:
+def _load(user_id: int) -> List[dict]:
     """Load inventory from JSON file. Always returns a list."""
-    if not os.path.exists(INV_PATH):
+    path = _inventory_file(user_id)
+    if not path.exists():
         return []
-    with open(INV_PATH, "r", encoding="utf-8") as f:
+    with path.open("r", encoding="utf-8") as f:
         try:
             data = json.load(f) or []
         except json.JSONDecodeError:
@@ -29,9 +33,11 @@ def _load() -> List[dict]:
     return data
 
 
-def _save(rows: List[dict]) -> None:
+def _save(user_id: int, rows: List[dict]) -> None:
     """Persist inventory list to JSON file."""
-    with open(INV_PATH, "w", encoding="utf-8") as f:
+    path = _inventory_file(user_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
         json.dump(rows, f, indent=2, sort_keys=True)
 
 
@@ -43,6 +49,11 @@ def _index_by_key(rows: List[dict]) -> Dict[Tuple[str, int], dict]:
         color = int(r.get("color_id", 0))
         idx[(part, color)] = r
     return idx
+
+
+def load_inventory_parts(user_id: int) -> List[dict]:
+    """Helper exposed for other routers (e.g., buildability)"""
+    return _load(user_id)
 
 
 # -----------------------
@@ -90,13 +101,15 @@ class DeleteBatch(BaseModel):
 # -----------------------
 
 @router.get("/parts", response_model=List[InventoryPart])
-def list_inventory_parts() -> List[InventoryPart]:
+def list_inventory_parts(
+    current_user: User = Depends(get_current_user),
+) -> List[InventoryPart]:
     """
     Return the full inventory list.
 
     This is what the Inventory and Buildability tiles use.
     """
-    rows = _load()
+    rows = _load(current_user.id)
     out: List[InventoryPart] = []
     for r in rows:
         out.append(
@@ -123,6 +136,7 @@ def add_inventory(
         None,
         description="Single part line to add when no set/set_num/id is provided",
     ),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Two behaviours:
@@ -133,7 +147,7 @@ def add_inventory(
 
     - Otherwise → add or increment a single part line.
     """
-    rows = _load()
+    rows = _load(current_user.id)
     index = _index_by_key(rows)
 
     # --------- Mode 1: add by set from catalog ---------
@@ -175,7 +189,7 @@ def add_inventory(
                 existing["qty_total"] = existing_qty + need_qty
 
         rows = list(index.values())
-        _save(rows)
+        _save(current_user.id, rows)
         return {
             "ok": True,
             "mode": "set",
@@ -221,12 +235,14 @@ def add_inventory(
             existing["part_img_url"] = data["part_img_url"]
 
     rows = list(index.values())
-    _save(rows)
+    _save(current_user.id, rows)
     return {"ok": True, "mode": "single", "total_rows": len(rows)}
 
 
 @router.post("/replace")
-def replace_inventory(lines: List[InvLine]):
+def replace_inventory(
+    lines: List[InvLine], current_user: User = Depends(get_current_user)
+):
     """
     Replace the entire inventory with the given list of lines.
     """
@@ -235,16 +251,20 @@ def replace_inventory(lines: List[InvLine]):
         d = line.dict()
         d["qty_total"] = int(d.get("qty_total", 0))
         rows.append(d)
-    _save(rows)
+    _save(current_user.id, rows)
     return {"ok": True, "count": len(rows)}
 
 
 @router.delete("/part")
-def delete_part(part_num: str, color_id: int):
+def delete_part(
+    part_num: str,
+    color_id: int,
+    current_user: User = Depends(get_current_user),
+):
     """
     Remove a single (part_num, color_id) entry from the inventory.
     """
-    rows = _load()
+    rows = _load(current_user.id)
     key = (str(part_num), int(color_id))
     before = len(rows)
     rows = [
@@ -258,16 +278,18 @@ def delete_part(part_num: str, color_id: int):
             status_code=404,
             detail=f"Item {part_num}/{color_id} not found",
         )
-    _save(rows)
+    _save(current_user.id, rows)
     return {"ok": True, "removed": removed, "remaining": len(rows)}
 
 
 @router.post("/decrement")
-def decrement_one(payload: DecrementOne):
+def decrement_one(
+    payload: DecrementOne, current_user: User = Depends(get_current_user)
+):
     """
     Decrement quantity for a single part. If quantity drops to 0, remove the row.
     """
-    rows = _load()
+    rows = _load(current_user.id)
     index = _index_by_key(rows)
     key = (payload.part_num, int(payload.color_id))
     existing = index.get(key)
@@ -290,16 +312,18 @@ def decrement_one(payload: DecrementOne):
         existing["qty_total"] = new_qty
 
     rows = list(index.values())
-    _save(rows)
+    _save(current_user.id, rows)
     return {"ok": True, "remaining": len(rows)}
 
 
 @router.post("/batch_decrement")
-def batch_decrement(payload: DecrementBatch):
+def batch_decrement(
+    payload: DecrementBatch, current_user: User = Depends(get_current_user)
+):
     """
     Decrement quantity for multiple parts.
     """
-    rows = _load()
+    rows = _load(current_user.id)
     index = _index_by_key(rows)
 
     for item in payload.items:
@@ -320,16 +344,18 @@ def batch_decrement(payload: DecrementBatch):
             existing["qty_total"] = new_qty
 
     rows = list(index.values())
-    _save(rows)
+    _save(current_user.id, rows)
     return {"ok": True, "remaining": len(rows)}
 
 
 @router.post("/batch_delete")
-def batch_delete(payload: DeleteBatch):
+def batch_delete(
+    payload: DeleteBatch, current_user: User = Depends(get_current_user)
+):
     """
     Delete multiple (part_num, color_id) keys in one call.
     """
-    rows = _load()
+    rows = _load(current_user.id)
     keyset = {(k.part_num, int(k.color_id)) for k in payload.keys}
     before = len(rows)
     rows = [
@@ -338,7 +364,7 @@ def batch_delete(payload: DeleteBatch):
         if (str(r.get("part_num")), int(r.get("color_id", 0))) not in keyset
     ]
     removed = before - len(rows)
-    _save(rows)
+    _save(current_user.id, rows)
     if removed == 0:
         raise HTTPException(
             status_code=404,
@@ -354,6 +380,7 @@ def remove_set(
     ),
     set_num: Optional[str] = Query(None),
     id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Remove all parts for a given set from the inventory JSON using the
@@ -373,7 +400,7 @@ def remove_set(
             detail=f"No catalog parts found for set {raw}",
         )
 
-    rows = _load()
+    rows = _load(current_user.id)
     idx = _index_by_key(rows)
     touched = 0
 
@@ -400,7 +427,7 @@ def remove_set(
             existing["qty_total"] = new_qty
 
     rows = list(idx.values())
-    _save(rows)
+    _save(current_user.id, rows)
 
     return {
         "ok": True,
@@ -413,6 +440,7 @@ def remove_set(
 @router.delete("/clear")
 def clear_inventory(
     confirm: str = Query(..., description='Type "YES" to confirm'),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Clear the entire inventory JSON.
@@ -422,5 +450,5 @@ def clear_inventory(
             status_code=400,
             detail='Refused. Pass confirm=YES to clear all inventory.',
         )
-    _save([])
+    _save(current_user.id, [])
     return {"ok": True, "cleared": True, "count": 0}

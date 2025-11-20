@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import PartsTile from "../components/PartsTile";
+import { authHeaders } from "../utils/auth";
 
 type InventoryPart = {
   part_num: string;
@@ -20,7 +21,11 @@ const InventoryPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/api/inventory/parts_with_images`);
+      const res = await fetch(`${API}/api/inventory/parts_with_images`, {
+        headers: {
+          ...authHeaders(),
+        },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: InventoryPart[] = await res.json();
 
@@ -62,7 +67,12 @@ const InventoryPage: React.FC = () => {
     try {
       const res = await fetch(
         `${API}/api/inventory/clear?confirm=YES`,
-        { method: "DELETE" }
+        {
+          method: "DELETE",
+          headers: {
+            ...authHeaders(),
+          },
+        }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setParts([]);

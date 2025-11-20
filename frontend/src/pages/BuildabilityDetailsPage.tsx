@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import PartsTile, { InventoryPart } from "../components/PartsTile";
+import { InventoryPart } from "../components/PartsTile";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
+import { authHeaders } from "../utils/auth";
 
 type SetMeta = {
   set_num: string;
@@ -84,7 +85,11 @@ const BuildabilityDetailsPage: React.FC = () => {
           : [];
 
       // 2) Your inventory library (with images)
-      const invRes = await fetch(`${API}/api/inventory/parts_with_images`);
+      const invRes = await fetch(`${API}/api/inventory/parts_with_images`, {
+        headers: {
+          ...authHeaders(),
+        },
+      });
       if (!invRes.ok) {
         const msg = await invRes.text();
         throw new Error(
@@ -115,7 +120,12 @@ const BuildabilityDetailsPage: React.FC = () => {
       // 3) summary from /api/buildability/compare (coverage etc.)
       try {
         const bRes = await fetch(
-          `${API}/api/buildability/compare?set=${encodeURIComponent(setNum)}`
+          `${API}/api/buildability/compare?set=${encodeURIComponent(setNum)}`,
+          {
+            headers: {
+              ...authHeaders(),
+            },
+          }
         );
         if (bRes.ok) {
           const b = (await bRes.json()) as BuildabilityResultWithDisplay;

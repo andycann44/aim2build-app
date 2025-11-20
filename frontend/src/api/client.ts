@@ -1,10 +1,23 @@
+import { authHeaders } from "../utils/auth";
+
 const API_BASE =
   import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
+  const extraHeaders =
+    init?.headers instanceof Headers
+      ? Object.fromEntries(init.headers.entries())
+      : (init?.headers as Record<string, string> | undefined);
+
+  const mergedHeaders = {
+    "Content-Type": "application/json",
+    ...authHeaders(),
+    ...extraHeaders,
+  };
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init
+    ...init,
+    headers: mergedHeaders,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -138,3 +151,11 @@ export async function getBuildability(set_num: string): Promise<BuildabilityResu
     `/api/buildability/compare?set=${encodeURIComponent(set_num)}`
   );
 }
+
+export const apiClient = {
+  get: <T>(path: string, init?: RequestInit) => json<T>(path, init),
+  post: <T>(path: string, init?: RequestInit) =>
+    json<T>(path, { ...(init ?? {}), method: init?.method ?? "POST" }),
+  delete: <T>(path: string, init?: RequestInit) =>
+    json<T>(path, { ...(init ?? {}), method: init?.method ?? "DELETE" }),
+};

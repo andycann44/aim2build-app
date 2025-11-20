@@ -1,11 +1,18 @@
-from app.routers import (mysets, wishlist, buildability, inventory, catalog, search, inventory_images,
+from app.routers import (
+    mysets,
+    wishlist,
+    buildability,
+    inventory,
+    catalog,
+    search,
+    inventory_images,
 )
+from app.routers import auth as auth_router
+from app.db import db, init_db
+from app.paths import DATA_DIR
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import contextmanager
-from pathlib import Path
 from typing import List, Dict, Any
-import sqlite3
 
 app = FastAPI(title="Aim2Build API")
 
@@ -17,9 +24,6 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
-BASE_DIR = Path(__file__).resolve().parent
-
-
 
 def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
     """
@@ -38,7 +42,7 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
     if "-" not in set_id:
         set_id = f"{set_id}-1"
 
-    with _db() as con:
+    with db() as con:
         cur = con.execute(
             """
             SELECT i.set_num,
@@ -82,6 +86,7 @@ def try_include_routers():
         pass
 
 try_include_routers()
+init_db()
 
 @app.get("/api/health")
 def health():
@@ -89,6 +94,7 @@ def health():
 
 app.include_router(inventory.router, prefix="/api/inventory")
 app.include_router(inventory_images.router)  # ⬅️ no extra prefix
+app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
 
 app.include_router(mysets.router,      prefix="/api/mysets")
 app.include_router(wishlist.router,    prefix="/api/wishlist")
