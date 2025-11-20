@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import AuthPanel from "../components/AuthPanel";
 
 const SettingsPage: React.FC = () => {
   const apiBase =
@@ -24,6 +25,7 @@ const SettingsPage: React.FC = () => {
 
   return (
     <div className="page page-settings">
+      <AuthPanel />
       <div
         className="search-hero"
         style={{
