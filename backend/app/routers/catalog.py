@@ -1,29 +1,50 @@
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
-import sqlite3, os
+from typing import Optional, List, Dict, Any
+
+from app.catalog_db import get_catalog_parts_for_set
 
 router = APIRouter()
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "lego_catalog.db")
 
-def _db():
-    if not os.path.exists(DB_PATH):
-        raise HTTPException(status_code=500, detail="lego_catalog.db missing")
-    return sqlite3.connect(DB_PATH)
+
+def _normalize_set_id(raw: str) -> str:
+    """
+    Normalise so both '70618' and '70618-1' work.
+    Actual lookup logic is in get_catalog_parts_for_set.
+    """
+    return (raw or "").strip()
+
 
 @router.get("/parts")
-def parts(set: Optional[str] = Query(None), set_num: Optional[str] = Query(None), id: Optional[str] = Query(None)):
+def get_catalog_parts(
+    set: Optional[str] = Query(
+        None, description="LEGO set number (alias: set_num, id)"
+    ),
+    set_num: Optional[str] = Query(None),
+    id: Optional[str] = Query(None),
+) -> List[Dict[str, Any]]:
+    """
+    Return the canonical part list for a given set from the SQLite catalog.
+
+    Shape:
+      [
+        { "part_num": "3001", "color_id": 5, "quantity": 4 },
+        ...
+      ]
+    """
     raw = set_num or set or id
-    if not raw: raise HTTPException(status_code=422, detail="Provide set, set_num, or id")
-    con = _db(); cur = con.cursor()
-    cur.execute("SELECT 1 FROM sets WHERE set_num=? LIMIT 1", (raw,))
-    if not cur.fetchone():
-        con.close(); raise HTTPException(status_code=404, detail=f"Set {raw} not found")
-    cur.execute("""
-      SELECT part_num, color_id, quantity
-      FROM inventory_parts_summary
-      WHERE set_num=?
-      ORDER BY part_num, color_id
-    """, (raw,))
-    rows = [{"part_num": str(p), "color_id": int(c), "quantity": int(q)} for (p,c,q) in cur.fetchall()]
-    con.close()
-    return {"set_num": raw, "parts": rows}
+    if not raw:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide one of set, set_num or id query parameters.",
+        )
+
+    set_id = _normalize_set_id(raw)
+    parts = get_catalog_parts_for_set(set_id)
+
+    if not parts:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No catalog parts found for set {set_id}",
+        )
+
+    return parts

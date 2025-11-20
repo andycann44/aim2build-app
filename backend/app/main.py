@@ -2,6 +2,10 @@ from app.routers import (mysets, wishlist, buildability, inventory, catalog, sea
 )
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import contextmanager
+from pathlib import Path
+from typing import List, Dict, Any
+import sqlite3
 
 app = FastAPI(title="Aim2Build API")
 
@@ -13,6 +17,51 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
+BASE_DIR = Path(__file__).resolve().parent
+
+
+
+def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
+    """
+    Return canonical parts for a set from the SQLite catalog.
+
+    Shape: [{ "part_num": "...", "color_id": 0, "quantity": 4 }, ...]
+    Uses:
+      inventories (inventory_id, set_num, ...)
+      inventory_parts (inventory_id, part_num, color_id, quantity, ...)
+    """
+    set_id = (set_num or "").strip()
+    if not set_id:
+        return []
+
+    # Normalise: allow "70618" or "70618-1"
+    if "-" not in set_id:
+        set_id = f"{set_id}-1"
+
+    with _db() as con:
+        cur = con.execute(
+            """
+            SELECT i.set_num,
+                   p.part_num,
+                   p.color_id,
+                   p.quantity
+            FROM inventories i
+            JOIN inventory_parts p
+              ON p.inventory_id = i.inventory_id
+            WHERE i.set_num = ?
+            """,
+            (set_id,),
+        )
+        rows = cur.fetchall()
+
+    return [
+        {
+            "part_num": row["part_num"],
+            "color_id": row["color_id"],
+            "quantity": row["quantity"],
+        }
+        for row in rows
+    ]
 
 # Optional routers — included if available
 def try_include_routers():

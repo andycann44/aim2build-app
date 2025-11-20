@@ -1,175 +1,262 @@
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional, Dict, Tuple
-import sqlite3, os, json
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Tuple
+import os
+import json
 
+from app.catalog_db import get_catalog_parts_for_set, get_set_num_parts
 router = APIRouter()
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "lego_catalog.db")
+
+# JSON inventory file (global, per current app design)
 INV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "inventory_parts.json")
 
-def _db():
-    if not os.path.exists(DB_PATH):
-        raise HTTPException(status_code=500, detail="lego_catalog.db missing")
-    return sqlite3.connect(DB_PATH)
 
-def _normalize_set_num(con, raw: str) -> str:
-    if "-" in raw:
-        return raw
-    cur = con.cursor()
-    cand = f"{raw}-1"
-    cur.execute("SELECT 1 FROM sets WHERE set_num=? LIMIT 1", (cand,))
-    return cand if cur.fetchone() else raw
+# -----------------------
+# Internal helpers
+# -----------------------
 
-def _load_inventory() -> Dict[Tuple[str,int], int]:
+def _load_inventory_json() -> List[dict]:
     """
-    Returns { (part_num, color_id) : qty_total }
+    Load the current inventory JSON as a list of rows.
+
+    Shape per row (canonical):
+      {
+        "part_num": "3001",
+        "color_id": 5,
+        "qty_total": 6,
+        "part_img_url": "..."
+      }
     """
-    if not os.path.exists(INV_PATH):
-        return {}
-    with open(INV_PATH, "r") as f:
-        try:
-            rows = json.load(f) or []
-        except Exception:
-            raise HTTPException(status_code=500, detail="inventory_parts.json is invalid JSON")
-    inv: Dict[Tuple[str,int], int] = {}
+    try:
+        with open(INV_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f) or []
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+    if not isinstance(data, list):
+        # If someone manually edited the file into a weird shape,
+        # treat it as empty instead of crashing.
+        return []
+
+    return data
+
+
+def _inventory_map(rows: Optional[List[dict]] = None) -> Dict[Tuple[str, int], int]:
+    """
+    Build a {(part_num, color_id): qty_total} map from inventory rows.
+    """
+    if rows is None:
+        rows = _load_inventory_json()
+
+    m: Dict[Tuple[str, int], int] = {}
     for r in rows:
-        try:
-            key = (str(r["part_num"]), int(r["color_id"]))
-            inv[key] = inv.get(key, 0) + int(r.get("qty_total", 0))
-        except Exception:
-            continue
-    return inv
+        part = str(r.get("part_num"))
+        color = int(r.get("color_id", 0))
+        qty = int(
+            r.get(
+                "qty_total",
+                r.get("qty", r.get("quantity", 0)),
+            )
+        )
+        m[(part, color)] = qty
+    return m
+
+
+def _normalize_set_id(raw: str) -> str:
+    """
+    Normalise a set id so both "70618" and "70618-1" work.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return s
+    if "-" not in s:
+        return f"{s}-1"
+    return s
+
+
+# -----------------------
+# Pydantic models
+# -----------------------
+
+class BatchCompareRequest(BaseModel):
+    sets: List[str]
+
+
+# -----------------------
+# Endpoints
+# -----------------------
 
 @router.get("/compare")
-def compare(
+def compare_buildability(
     set: Optional[str] = Query(None),
     set_num: Optional[str] = Query(None),
     id: Optional[str] = Query(None),
 ):
+    """
+    Compare inventory vs a single set.
+
+    The set can be provided as ?set=, ?set_num= or ?id=; we normalise
+    "70618" to "70618-1".
+
+    Response shape:
+      {
+        "set_num": "...",
+        "coverage": 0.84,
+        "total_needed": 1234,
+        "total_have": 1040,
+        "display_total": 1234,
+        "missing_parts": [
+          { "part_num": "...", "color_id": 5, "need": 2, "have": 1, "short": 1 }
+        ]
+      }
+    """
     raw = set_num or set or id
     if not raw:
-        raise HTTPException(status_code=422, detail="Provide set, set_num, or id")
+        raise HTTPException(
+            status_code=400,
+            detail="Provide one of set, set_num or id query parameters.",
+        )
 
-    con = _db()
-    try:
-        target = _normalize_set_num(con, raw)
-        cur = con.cursor()
+    set_id = _normalize_set_id(raw)
 
-        # Confirm set exists
-        cur.execute("SELECT 1 FROM sets WHERE set_num=? LIMIT 1", (target,))
-        if not cur.fetchone():
-            raise HTTPException(status_code=404, detail=f"Set {target} not found")
+    # Get canonical parts for this set from the SQLite catalog
+    parts = get_catalog_parts_for_set(set_id)
+    if not parts:
+        # Either the set doesn't exist in the catalog, or there are no parts
+        raise HTTPException(
+            status_code=404,
+            detail=f"No catalog parts found for set {set_id}",
+        )
 
-        # Required parts for this set
-        cur.execute("""
-            SELECT part_num, color_id, quantity
-            FROM inventory_parts_summary
-            WHERE set_num=?
-            ORDER BY part_num, color_id
-        """, (target,))
-        req_rows = cur.fetchall()
-    finally:
-        con.close()
+    inv_map = _inventory_map()
 
-    inv = _load_inventory()
     total_needed = 0
     total_have = 0
-    missing_parts = []
+    missing_parts: List[Dict[str, int]] = []
 
-    for part_num, color_id, qty_req in req_rows:
-        total_needed += int(qty_req)
-        have = int(inv.get((str(part_num), int(color_id)), 0))
-        used = min(have, int(qty_req))
-        total_have += used
-        short = int(qty_req) - used
-        if short > 0:
-            missing_parts.append({
-                "part_num": str(part_num),
-                "color_id": int(color_id),
-                "need": int(qty_req),
-                "have": have,
-                "short": short
-            })
+    for row in parts:
+        part_num = str(row["part_num"])
+        color_id = int(row["color_id"])
+        need = int(row["quantity"])
 
-    coverage = (float(total_have) / float(total_needed)) if total_needed else 1.0
+        if need <= 0:
+            continue
+
+        key = (part_num, color_id)
+        have = int(inv_map.get(key, 0))
+
+        total_needed += need
+        # cap have at need for coverage calculation
+        total_have += min(have, need)
+
+        if have < need:
+            missing_parts.append(
+                {
+                    "part_num": part_num,
+                    "color_id": color_id,
+                    "need": need,
+                    "have": have,
+                    "short": need - have,
+                }
+            )
+
+    coverage = float(total_have / total_needed) if total_needed > 0 else 0.0
+    display_total = get_set_num_parts(set_id)
 
     return {
-        "set_num": target,
+        "set_num": set_id,
         "coverage": coverage,
         "total_needed": total_needed,
         "total_have": total_have,
-        "missing_parts": missing_parts
+        "display_total": display_total,
+        "missing_parts": missing_parts,
     }
 
-
-from pydantic import BaseModel
-from typing import List, Optional
-
-class CompareManyBody(BaseModel):
-    sets: List[str]
-
-@router.post("/compare_many")
-def compare_many(body: CompareManyBody):
+@router.post("/batch_compare")
+def batch_compare_buildability(payload: BatchCompareRequest):
     """
-    Bulk coverage for many set_nums — fast badges for search results.
-    Returns list of {set_num, coverage, total_needed, total_have}.
-    """
-    con = _db(); cur = con.cursor()
-    # preload inventory map once
-    inv = load_inventory_map()
+    Compare inventory against multiple sets in one call.
 
-    out = []
-    for raw in body.sets:
-        set_num = normalize_set_num(raw)
-        # validate set exists
-        cur.execute("SELECT 1 FROM sets WHERE set_num=? LIMIT 1", (set_num,))
-        if not cur.fetchone():
-            out.append({"set_num": set_num, "coverage": 0.0, "total_needed": 0, "total_have": 0})
+    Request:
+      { "sets": ["70618-1", "21330-1", ...] }
+
+    Response:
+      [
+        { "set_num": "70618-1", "coverage": 1.0, "total_needed": 1234, "total_have": 1234 },
+        ...
+      ]
+    """
+    if not payload.sets:
+        return []
+
+    inv_rows = _load_inventory_json()
+    inv_map = _inventory_map(inv_rows)
+
+    results: List[Dict[str, object]] = []
+
+    for raw in payload.sets:
+        set_id = _normalize_set_id(raw)
+        if not set_id:
+            results.append(
+                {
+                    "set_num": "",
+                    "coverage": 0.0,
+                    "total_needed": 0,
+                    "total_have": 0,
+                }
+            )
             continue
-        # sum required parts (non-spares already enforced in the table)
-        cur.execute("""
-            SELECT part_num, color_id, quantity
-            FROM inventory_parts_summary
-            WHERE set_num=?
-        """, (set_num,))
+
+        parts = get_catalog_parts_for_set(set_id)
+        if not parts:
+            # Set not in catalog
+            results.append(
+                {
+                    "set_num": set_id,
+                    "coverage": 0.0,
+                    "total_needed": 0,
+                    "total_have": 0,
+                }
+            )
+            continue
+
         total_needed = 0
-        total_have   = 0
-        for part_num, color_id, need in cur.fetchall():
-            need = int(need or 0)
-            have = int(inv.get((str(part_num), int(color_id)), 0))
+        total_have = 0
+
+        for row in parts:
+            part_num = str(row["part_num"])
+            color_id = int(row["color_id"])
+            need = int(row["quantity"])
+
+            if need <= 0:
+                continue
+
+            key = (part_num, color_id)
+            have = int(inv_map.get(key, 0))
+
             total_needed += need
-            total_have   += min(need, have)
-        cov = (total_have / total_needed) if total_needed > 0 else 0.0
-        out.append({
-            "set_num": set_num,
-            "coverage": cov,
-            "total_needed": total_needed,
-            "total_have": total_have
-        })
-    con.close()
-    return out
+            total_have += min(have, need)
+
+        coverage = float(total_have / total_needed) if total_needed > 0 else 0.0
+
+        results.append(
+            {
+                "set_num": set_id,
+                "coverage": coverage,
+                "total_needed": total_needed,
+                "total_have": total_have,
+            }
+        )
+
+    return results
 
 
-def normalize_set_num(raw: str) -> str:
-    sn = str(raw).strip()
-    if "-" in sn:
-        return sn
-    con = _db(); cur = con.cursor()
-    cur.execute("SELECT set_num FROM sets WHERE set_num LIKE ? ORDER BY year DESC LIMIT 1", (sn+'-%',))
-    row = cur.fetchone()
-    con.close()
-    return row[0] if row else sn
+# Backwards-compatible helper retained for any older code that imports it.
+def load_inventory_map() -> Dict[Tuple[str, int], int]:
+    """
+    Legacy helper kept for backwards compatibility.
 
-
-def load_inventory_map():
-    import json, os
-    inv_path = os.path.join(os.path.dirname(__file__), "..", "data", "inventory_parts.json")
-    try:
-        with open(inv_path, "r") as f:
-            rows = json.load(f) or []
-    except (FileNotFoundError, json.JSONDecodeError):
-        rows = []
-    m = {}
-    for r in rows:
-        k = (str(r.get("part_num")), int(r.get("color_id", 0)))
-        m[k] = int(r.get("qty_total", 0))
-    return m
+    Returns a {(part_num, color_id): qty_total} map using the same logic
+    as _inventory_map().
+    """
+    return _inventory_map()

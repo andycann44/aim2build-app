@@ -79,23 +79,26 @@ const InventoryPage: React.FC = () => {
 
   return (
     <div className="page page-inventory">
-      {/* HERO HEADER – same style family as Search/My Sets */}
       <div
-        className="search-hero"
+        className="inventory-hero"
         style={{
-          width:"100%",
+          width: "100%",
           maxWidth: "100%",
+          boxSizing: "border-box",
+          marginTop: "1.5rem",
+          marginRight: "2.5rem",
+          marginBottom: "1.5rem",
+          marginLeft: 0,
           borderRadius: "18px",
           padding: "1.75rem 1.5rem 1.5rem",
           background:
-            "linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #f97316 70%, #22c55e 100%)",
+            "linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%)",
           boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
           color: "#fff",
           position: "relative",
           overflow: "hidden",
         }}
       >
-        {/* studs strip */}
         <div
           aria-hidden="true"
           style={{
@@ -122,24 +125,14 @@ const InventoryPage: React.FC = () => {
           )}
         </div>
 
-        <div style={{ marginTop: "1.75rem" }}>
-          <div
-            style={{
-              fontSize: "0.75rem",
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              opacity: 0.85,
-              marginBottom: "0.25rem",
-            }}
-          >
-            Your LEGO drawer
-          </div>
+        <div style={{ position: "relative", zIndex: 1 }}>
           <h1
             style={{
-              fontSize: "2rem",
+              fontSize: "1.9rem",
               fontWeight: 800,
-              margin: 0,
-              textShadow: "0 4px 18px rgba(0,0,0,0.6)",
+              letterSpacing: "0.03em",
+              marginBottom: "0.4rem",
+              textShadow: "0 2px 6px rgba(0,0,0,0.45)",
             }}
           >
             Inventory
@@ -160,6 +153,8 @@ const InventoryPage: React.FC = () => {
 
         <div
           style={{
+            position: "relative",
+            zIndex: 1,
             display: "flex",
             flexWrap: "wrap",
             gap: "0.5rem",
@@ -172,6 +167,7 @@ const InventoryPage: React.FC = () => {
               background: "rgba(15,23,42,0.8)",
               padding: "0.25rem 0.85rem",
               fontSize: "0.8rem",
+              border: "1px solid rgba(148,163,184,0.5)",
             }}
           >
             {stats.unique.toLocaleString()} unique parts ·{" "}
@@ -187,6 +183,9 @@ const InventoryPage: React.FC = () => {
               padding: "0.25rem 0.75rem",
               fontSize: "0.8rem",
               cursor: "pointer",
+              background: "rgba(15,23,42,0.35)",
+              color: "#e5e7eb",
+              border: "1px solid rgba(148,163,184,0.35)",
             }}
           >
             Refresh
@@ -201,8 +200,9 @@ const InventoryPage: React.FC = () => {
               padding: "0.25rem 0.75rem",
               fontSize: "0.8rem",
               cursor: "pointer",
-              background: "rgba(15,23,42,0.18)",
-              color: "#fff",
+              background: "rgba(220,38,38,0.16)",
+              color: "#fecdd3",
+              border: "1px solid rgba(248,113,113,0.4)",
             }}
           >
             Clear Inventory

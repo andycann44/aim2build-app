@@ -25,12 +25,11 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
       {/* your existing styled card */}
       <PartsTile part={part} />
 
-      {/* tiny line underneath with the buildability numbers */}
       <div
         style={{
-          fontSize: "0.78rem",
-          textAlign: "center",
-          color: "#4b5563",
+          marginTop: "0.35rem",
+          fontSize: "0.8rem",
+          color: "#e5e7eb",
         }}
       >
         <span>
@@ -43,7 +42,7 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
         {missing > 0 && (
           <>
             {" · "}
-            <span style={{ color: "#b91c1c" }}>
+            <span style={{ color: "#f97316" }}>
               Missing <strong>{missing}</strong>
             </span>
           </>

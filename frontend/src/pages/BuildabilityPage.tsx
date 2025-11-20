@@ -16,9 +16,13 @@ import {
 } from "../api/client";
 import { useNavigate } from "react-router-dom";
 
+type BuildabilityResultWithDisplay = BuildabilityResult & {
+  display_total?: number | null;
+};
+
 type BuildabilityWithMeta = {
   item: BuildabilityItem;
-  result: BuildabilityResult;
+  result: BuildabilityResultWithDisplay;
 };
 
 const BuildabilityPage: React.FC = () => {
@@ -40,19 +44,27 @@ const BuildabilityPage: React.FC = () => {
       const results: BuildabilityWithMeta[] = await Promise.all(
         sets.map(async (s) => {
           try {
-            const res: BuildabilityResult = await getBuildability(s.set_num);
-
-            const totalNeeded =
-              (res.total_needed as number | undefined) ??
-              (s.num_parts as number | undefined) ??
-              0;
+            const res: BuildabilityResultWithDisplay = await getBuildability(
+              s.set_num
+            );
+            const raw: BuildabilityResultWithDisplay = res;
 
             const coverage =
-              typeof res.coverage === "number" ? res.coverage : 0;
+              typeof raw.coverage === "number" ? raw.coverage : 0;
+
+            const displayTotal =
+              (typeof raw.display_total === "number"
+                ? raw.display_total
+                : undefined) ??
+              (typeof raw.total_needed === "number"
+                ? raw.total_needed
+                : undefined) ??
+              (typeof s.num_parts === "number" ? s.num_parts : undefined) ??
+              0;
 
             const totalHave =
-              (res.total_have as number | undefined) ??
-              Math.round(totalNeeded * coverage);
+              (typeof raw.total_have === "number" ? raw.total_have : undefined) ??
+              Math.round(displayTotal * coverage);
 
             const item: BuildabilityItem = {
               set_num: s.set_num,
@@ -60,14 +72,14 @@ const BuildabilityPage: React.FC = () => {
               year: s.year,
               img_url: s.img_url,
               coverage,
-              total_needed: totalNeeded,
+              total_needed: displayTotal,
               total_have: totalHave,
             };
 
             return { item, result: res };
           } catch (e) {
             // If compare fails, still show the set at 0%
-            const totalNeeded = (s.num_parts as number | undefined) ?? 0;
+            const displayTotal = (s.num_parts as number | undefined) ?? 0;
 
             const item: BuildabilityItem = {
               set_num: s.set_num,
@@ -75,17 +87,17 @@ const BuildabilityPage: React.FC = () => {
               year: s.year,
               img_url: s.img_url,
               coverage: 0,
-              total_needed: totalNeeded,
+              total_needed: displayTotal,
               total_have: 0,
             };
 
-            const fallback: BuildabilityResult = {
+            const fallback: BuildabilityResultWithDisplay = {
               set_num: s.set_num,
               coverage: 0,
-              total_needed: totalNeeded,
+              total_needed: displayTotal,
               total_have: 0,
               missing_parts: [],
-            } as BuildabilityResult;
+            } as BuildabilityResultWithDisplay;
 
             return { item, result: fallback };
           }

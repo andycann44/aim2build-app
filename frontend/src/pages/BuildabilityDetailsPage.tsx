@@ -57,6 +57,14 @@ const BuildabilityDetailsPage: React.FC = () => {
     setLoading(true);
     setError(null);
 
+    type BuildabilityResultWithDisplay = {
+      set_num: string;
+      coverage?: number;
+      total_have?: number;
+      total_needed?: number;
+      display_total?: number | null;
+    };
+
     try {
       // 1) Parts the SET needs
       const partsRes = await fetch(
@@ -110,10 +118,23 @@ const BuildabilityDetailsPage: React.FC = () => {
           `${API}/api/buildability/compare?set=${encodeURIComponent(setNum)}`
         );
         if (bRes.ok) {
-          const b = (await bRes.json()) as any;
-          if (typeof b.coverage === "number") setCoverage(b.coverage);
-          if (typeof b.total_have === "number") setTotalHave(b.total_have);
-          if (typeof b.total_needed === "number") setTotalNeed(b.total_needed);
+          const b = (await bRes.json()) as BuildabilityResultWithDisplay;
+
+          const coverage =
+            typeof b.coverage === "number" ? b.coverage : 0;
+          const totalHave =
+            typeof b.total_have === "number" ? b.total_have : null;
+
+          const displayTotal =
+            typeof b.display_total === "number"
+              ? b.display_total
+              : typeof b.total_needed === "number"
+              ? b.total_needed
+              : null;
+
+          setCoverage(coverage);
+          setTotalHave(totalHave);
+          setTotalNeed(displayTotal);
         }
       } catch (err) {
         console.warn("Buildability compare failed in details page", err);

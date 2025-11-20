@@ -1,132 +1,426 @@
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
-import os, json
-from typing import List
+from fastapi import APIRouter, HTTPException, Query, Body
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Tuple
+import os
+import json
 
+from app.catalog_db import get_catalog_parts_for_set
 router = APIRouter()
+
 INV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "inventory_parts.json")
 
+
+# -----------------------
+# Internal helpers
+# -----------------------
+
 def _load() -> List[dict]:
-    if not os.path.exists(INV_PATH): return []
-    with open(INV_PATH, "r") as f:
+    """Load inventory from JSON file. Always returns a list."""
+    if not os.path.exists(INV_PATH):
+        return []
+    with open(INV_PATH, "r", encoding="utf-8") as f:
         try:
             data = json.load(f) or []
-            if not isinstance(data, list): raise ValueError("inventory file is not a list")
-            return data
         except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="inventory_parts.json is not valid JSON")
+            # Corrupt / empty file → treat as empty inventory
+            return []
+    if not isinstance(data, list):
+        raise ValueError("inventory file is not a list")
+    return data
 
-def _save(rows: List[dict]):
-    os.makedirs(os.path.dirname(INV_PATH), exist_ok=True)
-    with open(INV_PATH, "w") as f: json.dump(rows, f)
+
+def _save(rows: List[dict]) -> None:
+    """Persist inventory list to JSON file."""
+    with open(INV_PATH, "w", encoding="utf-8") as f:
+        json.dump(rows, f, indent=2, sort_keys=True)
+
+
+def _index_by_key(rows: List[dict]) -> Dict[Tuple[str, int], dict]:
+    idx: Dict[Tuple[str, int], dict] = {}
+    for r in rows:
+        part = str(r.get("part_num"))
+        # default colour_id to 0 if missing, but store as int
+        color = int(r.get("color_id", 0))
+        idx[(part, color)] = r
+    return idx
+
+
+# -----------------------
+# Models
+# -----------------------
+
+class InventoryPart(BaseModel):
+    part_num: str
+    color_id: int
+    qty_total: int = Field(..., ge=0)
+    part_img_url: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
 
 class InvLine(BaseModel):
     part_num: str
     color_id: int
-    qty_total: int
+    qty_total: int = Field(..., ge=0)
+    part_img_url: Optional[str] = None
 
-@router.get("/parts")
-def get_inventory():
-    return _load()
-
-@router.post("/add")
-def add_part(line: InvLine):
-    rows = _load()
-    rows.append(line.dict())
-    _save(rows)
-    return {"ok": True, "count": len(rows)}
-
-@router.post("/replace")
-def replace_inventory(lines: List[InvLine]):
-    _save([x.dict() for x in lines])
-    return {"ok": True, "count": len(lines)}
-
-@router.delete("/part")
-def delete_part(part_num: str = Query(...), color_id: int = Query(...)):
-    """Delete all entries matching (part_num, color_id)."""
-    rows = _load()
-    before = len(rows)
-    rows = [r for r in rows if not (str(r.get("part_num")) == str(part_num) and int(r.get("color_id", 0)) == int(color_id))]
-    removed = before - len(rows)
-    if removed == 0:
-        # still save to normalize file if needed
-        _save(rows)
-        raise HTTPException(status_code=404, detail=f"Item {part_num}/{color_id} not found")
-    _save(rows)
-    return {"ok": True, "removed": removed, "remaining": len(rows)}
-
-
-from typing import List, Optional
-from pydantic import BaseModel, Field
 
 class DecrementOne(BaseModel):
     part_num: str
     color_id: int
-    qty: int = Field(..., gt=0, description="How many to remove")
+    delta: int = Field(1, gt=0)
 
-class DeleteKey(BaseModel):
+
+class DecrementBatch(BaseModel):
+    items: List[DecrementOne]
+
+
+class DeleteKeys(BaseModel):
     part_num: str
     color_id: int
 
-def _keymatch(r, part_num, color_id):
-    return str(r.get("part_num")) == str(part_num) and int(r.get("color_id", 0)) == int(color_id)
+
+class DeleteBatch(BaseModel):
+    keys: List[DeleteKeys]
+
+
+# -----------------------
+# Endpoints
+# -----------------------
+
+@router.get("/parts", response_model=List[InventoryPart])
+def list_inventory_parts() -> List[InventoryPart]:
+    """
+    Return the full inventory list.
+
+    This is what the Inventory and Buildability tiles use.
+    """
+    rows = _load()
+    out: List[InventoryPart] = []
+    for r in rows:
+        out.append(
+            InventoryPart(
+                part_num=str(r.get("part_num")),
+                color_id=int(r.get("color_id", 0)),
+                qty_total=int(
+                    r.get("qty_total", r.get("qty", r.get("quantity", 0)))
+                ),
+                part_img_url=r.get("part_img_url") or r.get("img_url"),
+            )
+        )
+    return out
+
+
+@router.post("/add")
+def add_inventory(
+    set: Optional[str] = Query(
+        None, description="LEGO set number to add (alias: set_num, id)"
+    ),
+    set_num: Optional[str] = Query(None),
+    id: Optional[str] = Query(None),
+    line: Optional[InvLine] = Body(
+        None,
+        description="Single part line to add when no set/set_num/id is provided",
+    ),
+):
+    """
+    Two behaviours:
+
+    - If set/set_num/id is provided → aggregate all parts for that set from the
+      SQLite catalog (via get_catalog_parts_for_set) and add them into the
+      JSON inventory.
+
+    - Otherwise → add or increment a single part line.
+    """
+    rows = _load()
+    index = _index_by_key(rows)
+
+    # --------- Mode 1: add by set from catalog ---------
+    chosen = set_num or set or id
+    if chosen:
+        set_id = chosen.strip()
+        if not set_id:
+            raise HTTPException(status_code=400, detail="Empty set id")
+
+        set_parts = get_catalog_parts_for_set(set_id)
+        if not set_parts:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No catalog parts found for set {set_id}",
+            )
+
+        added_unique = 0
+        for row in set_parts:
+            part = str(row["part_num"])
+            color = int(row["color_id"])
+            need_qty = int(row["quantity"])
+            key = (part, color)
+
+            existing = index.get(key)
+            if existing is None:
+                index[key] = {
+                    "part_num": part,
+                    "color_id": color,
+                    "qty_total": need_qty,
+                }
+                added_unique += 1
+            else:
+                existing_qty = int(
+                    existing.get(
+                        "qty_total",
+                        existing.get("qty", existing.get("quantity", 0)),
+                    )
+                )
+                existing["qty_total"] = existing_qty + need_qty
+
+        rows = list(index.values())
+        _save(rows)
+        return {
+            "ok": True,
+            "mode": "set",
+            "set_num": set_id if "-" in set_id else f"{set_id}",
+            "unique_parts_touched": added_unique,
+            "total_rows": len(rows),
+        }
+
+    # --------- Mode 2: add a single line ---------
+    if line is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Either provide set/set_num/id query or a JSON body for a single part line.",
+        )
+
+    data = line.dict()
+    part = data["part_num"]
+    color = int(data["color_id"])
+    qty = int(data["qty_total"])
+    key = (part, color)
+
+    existing = index.get(key)
+    if existing is None:
+        index[key] = {
+            "part_num": part,
+            "color_id": color,
+            "qty_total": qty,
+            # keep image if provided
+            **(
+                {"part_img_url": data["part_img_url"]}
+                if data.get("part_img_url")
+                else {}
+            ),
+        }
+    else:
+        existing_qty = int(
+            existing.get(
+                "qty_total", existing.get("qty", existing.get("quantity", 0))
+            )
+        )
+        existing["qty_total"] = existing_qty + qty
+        if data.get("part_img_url") and not existing.get("part_img_url"):
+            existing["part_img_url"] = data["part_img_url"]
+
+    rows = list(index.values())
+    _save(rows)
+    return {"ok": True, "mode": "single", "total_rows": len(rows)}
+
+
+@router.post("/replace")
+def replace_inventory(lines: List[InvLine]):
+    """
+    Replace the entire inventory with the given list of lines.
+    """
+    rows: List[dict] = []
+    for line in lines:
+        d = line.dict()
+        d["qty_total"] = int(d.get("qty_total", 0))
+        rows.append(d)
+    _save(rows)
+    return {"ok": True, "count": len(rows)}
+
+
+@router.delete("/part")
+def delete_part(part_num: str, color_id: int):
+    """
+    Remove a single (part_num, color_id) entry from the inventory.
+    """
+    rows = _load()
+    key = (str(part_num), int(color_id))
+    before = len(rows)
+    rows = [
+        r
+        for r in rows
+        if (str(r.get("part_num")), int(r.get("color_id", 0))) != key
+    ]
+    removed = before - len(rows)
+    if removed == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Item {part_num}/{color_id} not found",
+        )
+    _save(rows)
+    return {"ok": True, "removed": removed, "remaining": len(rows)}
+
 
 @router.post("/decrement")
-def decrement(body: DecrementOne):
+def decrement_one(payload: DecrementOne):
+    """
+    Decrement quantity for a single part. If quantity drops to 0, remove the row.
+    """
     rows = _load()
-    changed = False
-    for r in rows:
-        if _keymatch(r, body.part_num, body.color_id):
-            newq = max(0, int(r.get("qty_total",0)) - body.qty)
-            r["qty_total"] = newq
-            changed = True
-            break
-    if not changed:
-        raise HTTPException(status_code=404, detail=f"Item {body.part_num}/{body.color_id} not found")
-    # drop zeros
-    rows = [r for r in rows if int(r.get("qty_total",0)) > 0]
+    index = _index_by_key(rows)
+    key = (payload.part_num, int(payload.color_id))
+    existing = index.get(key)
+    if existing is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Item {payload.part_num}/{payload.color_id} not found",
+        )
+
+    current = int(
+        existing.get(
+            "qty_total", existing.get("qty", existing.get("quantity", 0))
+        )
+    )
+    new_qty = current - payload.delta
+    if new_qty <= 0:
+        # Remove the part entirely
+        index.pop(key, None)
+    else:
+        existing["qty_total"] = new_qty
+
+    rows = list(index.values())
     _save(rows)
     return {"ok": True, "remaining": len(rows)}
 
-class BatchDecItem(BaseModel):
-    part_num: str
-    color_id: int
-    qty: int = Field(..., gt=0)
 
 @router.post("/batch_decrement")
-def batch_decrement(items: List[BatchDecItem]):
+def batch_decrement(payload: DecrementBatch):
+    """
+    Decrement quantity for multiple parts.
+    """
     rows = _load()
-    removed = 0
-    touched = 0
-    for it in items:
-        for r in rows:
-            if _keymatch(r, it.part_num, it.color_id):
-                newq = max(0, int(r.get("qty_total",0)) - it.qty)
-                if newq != int(r.get("qty_total",0)):
-                    touched += 1
-                r["qty_total"] = newq
-                break
-    # drop zeros
-    before = len(rows)
-    rows = [r for r in rows if int(r.get("qty_total",0)) > 0]
-    removed = before - len(rows)
+    index = _index_by_key(rows)
+
+    for item in payload.items:
+        key = (item.part_num, int(item.color_id))
+        existing = index.get(key)
+        if existing is None:
+            # Skip missing keys silently; could also collect and report
+            continue
+        current = int(
+            existing.get(
+                "qty_total", existing.get("qty", existing.get("quantity", 0))
+            )
+        )
+        new_qty = current - item.delta
+        if new_qty <= 0:
+            index.pop(key, None)
+        else:
+            existing["qty_total"] = new_qty
+
+    rows = list(index.values())
     _save(rows)
-    return {"ok": True, "touched": touched, "auto_deleted_zero_qty": removed, "remaining": len(rows)}
+    return {"ok": True, "remaining": len(rows)}
+
 
 @router.post("/batch_delete")
-def batch_delete(keys: List[DeleteKey]):
+def batch_delete(payload: DeleteBatch):
+    """
+    Delete multiple (part_num, color_id) keys in one call.
+    """
     rows = _load()
-    keyset = {(k.part_num, k.color_id) for k in keys}
+    keyset = {(k.part_num, int(k.color_id)) for k in payload.keys}
     before = len(rows)
-    rows = [r for r in rows if (str(r.get("part_num")), int(r.get("color_id",0))) not in {(str(p), int(c)) for (p,c) in keyset}]
+    rows = [
+        r
+        for r in rows
+        if (str(r.get("part_num")), int(r.get("color_id", 0))) not in keyset
+    ]
     removed = before - len(rows)
     _save(rows)
     if removed == 0:
-        raise HTTPException(status_code=404, detail="No matching items found to delete")
+        raise HTTPException(
+            status_code=404,
+            detail="No matching items found to delete",
+        )
     return {"ok": True, "removed": removed, "remaining": len(rows)}
+
+
+@router.post("/remove_set")
+def remove_set(
+    set: Optional[str] = Query(
+        None, alias="set", description="LEGO set number (alias: set_num, id)"
+    ),
+    set_num: Optional[str] = Query(None),
+    id: Optional[str] = Query(None),
+):
+    """
+    Remove all parts for a given set from the inventory JSON using the
+    canonical non-spare part list from get_catalog_parts_for_set.
+    """
+    raw = set_num or set or id
+    if not raw:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide one of set, set_num or id query parameters.",
+        )
+
+    catalog_parts = get_catalog_parts_for_set(raw)
+    if not catalog_parts:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No catalog parts found for set {raw}",
+        )
+
+    rows = _load()
+    idx = _index_by_key(rows)
+    touched = 0
+
+    for p in catalog_parts:
+        key = (str(p["part_num"]), int(p["color_id"]))
+        need = int(p["quantity"])
+        existing = idx.get(key)
+        if existing is None:
+            continue
+
+        current = int(
+            existing.get(
+                "qty_total", existing.get("qty", existing.get("quantity", 0))
+            )
+        )
+        new_qty = current - need
+        if new_qty < 0:
+            new_qty = 0
+        if new_qty != current:
+            touched += 1
+        if new_qty == 0:
+            idx.pop(key, None)
+        else:
+            existing["qty_total"] = new_qty
+
+    rows = list(idx.values())
+    _save(rows)
+
+    return {
+        "ok": True,
+        "set_num": catalog_parts[0].get("set_num", raw) if catalog_parts else raw,
+        "touched": touched,
+        "remaining": len(rows),
+    }
+
+
 @router.delete("/clear")
-def clear_inventory(confirm: str = Query(..., description='Type "YES" to confirm')):
+def clear_inventory(
+    confirm: str = Query(..., description='Type "YES" to confirm'),
+):
+    """
+    Clear the entire inventory JSON.
+    """
     if confirm != "YES":
-        raise HTTPException(status_code=400, detail='Refused. Pass confirm=YES to clear all inventory.')
+        raise HTTPException(
+            status_code=400,
+            detail='Refused. Pass confirm=YES to clear all inventory.',
+        )
     _save([])
     return {"ok": True, "cleared": True, "count": 0}
