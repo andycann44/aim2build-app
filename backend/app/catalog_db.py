@@ -1,6 +1,6 @@
 from pathlib import Path
 from contextlib import contextmanager
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import sqlite3
 
 # Path to lego_catalog.db
@@ -31,11 +31,34 @@ def _normalise_set_id(set_num: str) -> str:
         return f"{set_id}-1"
     return set_id
 
+def _apply_color_to_img_url(url: Optional[str], color_id: int) -> Optional[str]:
+    """
+    Given a Rebrickable part_img_url and a desired color_id,
+    rewrite the URL so that the colour segment matches color_id.
+    Handles both .../parts/<color>/... and .../parts/ldraw/<color>/...
+    """
+    if not url:
+        return None
+
+    try:
+        parts = url.split("/")
+        # colour is usually the last numeric segment before the filename
+        for i in range(len(parts) - 2, -1, -1):
+            if parts[i].isdigit():
+                parts[i] = str(color_id)
+                break
+        return "/".join(parts)
+    except Exception:
+        return url
 
 def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
     """
     Return canonical parts for a set from the SQLite catalog.
-    Uses the pre-aggregated inventory_parts_summary table (spares excluded).
+
+    Uses the pre-aggregated inventory_parts_summary table (spares excluded)
+    and joins onto parts to get part_img_url from the master catalog.
+
+    This is our single source of truth for images per part_num.
     """
     set_id = _normalise_set_id(set_num)
     if not set_id:
@@ -44,12 +67,16 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
     with db() as con:
         cur = con.execute(
             """
-            SELECT part_num,
-                   color_id,
-                   quantity
-            FROM inventory_parts_summary
-            WHERE set_num = ?
-            ORDER BY part_num, color_id
+            SELECT
+                s.part_num,
+                s.color_id,
+                s.quantity,
+                p.part_img_url
+            FROM inventory_parts_summary AS s
+            LEFT JOIN parts AS p
+              ON p.part_num = s.part_num
+            WHERE s.set_num = ?
+            ORDER BY s.part_num, s.color_id
             """,
             (set_id,),
         )
@@ -60,6 +87,7 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
             "part_num": row["part_num"],
             "color_id": row["color_id"],
             "quantity": row["quantity"],
+            "part_img_url": _apply_color_to_img_url(row["part_img_url"], int(row["color_id"]))
         }
         for row in rows
     ]
