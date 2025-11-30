@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PartsTile from "../components/PartsTile";
+import SortMenu, { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
 
 type InventoryPart = {
@@ -15,6 +16,7 @@ const InventoryPage: React.FC = () => {
   const [parts, setParts] = useState<InventoryPart[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("default");
   const [stats, setStats] = useState({ unique: 0, total: 0 });
 
   const loadParts = useCallback(async () => {
@@ -83,6 +85,36 @@ const InventoryPage: React.FC = () => {
     }
   };
 
+  const sortedParts = useMemo(() => {
+    const byPartThenColor = (a: InventoryPart, b: InventoryPart) => {
+      const byPart = a.part_num.localeCompare(b.part_num);
+      if (byPart !== 0) return byPart;
+      return a.color_id - b.color_id;
+    };
+
+    switch (sortMode) {
+      case "qty_desc":
+        return [...parts].sort((a, b) => {
+          const diff = (b.qty_total ?? 0) - (a.qty_total ?? 0);
+          if (diff !== 0) return diff;
+          return byPartThenColor(a, b);
+        });
+      case "qty_asc":
+        return [...parts].sort((a, b) => {
+          const diff = (a.qty_total ?? 0) - (b.qty_total ?? 0);
+          if (diff !== 0) return diff;
+          return byPartThenColor(a, b);
+        });
+      case "color_asc":
+        return [...parts].sort((a, b) => {
+          if (a.color_id !== b.color_id) return a.color_id - b.color_id;
+          return byPartThenColor(a, b);
+        });
+      default:
+        return [...parts].sort(byPartThenColor);
+    }
+  }, [parts, sortMode]);
+
   useEffect(() => {
     loadParts();
   }, [loadParts]);
@@ -106,7 +138,7 @@ const InventoryPage: React.FC = () => {
           boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
           color: "#fff",
           position: "relative",
-          overflow: "hidden",
+          overflow: "visible",
         }}
       >
         <div
@@ -184,12 +216,13 @@ const InventoryPage: React.FC = () => {
             {stats.total.toLocaleString()} pieces
           </div>
 
+          <SortMenu sortMode={sortMode} onChange={setSortMode} />
+
           <button
             type="button"
             onClick={loadParts}
             style={{
               borderRadius: "6px",
-              border: "none",
               padding: "0.25rem 0.75rem",
               fontSize: "0.8rem",
               cursor: "pointer",
@@ -206,7 +239,6 @@ const InventoryPage: React.FC = () => {
             onClick={clearInventory}
             style={{
               borderRadius: "6px",
-              border: "none",
               padding: "0.25rem 0.75rem",
               fontSize: "0.8rem",
               cursor: "pointer",
@@ -245,7 +277,7 @@ const InventoryPage: React.FC = () => {
               alignItems: "flex-start",
             }}
           >
-            {parts.map((p) => (
+            {sortedParts.map((p) => (
               <PartsTile
                 key={`${p.part_num}-${p.color_id}`}
                 part={p}

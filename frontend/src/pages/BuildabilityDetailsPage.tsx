@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { InventoryPart } from "../components/PartsTile";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
+import SortMenu, { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
 
 type SetMeta = {
@@ -36,6 +37,7 @@ const BuildabilityDetailsPage: React.FC = () => {
   const [coverage, setCoverage] = useState<number | null>(null);
   const [totalHave, setTotalHave] = useState<number | null>(null);
   const [totalNeed, setTotalNeed] = useState<number | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("default");
 
   // pick up meta from the tile we double-clicked, if present
   useEffect(() => {
@@ -216,6 +218,44 @@ const BuildabilityDetailsPage: React.FC = () => {
   const covPercent =
     coverage !== null ? Math.round((coverage || 0) * 100) : null;
 
+  const sortedParts = useMemo(() => {
+    const byPartThenColor = (a: SetPartRow, b: SetPartRow) => {
+      const byPart = a.part_num.localeCompare(b.part_num);
+      if (byPart !== 0) return byPart;
+      return a.color_id - b.color_id;
+    };
+
+    const byMissingThenNeed = (a: SetPartRow, b: SetPartRow) => {
+      const shortDiff = (b.short ?? 0) - (a.short ?? 0);
+      if (shortDiff !== 0) return shortDiff;
+      const needDiff = (b.need ?? 0) - (a.need ?? 0);
+      if (needDiff !== 0) return needDiff;
+      return byPartThenColor(a, b);
+    };
+
+    switch (sortMode) {
+      case "qty_desc":
+        return [...parts].sort((a, b) => {
+          const diff = (b.have ?? 0) - (a.have ?? 0);
+          if (diff !== 0) return diff;
+          return byMissingThenNeed(a, b);
+        });
+      case "qty_asc":
+        return [...parts].sort((a, b) => {
+          const diff = (a.have ?? 0) - (b.have ?? 0);
+          if (diff !== 0) return diff;
+          return byMissingThenNeed(a, b);
+        });
+      case "color_asc":
+        return [...parts].sort((a, b) => {
+          if (a.color_id !== b.color_id) return a.color_id - b.color_id;
+          return byPartThenColor(a, b);
+        });
+      default:
+        return [...parts].sort(byMissingThenNeed);
+    }
+  }, [parts, sortMode]);
+
   return (
     <div className="page page-buildability-details">
       {/* HERO HEADER – copied from Inventory/My Sets style */}
@@ -231,7 +271,7 @@ const BuildabilityDetailsPage: React.FC = () => {
           boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
           color: "#fff",
           position: "relative",
-          overflow: "hidden",
+          overflow: "visible",
           marginTop: "1.5rem",
           marginRight: "2.5rem",
           marginBottom: "1.5rem",
@@ -267,26 +307,36 @@ const BuildabilityDetailsPage: React.FC = () => {
 
         <div style={{ position: "relative", zIndex: 1, marginTop: "1.75rem" }}>
           {/* back button */}
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
+          <div
             style={{
-              borderRadius: "999px",
-              border: "none",
-              padding: "0.35rem 0.85rem",
-              fontSize: "0.8rem",
-              background: "rgba(15,23,42,0.75)",
-              color: "#e5e7eb",
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
-              gap: "0.4rem",
-              cursor: "pointer",
+              justifyContent: "flex-start",
+              gap: "0.75rem",
+              flexWrap: "wrap",
               marginBottom: "0.9rem",
             }}
           >
-            <span style={{ fontSize: "1.05rem", lineHeight: 1 }}>←</span>
-            <span>Back to Buildability</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              style={{
+                borderRadius: "999px",
+                border: "none",
+                padding: "0.35rem 0.85rem",
+                fontSize: "0.8rem",
+                background: "rgba(15,23,42,0.75)",
+                color: "#e5e7eb",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: "1.05rem", lineHeight: 1 }}>←</span>
+              <span>Back to Buildability</span>
+            </button>
+          </div>
 
           <div
             style={{
@@ -329,45 +379,56 @@ const BuildabilityDetailsPage: React.FC = () => {
                 {meta.year ? ` • ${meta.year}` : null}
               </div>
 
-              {covPercent !== null &&
-                totalNeed !== null &&
-                totalHave !== null && (
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.75rem",
-                      marginTop: "0.35rem",
-                      padding: "0.35rem 0.9rem",
-                      borderRadius: "999px",
-                      background: "rgba(15,23,42,0.5)",
-                      border: "1px solid rgba(148,163,184,0.65)",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    <span
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  flexWrap: "wrap",
+                  marginTop: "0.35rem",
+                }}
+              >
+                {covPercent !== null &&
+                  totalNeed !== null &&
+                  totalHave !== null && (
+                    <div
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        width: "1.15rem",
-                        height: "1.15rem",
+                        gap: "0.75rem",
+                        padding: "0.35rem 0.9rem",
                         borderRadius: "999px",
-                        background:
-                          covPercent >= 95
-                            ? "#22c55e"
-                            : covPercent >= 60
-                              ? "#eab308"
-                              : "#ef4444",
+                        background: "rgba(15,23,42,0.5)",
+                        border: "1px solid rgba(148,163,184,0.65)",
+                        fontSize: "0.85rem",
                       }}
-                    />
-                    <span>
-                      {covPercent}% of parts covered ·{" "}
-                      {totalHave.toLocaleString()} of{" "}
-                      {totalNeed.toLocaleString()} pieces you own
-                    </span>
-                  </div>
-                )}
+                    >
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "1.15rem",
+                          height: "1.15rem",
+                          borderRadius: "999px",
+                          background:
+                            covPercent >= 95
+                              ? "#22c55e"
+                              : covPercent >= 60
+                                ? "#eab308"
+                                : "#ef4444",
+                        }}
+                      />
+                      <span>
+                        {covPercent}% of parts covered ·{" "}
+                        {totalHave.toLocaleString()} of{" "}
+                        {totalNeed.toLocaleString()} pieces you own
+                      </span>
+                    </div>
+                  )}
+
+                <SortMenu sortMode={sortMode} onChange={setSortMode} />
+              </div>
             </div>
 
             {/* set image on the right, if we have one */}
@@ -421,12 +482,12 @@ const BuildabilityDetailsPage: React.FC = () => {
           <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading parts…</p>
         )}
 
-        {parts.length > 0 && (
+        {sortedParts.length > 0 && (
           <div
             className="tile-grid"
             style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}
           >
-            {parts.map((p) => {
+            {sortedParts.map((p) => {
               const inventoryPart: InventoryPart = {
                 part_num: p.part_num,
                 color_id: p.color_id,

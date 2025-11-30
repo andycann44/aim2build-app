@@ -352,6 +352,89 @@ body.aim2-root {
   gap: 0.5rem;
 }
 
+/* Inventory sort menu */
+.hero-sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.35);
+  color: #e5e7eb;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  cursor: pointer;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.12s ease;
+}
+
+.hero-pill--sort {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.hero-pill:hover {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.6);
+  transform: translateY(-1px);
+}
+
+.hero-pill__value {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hero-sort-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+  padding: 0.4rem;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+.hero-sort-option {
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  padding: 0.45rem 0.5rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.hero-sort-option:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.hero-sort-option--active {
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.hero-sort-option--active:hover {
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
+}
+
 /* ----------------- WISHLIST PANEL ----------------- */
 
 .wishlist-panel-header {
