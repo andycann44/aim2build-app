@@ -1,0 +1,3 @@
+part_num,name,part_cat_id,part_material,part_url,part_img_url,part_img_url_small,year_from,year_to,print_of,mold,is_obsolete,design_id
+3001,Brick 2 x 4,1,ABS,,https://example.com/3001.png,,1958,,,0,3001
+973pb0001c01,Torso Assembly,2,ABS,,https://example.com/torso.png,,1978,,,0,973
