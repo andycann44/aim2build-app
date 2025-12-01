@@ -1,7 +1,7 @@
 import React from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
 import SearchPage from "./pages/SearchPage";
-import BuildabilityPage from "./pages/BuildabilityPage";
+import BuildabilityOverviewPage from "./pages/BuildabilityOverviewPage";
 import InventoryPage from "./pages/InventoryPage";
 import MySetsPage from "./pages/MySetsPage";
 import WishlistPage from "./pages/WishlistPage";
@@ -94,7 +94,7 @@ const App: React.FC = () => {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/my-sets" element={<MySetsPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/buildability" element={<BuildabilityPage />} />
+          <Route path="/buildability" element={<BuildabilityOverviewPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/settings" element={<SettingsPage />} />
