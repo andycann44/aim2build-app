@@ -9,7 +9,7 @@ import {
   SetSummary,
 } from "../api/client";
 
-type Mode = "mysets" | "wishlist" | "search";
+type Mode = "mysets" | "wishlist" | "search" | "discover";
 
 type BuildabilityCard = BuildabilityItem & {
   loading?: boolean;
@@ -19,6 +19,7 @@ const MODE_OPTIONS: { id: Mode; label: string }[] = [
   { id: "mysets", label: "My Sets" },
   { id: "wishlist", label: "Wishlist" },
   { id: "search", label: "Search" },
+  { id: "discover", label: "Discover" },
 ];
 
 async function hydrateSetImages(sets: SetSummary[]): Promise<SetSummary[]> {
@@ -60,6 +61,14 @@ const BuildabilityOverviewPage: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [lastQuery, setLastQuery] = useState("");
+
+  // Discover mode
+  const [discoverTheme, setDiscoverTheme] = useState("");
+  const [discoverMaxParts, setDiscoverMaxParts] = useState<number>(800);
+  const [discoverMinCoverage, setDiscoverMinCoverage] = useState<number>(0);
+  const [discoverResults, setDiscoverResults] = useState<BuildabilityCard[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
 
   const fetchCoverageForSets = useCallback(
     async (sets: SetSummary[]) => {
@@ -139,6 +148,11 @@ const BuildabilityOverviewPage: React.FC = () => {
   const handleModeChange = (next: Mode) => {
     setMode(next);
     setError(null);
+    setDiscoverError(null);
+    if (next === "discover") {
+      setItems([]);
+      setLoading(false);
+    }
     if (next !== "search") {
       setSearchTerm("");
       setLastQuery("");
@@ -178,18 +192,96 @@ const BuildabilityOverviewPage: React.FC = () => {
     [fetchCoverageForSets, searchTerm]
   );
 
-  const visibleItems = useMemo(() => items, [items]);
+  const handleDiscover = useCallback(
+    async (event?: FormEvent) => {
+      if (event) {
+        event.preventDefault();
+      }
+      const term = discoverTheme.trim() || "lego";
+      setDiscoverLoading(true);
+      setDiscoverError(null);
+      try {
+        const found = await searchSets(term);
+        const filtered = (found || []).filter((s) => {
+          const parts =
+            typeof s.num_parts === "number"
+              ? s.num_parts
+              : Number.isFinite(Number(s.num_parts))
+                ? Number(s.num_parts)
+                : NaN;
+          if (!Number.isFinite(parts)) return false;
+          return parts <= discoverMaxParts;
+        });
+
+        const withCoverage = await Promise.all(
+          filtered.map(async (s) => {
+            try {
+              const cmp = await getBuildability(s.set_num);
+              const coverage =
+                typeof cmp.coverage === "number" && !Number.isNaN(cmp.coverage)
+                  ? cmp.coverage
+                  : 0;
+              const total_needed =
+                typeof cmp.total_needed === "number" ? cmp.total_needed : s.num_parts;
+              const total_have =
+                typeof cmp.total_have === "number" ? cmp.total_have : undefined;
+              return {
+                set_num: s.set_num,
+                name: s.name,
+                year: s.year,
+                img_url: s.img_url ?? undefined,
+                coverage,
+                total_have,
+                total_needed,
+              } as BuildabilityCard;
+            } catch (err) {
+              console.warn("Discover: buildability fetch failed", s.set_num, err);
+              return {
+                set_num: s.set_num,
+                name: s.name,
+                year: s.year,
+                img_url: s.img_url ?? undefined,
+                coverage: 0,
+                total_have: 0,
+                total_needed: s.num_parts,
+              } as BuildabilityCard;
+            }
+          })
+        );
+
+        const coverageFiltered = withCoverage.filter(
+          (c) => (c.coverage ?? 0) >= discoverMinCoverage
+        );
+        setDiscoverResults(coverageFiltered);
+      } catch (err: any) {
+        setDiscoverError(err?.message ?? "Failed to discover buildable sets.");
+        setDiscoverResults([]);
+      } finally {
+        setDiscoverLoading(false);
+      }
+    },
+    [discoverMaxParts, discoverMinCoverage, discoverTheme]
+  );
+
+  const visibleItems = useMemo(
+    () => (mode === "discover" ? discoverResults : items),
+    [discoverResults, items, mode]
+  );
 
   const heroTitle =
     mode === "mysets"
       ? "Buildability for My Sets"
       : mode === "wishlist"
       ? "Buildability for Wishlist"
+      : mode === "discover"
+      ? "Discover what you can build now"
       : "Search buildability across sets";
 
   const heroSubtitle =
     mode === "search"
       ? "Search any set and see instantly how buildable it is with your inventory."
+      : mode === "discover"
+      ? "Filter by theme, piece count, and minimum buildability using your current inventory."
       : "Review how ready your sets are to build, with quick access to missing parts.";
 
   const aiButtonClick = () => {
@@ -231,7 +323,7 @@ const BuildabilityOverviewPage: React.FC = () => {
           boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
           color: "#fff",
           position: "relative",
-          overflow: "hidden",
+          overflow: "visible",
           marginTop: "1.5rem",
           marginRight: "2.5rem",
           marginBottom: "1.5rem",
@@ -331,8 +423,9 @@ const BuildabilityOverviewPage: React.FC = () => {
               style={{
                 marginTop: "1rem",
                 display: "flex",
-                gap: "0.65rem",
+                gap: "0.7rem",
                 flexWrap: "wrap",
+                alignItems: "stretch",
               }}
             >
               <input
@@ -343,12 +436,13 @@ const BuildabilityOverviewPage: React.FC = () => {
                 style={{
                   flex: "1 1 260px",
                   minWidth: "240px",
-                  padding: "0.65rem 0.85rem",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.6)",
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#fff",
-                  fontSize: "0.95rem",
+                  padding: "0.9rem 1rem",
+                  borderRadius: "999px",
+                  border: "2px solid rgba(255,255,255,0.9)",
+                  backgroundColor: "rgba(15,23,42,0.9)",
+                  color: "#f9fafb",
+                  fontSize: "1rem",
+                  boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
                 }}
               />
               <button
@@ -357,8 +451,12 @@ const BuildabilityOverviewPage: React.FC = () => {
                 style={{
                   background: "linear-gradient(135deg, #f97316, #facc15, #22c55e)",
                   color: "#0f172a",
-                  borderColor: "#ffffff",
+                  border: "2px solid rgba(255,255,255,0.95)",
+                  boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
                   fontWeight: 800,
+                  padding: "0.85rem 1.6rem",
+                  borderRadius: "999px",
+                  letterSpacing: "0.05em",
                 }}
               >
                 Search
@@ -370,12 +468,99 @@ const BuildabilityOverviewPage: React.FC = () => {
               )}
             </form>
           )}
+
+          {mode === "discover" && (
+            <form
+              onSubmit={handleDiscover}
+              style={{
+                marginTop: "1rem",
+                display: "flex",
+                gap: "0.65rem",
+                flexWrap: "wrap",
+                alignItems: "stretch",
+              }}
+            >
+              <input
+                type="text"
+                value={discoverTheme}
+                onChange={(e) => setDiscoverTheme(e.target.value)}
+                placeholder="Theme (e.g. City, Star Wars…)"
+                style={{
+                  flex: "1 1 240px",
+                  minWidth: "220px",
+                  padding: "0.9rem 1rem",
+                  borderRadius: "999px",
+                  border: "2px solid rgba(255,255,255,0.9)",
+                  backgroundColor: "rgba(15,23,42,0.9)",
+                  color: "#f9fafb",
+                  fontSize: "0.95rem",
+                  boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
+                }}
+              />
+              <input
+                type="number"
+                value={discoverMaxParts}
+                onChange={(e) =>
+                  setDiscoverMaxParts(
+                    Number.isFinite(Number(e.target.value)) ? Number(e.target.value) : 0
+                  )
+                }
+                placeholder="Max pieces"
+                style={{
+                  width: "160px",
+                  padding: "0.9rem 1rem",
+                  borderRadius: "999px",
+                  border: "2px solid rgba(255,255,255,0.9)",
+                  backgroundColor: "rgba(15,23,42,0.9)",
+                  color: "#f9fafb",
+                  fontSize: "0.95rem",
+                  boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
+                }}
+              />
+              <select
+                value={discoverMinCoverage}
+                onChange={(e) => setDiscoverMinCoverage(Number(e.target.value))}
+                style={{
+                  width: "160px",
+                  padding: "0.9rem 1rem",
+                  borderRadius: "999px",
+                  border: "2px solid rgba(255,255,255,0.9)",
+                  backgroundColor: "rgba(15,23,42,0.9)",
+                  color: "#f9fafb",
+                  fontSize: "0.95rem",
+                  boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                }}
+              >
+                <option value={0}>Any</option>
+                <option value={0.5}>50%+</option>
+                <option value={0.75}>75%+</option>
+                <option value={0.9}>90%+</option>
+              </select>
+              <button
+                type="submit"
+                className="hero-pill"
+                style={{
+                  background: "linear-gradient(135deg, #f97316, #facc15, #22c55e)",
+                  color: "#0f172a",
+                  border: "2px solid rgba(255,255,255,0.95)",
+                  boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
+                  fontWeight: 800,
+                  padding: "0.85rem 1.6rem",
+                  borderRadius: "999px",
+                }}
+              >
+                Find sets
+              </button>
+            </form>
+          )}
         </div>
       </div>
 
       {/* BODY */}
       <div style={{ padding: "0 1.5rem 2.5rem" }}>
-        {error && (
+        {(mode === "discover" ? discoverError : error) && (
           <div
             style={{
               marginBottom: "1rem",
@@ -387,18 +572,24 @@ const BuildabilityOverviewPage: React.FC = () => {
               fontSize: "0.9rem",
             }}
           >
-            {error}
+            {mode === "discover" ? discoverError : error}
           </div>
         )}
 
-        {loading && <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading…</p>}
+        {(mode === "discover" ? discoverLoading : loading) && (
+          <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading…</p>
+        )}
 
-        {!loading && visibleItems.length === 0 && !error && (
+        {!(mode === "discover" ? discoverLoading : loading) &&
+          visibleItems.length === 0 &&
+          !(mode === "discover" ? discoverError : error) && (
           <p style={{ fontSize: "0.9rem", color: "#6b7280" }}>
             {mode === "search"
               ? lastQuery
                 ? `No sets found for “${lastQuery}”. Try another search.`
                 : "Search for a set to see buildability."
+              : mode === "discover"
+              ? "Tune your filters and click Find sets to see what you can build."
               : "No sets to show yet."}
           </p>
         )}

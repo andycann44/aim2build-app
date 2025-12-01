@@ -32,7 +32,31 @@ def _do_search(q: str) -> List[Dict]:
         """
         SELECT set_num, name, year, num_parts
         FROM sets
-        WHERE set_num LIKE ? OR name LIKE ?
+        WHERE (set_num LIKE ? OR name LIKE ?)
+          AND lower(name) NOT LIKE '%adidas%'
+          AND lower(name) NOT LIKE '%trainer%'
+          AND lower(name) NOT LIKE '%shoe%'
+          AND lower(name) NOT LIKE '%bag%'
+          AND lower(name) NOT LIKE '%backpack%'
+          AND lower(name) NOT LIKE '%key chain%'
+          AND lower(name) NOT LIKE '%keychain%'
+          AND lower(name) NOT LIKE '%key ring%'
+          AND lower(name) NOT LIKE '%magazine%'
+          AND lower(name) NOT LIKE '%pencil%'
+          AND lower(name) NOT LIKE '%pencil case%'
+          AND lower(name) NOT LIKE '%notebook%'
+          AND lower(name) NOT LIKE '%pen%'
+          AND lower(name) NOT LIKE '%storage box%'
+          AND lower(name) NOT LIKE '%lunch box%'
+          AND lower(name) NOT LIKE '%watch%'
+          AND lower(name) NOT LIKE '%alarm clock%'
+          AND lower(name) NOT LIKE '%magnet%'
+          AND lower(name) NOT LIKE '%ps4%'
+          AND lower(name) NOT LIKE '%playstation%'
+          AND lower(name) NOT LIKE '%xbox%'
+          AND lower(name) NOT LIKE '%switch%'
+          AND lower(name) NOT LIKE '%console%'
+          AND num_parts >= 20
         ORDER BY year DESC, set_num
         LIMIT 50
         """,
