@@ -248,11 +248,8 @@ const BuildabilityOverviewPage: React.FC = () => {
             }
           })
         );
-
-        const coverageFiltered = withCoverage.filter(
-          (c) => (c.coverage ?? 0) >= discoverMinCoverage
-        );
-        setDiscoverResults(coverageFiltered);
+        const sorted = [...withCoverage].sort((a, b) => (b.coverage ?? 0) - (a.coverage ?? 0));
+        setDiscoverResults(sorted);
       } catch (err: any) {
         setDiscoverError(err?.message ?? "Failed to discover buildable sets.");
         setDiscoverResults([]);
@@ -263,9 +260,38 @@ const BuildabilityOverviewPage: React.FC = () => {
     [discoverMaxParts, discoverMinCoverage, discoverTheme]
   );
 
+  const discoverFiltered = useMemo(() => {
+    if (discoverResults.length === 0) {
+      return { items: [] as BuildabilityCard[], relaxed: false };
+    }
+    if (discoverMinCoverage === 0) {
+      return { items: discoverResults, relaxed: false };
+    }
+    const filtered = discoverResults.filter(
+      (c) => (c.coverage ?? 0) >= discoverMinCoverage
+    );
+    if (filtered.length > 0) {
+      return { items: filtered, relaxed: false };
+    }
+    return { items: discoverResults.slice(0, 20), relaxed: true };
+  }, [discoverMinCoverage, discoverResults]);
+
+  const discoverSummary = useMemo(() => {
+    return discoverFiltered.items.reduce(
+      (acc, r) => {
+        const cov = r.coverage ?? 0;
+        if (cov >= 1) acc.full += 1;
+        else if (cov >= 0.8) acc.over80 += 1;
+        else if (cov >= 0.5) acc.over50 += 1;
+        return acc;
+      },
+      { full: 0, over80: 0, over50: 0 }
+    );
+  }, [discoverFiltered.items]);
+
   const visibleItems = useMemo(
-    () => (mode === "discover" ? discoverResults : items),
-    [discoverResults, items, mode]
+    () => (mode === "discover" ? discoverFiltered.items : items),
+    [discoverFiltered.items, items, mode]
   );
 
   const heroTitle =
@@ -591,6 +617,29 @@ const BuildabilityOverviewPage: React.FC = () => {
               : mode === "discover"
               ? "Tune your filters and click Find sets to see what you can build."
               : "No sets to show yet."}
+          </p>
+        )}
+
+        {mode === "discover" && visibleItems.length > 0 && (
+          <div
+            className="buildability-summary discover-summary"
+            style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.6rem" }}
+          >
+            <span className="summary-pill summary-pill--full hero-pill hero-pill--sort">
+              Full builds: {discoverSummary.full}
+            </span>
+            <span className="summary-pill summary-pill--near hero-pill hero-pill--sort">
+              80%+: {discoverSummary.over80}
+            </span>
+            <span className="summary-pill summary-pill--mid hero-pill hero-pill--sort">
+              50%+: {discoverSummary.over50}
+            </span>
+          </div>
+        )}
+
+        {mode === "discover" && discoverFiltered.relaxed && visibleItems.length > 0 && (
+          <p style={{ fontSize: "0.85rem", color: "#e5e7eb", opacity: 0.85, marginBottom: "0.35rem" }}>
+            No sets met your coverage filter; showing best matches instead.
           </p>
         )}
 
