@@ -11,8 +11,9 @@ import {
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
 
+// Use server if env not set
 const API =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://127.0.0.1:8000";
+  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
 
 type BuildabilityResultWithDisplay = BuildabilityResult & {
   display_total?: number | null;

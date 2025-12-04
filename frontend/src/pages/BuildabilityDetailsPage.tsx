@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { InventoryPart } from "../components/PartsTile";
-import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
-import SortMenu, { SortMode } from "../components/SortMenu";
+import { useLocation, useParams } from "react-router-dom";
+import type { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
 
 type SetMeta = {
@@ -28,10 +26,9 @@ const API =
 const BuildabilityDetailsPage: React.FC = () => {
   const { setNum: rawSetParam } = useParams<{ setNum: string }>();
   const setNum = decodeURIComponent(rawSetParam || "");
-  const navigate = useNavigate();
+  const { setNum: rawSetParam } = useParams<{ setNum: string }>();
+  const setNum = decodeURIComponent(rawSetParam || "");
   const location = useLocation() as any;
-
-  const [meta, setMeta] = useState<SetMeta>({ set_num: setNum });
   const [parts, setParts] = useState<SetPartRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,8 +76,8 @@ const BuildabilityDetailsPage: React.FC = () => {
         Array.isArray((partsData as any).parts)
           ? (partsData as any).parts
           : Array.isArray(partsData)
-          ? (partsData as any[])
-          : [];
+            ? (partsData as any[])
+            : [];
 
       // 2) INVENTORY PARTS
       const invRes = await fetch(`${API}/api/inventory/parts_with_images`, {
@@ -122,8 +119,8 @@ const BuildabilityDetailsPage: React.FC = () => {
             typeof b.display_total === "number"
               ? b.display_total
               : typeof b.total_needed === "number"
-              ? b.total_needed
-              : null;
+                ? b.total_needed
+                : null;
 
           setCoverage(coverage);
           setTotalHave(totalHave);
@@ -142,10 +139,10 @@ const BuildabilityDetailsPage: React.FC = () => {
         const need =
           Number(
             p.quantity ??
-              p.qty ??
-              p.quantity_total ??
-              p.qty_total ??
-              0
+            p.qty ??
+            p.quantity_total ??
+            p.qty_total ??
+            0
           ) || 0;
 
         const key = `${partNum}|${colorId}`;
@@ -217,7 +214,48 @@ const BuildabilityDetailsPage: React.FC = () => {
   return (
     // 🔥 the rest of your layout stays completely untouched
     // (omitted here for brevity)
+  
+    <div style={{ padding: 16 }}>
+      <h1>Set {meta.set_num || "Unknown Set"}</h1>
+
+      {meta.name && <h2>{meta.name} {meta.year ? `(${meta.year})` : ""}</h2>}
+
+      {covPercent !== null && (
+        <p>
+          Coverage: {covPercent}%{typeof totalHave === "number" && typeof totalNeed === "number" ? ` (${totalHave}/${totalNeed})` : ""}
+        </p>
+      )}
+
+      {error && (
+        <div style={{ color: "red", marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div>Loading…</div>
+      ) : (
+        <ul style={{ listStyle: "none", padding: 0 }}>
+          {sortedParts.map((p) => (
+            <li key={`${p.part_num}-${p.color_id}`} style={{ marginBottom: 8 }}>
+              <div>
+                <strong>{p.part_num}</strong> (color {p.color_id}) — need {p.need}, have {p.have}, short {p.short}
+              </div>
+              {p.img_url && (
+                <img
+                  alt={`${p.part_num} (${p.color_id})`}
+                  src={p.img_url}
+                  style={{ maxHeight: 50, marginTop: 4 }}
+                />
+              )}
+            </li>
+          ))}
+          {sortedParts.length === 0 && (
+            <li>No parts to display.</li>
+          )}
+        </ul>
+      )}
+    </div>
   );
-};
 
 export default BuildabilityDetailsPage;

@@ -76,9 +76,10 @@ export async function login(
   return { ok: false, error: detail };
 }
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
-
+// Use server if env not set
+const API =
+  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
+  
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const extraHeaders =
     init?.headers instanceof Headers

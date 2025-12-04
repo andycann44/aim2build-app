@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 
 const SettingsPage: React.FC = () => {
-  const apiBase =
-    import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+  // Use server if env not set
+const API =
+  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
 
   const [removeAffectsInventory, setRemoveAffectsInventory] = useState<boolean>(() => {
     try {
