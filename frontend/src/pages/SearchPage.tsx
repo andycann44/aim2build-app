@@ -1,19 +1,25 @@
 import React, {
   FormEvent,
   useCallback,
+  useEffect,
   useMemo,
   useState,
-  useEffect,
 } from "react";
 import {
   searchSets,
   addMySet,
   addWishlist,
+  removeMySet,
+  removeWishlist,
   getMySets,
   getWishlist,
   SetSummary,
 } from "../api/client";
 import SetTile from "../components/SetTile";
+import { authHeaders } from "../utils/auth";
+
+const API =
+  import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 const SearchPage: React.FC = () => {
   const [term, setTerm] = useState("");
@@ -23,6 +29,8 @@ const SearchPage: React.FC = () => {
   const [lastQuery, setLastQuery] = useState("");
   const [mySetIds, setMySetIds] = useState<Set<string>>(new Set());
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+
+  // Load existing My Sets / Wishlist once on mount
   useEffect(() => {
     let cancelled = false;
 
@@ -54,15 +62,90 @@ const SearchPage: React.FC = () => {
     };
   }, []);
 
+  // 🔄 TRUE TOGGLE: add if missing, remove (and clean inventory) if present
+  const handleToggleMySets = useCallback(
+    async (setNum: string) => {
+      const alreadyIn = mySetIds.has(setNum);
+
+      try {
+        if (alreadyIn) {
+          // 🔴 TURNING OFF from Search:
+          // 1) remove from My Sets
+          await removeMySet(setNum);
+
+          // 2) mirror My Sets page behaviour – also remove its inventory
+          await fetch(
+            `${API}/api/inventory/remove_set?set=${encodeURIComponent(
+              setNum
+            )}`,
+            {
+              method: "POST",
+              headers: authHeaders(),
+            }
+          );
+
+          // 3) update local state
+          setMySetIds((prev) => {
+            const next = new Set(prev);
+            next.delete(setNum);
+            return next;
+          });
+        } else {
+          // 🟢 TURNING ON
+          await addMySet(setNum);
+          setMySetIds((prev) => {
+            const next = new Set(prev);
+            next.add(setNum);
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        setError("Could not update My Sets. Please try again.");
+      }
+    },
+    [mySetIds]
+  );
+
+  const handleToggleWishlist = useCallback(
+    async (setNum: string) => {
+      const alreadyIn = wishlistIds.has(setNum);
+      try {
+        if (alreadyIn) {
+          await removeWishlist(setNum);
+          setWishlistIds((prev) => {
+            const next = new Set(prev);
+            next.delete(setNum);
+            return next;
+          });
+        } else {
+          await addWishlist(setNum);
+          setWishlistIds((prev) => {
+            const next = new Set(prev);
+            next.add(setNum);
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        setError("Could not update wishlist. Please try again.");
+      }
+    },
+    [wishlistIds]
+  );
+
   const hasResults = results.length > 0;
 
   const statusText = useMemo(() => {
     if (loading) return "Searching the LEGO universe…";
     if (error) return error;
-    if (!lastQuery && !hasResults) return "Type a keyword or set number to get started.";
+    if (!lastQuery && !hasResults)
+      return "Type a keyword or set number to get started.";
     if (!hasResults)
       return `No sets found for “${lastQuery}”. Try another word or a set number.`;
-    return `Showing ${results.length} set${results.length === 1 ? "" : "s"} for “${lastQuery}”.`;
+    return `Showing ${results.length} set${
+      results.length === 1 ? "" : "s"
+    } for “${lastQuery}”.`;
   }, [loading, error, lastQuery, hasResults, results.length]);
 
   const performSearch = useCallback(
@@ -102,48 +185,6 @@ const SearchPage: React.FC = () => {
     void performSearch(term);
   };
 
-  const handleAddMySet = async (setNum: string) => {
-    if (mySetIds.has(setNum)) return;
-    // optimistic UI update
-    setMySetIds((prev) => new Set(prev).add(setNum));
-    try {
-      await addMySet(setNum);
-    } catch (err) {
-      // roll back on failure
-      setMySetIds((prev) => {
-        const next = new Set(prev);
-        next.delete(setNum);
-        return next;
-      });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not add to My Sets right now."
-      );
-    }
-  };
-
-  const handleAddWishlist = async (setNum: string) => {
-    if (wishlistIds.has(setNum)) return;
-    // optimistic UI update
-    setWishlistIds((prev) => new Set(prev).add(setNum));
-    try {
-      await addWishlist(setNum);
-    } catch (err) {
-      // roll back on failure
-      setWishlistIds((prev) => {
-        const next = new Set(prev);
-        next.delete(setNum);
-        return next;
-      });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not add to Wishlist right now."
-      );
-    }
-  };
-
   return (
     <div className="page page-search">
       {/* HERO SEARCH BAR */}
@@ -153,7 +194,7 @@ const SearchPage: React.FC = () => {
           width: "100%",
           maxWidth: "100%",
           boxSizing: "border-box",
-          margin: "1.5rem 0", //",
+          margin: "1.5rem 0",
           borderRadius: "18px",
           padding: "1.75rem 1.5rem 1.5rem",
           background:
@@ -204,10 +245,10 @@ const SearchPage: React.FC = () => {
             Find your next LEGO build
           </h1>
           <p className="text-xs md:text-sm opacity-80 mt-3">
-            Try something like <strong>Home Alone</strong>, <strong>Star Wars</strong>, or a set
-            number like <strong>21330</strong>.
+            Try something like <strong>Home Alone</strong>,{" "}
+            <strong>Star Wars</strong>, or a set number like{" "}
+            <strong>21330</strong>.
           </p>
-          
 
           <form
             onSubmit={handleSubmit}
@@ -248,14 +289,14 @@ const SearchPage: React.FC = () => {
                 flex: "0 0 auto",
                 padding: "0.85rem 1.6rem",
                 borderRadius: "999px",
-                border: "2px solid rgba(255,255,255,0.95)",      // 🔥 white border
+                border: "2px solid rgba(255,255,255,0.95)",
                 fontWeight: 800,
                 fontSize: "0.95rem",
                 letterSpacing: "0.06em",
                 textTransform: "uppercase",
                 cursor: loading ? "default" : "pointer",
                 background:
-                  "linear-gradient(135deg,#f97316,#facc15,#22c55e)", // LEGO-ish gradient
+                  "linear-gradient(135deg,#f97316,#facc15,#22c55e)",
                 color: "#111827",
                 boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
                 opacity: loading ? 0.8 : 1,
@@ -287,7 +328,7 @@ const SearchPage: React.FC = () => {
       </div>
 
       {/* RESULTS GRID */}
-     <div className="page-body" style={{ marginRight: "2.5rem" }}>
+      <div className="page-body" style={{ marginRight: "2.5rem" }}>
         <div className="tile-grid">
           {results.map((s) => (
             <SetTile
@@ -295,8 +336,9 @@ const SearchPage: React.FC = () => {
               set={s}
               inMySets={mySetIds.has(s.set_num)}
               inWishlist={wishlistIds.has(s.set_num)}
-              onAddMySet={handleAddMySet}
-              onAddWishlist={handleAddWishlist}
+              // 🔌 wire tiles to the TRUE toggle handlers
+              onAddMySet={handleToggleMySets}
+              onAddWishlist={handleToggleWishlist}
             />
           ))}
 
