@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PartsTile from "../components/PartsTile";
 import SortMenu, { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
+import RequireAuth from "../components/RequireAuth";
 
 type InventoryPart = {
   part_num: string;
@@ -9,6 +10,7 @@ type InventoryPart = {
   qty_total: number;
   part_img_url?: string;
 };
+
 
 const API = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -290,4 +292,10 @@ const InventoryPage: React.FC = () => {
   );
 };
 
-export default InventoryPage;
+const InventoryPageWrapper: React.FC = () => (
+  <RequireAuth pageName="inventory">
+    <InventoryPage />
+  </RequireAuth>
+);
+
+export default InventoryPageWrapper;

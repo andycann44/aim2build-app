@@ -1,33 +1,25 @@
-const STORAGE_KEY = "aim2build_auth";
+// frontend/src/utils/auth.ts
+export const TOKEN_KEY = "a2b_token";
 
-export type StoredAuth = {
-  email: string;
-  token: string;
-  userId: number;
-};
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
 
-export function getStoredAuth(): StoredAuth | null {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (
-      typeof data.email === "string" &&
-      typeof data.token === "string" &&
-      typeof data.userId === "number"
-    ) {
-      return data as StoredAuth;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
+export function saveToken(token: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 export function authHeaders(): Record<string, string> {
-  const auth = getStoredAuth();
-  if (!auth?.token) return {};
-  return { Authorization: `Bearer ${auth.token}` };
+  const token = getToken();
+  if (!token) return {};
+  return {
+    Authorization: `Bearer ${token}`,
+  };
 }
-
-export { STORAGE_KEY };

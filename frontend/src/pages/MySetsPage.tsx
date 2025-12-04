@@ -9,6 +9,7 @@ import {
   // future: reuse common settings if lifted to context
 } from "../api/client";
 import { authHeaders } from "../utils/auth";
+import RequireAuth from "../components/RequireAuth";
 
 const API =
   (import.meta as any)?.env?.VITE_API_BASE || "http://127.0.0.1:8000";
@@ -354,4 +355,10 @@ const MySetsPage: React.FC = () => {
   );
 };
 
-export default MySetsPage;
+const MySetsPageWrapper: React.FC = () => (
+  <RequireAuth pageName="My Sets">
+    <MySetsPage />
+  </RequireAuth>
+);
+
+export default MySetsPageWrapper;

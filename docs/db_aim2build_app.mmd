@@ -1,0 +1,34 @@
+%% User DB aim2build_app.db
+erDiagram
+  USER_INVENTORY_PARTS {
+    INTEGER id PK
+    INTEGER user_id
+    TEXT part_num
+    INTEGER color_id
+    INTEGER qty
+  }
+
+  USER_SETS {
+    INTEGER id PK
+    INTEGER user_id
+    TEXT set_num
+    INTEGER qty
+    TEXT source
+  }
+
+  USERS {
+    INTEGER id PK
+    TEXT email
+    TEXT password_hash
+    TEXT created_at
+  }
+
+  WISHLIST {
+    INTEGER id PK
+    INTEGER user_id
+    TEXT set_num
+  }
+
+  USERS ||--o{ USER_INVENTORY_PARTS : fk
+  USERS ||--o{ USER_SETS : fk
+  USERS ||--o{ WISHLIST : fk

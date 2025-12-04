@@ -8,6 +8,7 @@ import {
   searchSets,
   SetSummary,
 } from "../api/client";
+import RequireAuth from "../components/RequireAuth";
 
 type Mode = "mysets" | "wishlist" | "search" | "discover";
 
@@ -704,4 +705,10 @@ const BuildabilityOverviewPage: React.FC = () => {
   );
 };
 
-export default BuildabilityOverviewPage;
+const BuildabilityOverviewPageWrapper: React.FC = () => (
+  <RequireAuth pageName="buildability">
+    <BuildabilityOverviewPage />
+  </RequireAuth>
+);
+
+export default BuildabilityOverviewPageWrapper;

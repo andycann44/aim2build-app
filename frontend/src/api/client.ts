@@ -1,5 +1,81 @@
 import { authHeaders } from "../utils/auth";
 
+export type AuthResult = {
+  ok: boolean;
+  token?: string;
+  error?: string;
+};
+
+export async function register(
+  email: string,
+  password: string
+): Promise<AuthResult> {
+  const res = await fetch(`${API_BASE}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (res.ok) {
+    return { ok: true };
+  }
+
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    // ignore JSON parse errors
+  }
+
+  if (res.status === 422) {
+    return {
+      ok: false,
+      error: "Please enter a valid email address.",
+    };
+  }
+
+  const detail =
+    (data && (data.detail || data.message)) ||
+    "Could not register. Please try again.";
+  return { ok: false, error: detail };
+}
+
+export async function login(
+  email: string,
+  password: string
+): Promise<AuthResult> {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (res.ok) {
+    const data = await res.json().catch(() => null);
+    const token: string | undefined = data?.access_token || data?.token;
+    return { ok: true, token };
+  }
+
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    // ignore JSON parse errors
+  }
+
+  if (res.status === 422) {
+    return {
+      ok: false,
+      error: "Please check your email and password.",
+    };
+  }
+
+  const detail =
+    (data && (data.detail || data.message)) ||
+    "Could not log in. Please try again.";
+  return { ok: false, error: detail };
+}
+
 const API_BASE =
   import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
