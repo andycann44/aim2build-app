@@ -2,8 +2,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
-const API = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
-
+const API =
+  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
 type SetSummary = {
   set_num: string;
   name: string;

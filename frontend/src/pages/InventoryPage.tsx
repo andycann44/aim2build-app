@@ -12,8 +12,8 @@ type InventoryPart = {
 };
 
 
-const API = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
-
+const API =
+  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
 const InventoryPage: React.FC = () => {
   const [parts, setParts] = useState<InventoryPart[]>([]);
   const [loading, setLoading] = useState(false);
