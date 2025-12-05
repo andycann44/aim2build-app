@@ -130,7 +130,7 @@ const API =
               fontSize: "0.8rem"
             }}
           >
-{`VITE_API_BASE=http://127.0.0.1:8000`}
+{`VITE_API_BASE=http://35.178.138.33:8000`}
           </pre>
         </div>
       </div>
