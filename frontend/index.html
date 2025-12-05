@@ -7,6 +7,26 @@
   </head>
   <body class="aim2-root">
     <div id="root"></div>
+      <script>
+    // Global API base so all pages work (server vs local)
+    (function () {
+      var host = window.location.hostname;
+      var base;
+
+      // If we’re on the EC2 box, point at the EC2 backend
+      if (host === "35.178.138.33") {
+        base = "http://35.178.138.33:8000";
+      } else {
+        // Local dev default
+        base = "http://127.0.0.1:8000";
+      }
+
+      window.API_BASE = base;
+      // Match older code that expects a global variable, not window.API_BASE
+      // eslint-disable-next-line no-unused-vars, no-global-assign
+      API_BASE = base;
+    })();
+  </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
