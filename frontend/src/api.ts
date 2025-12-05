@@ -2,7 +2,7 @@ import type { SetSummary, InventoryPart } from "./types";
 
 const API =
   (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
-  
+
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) {

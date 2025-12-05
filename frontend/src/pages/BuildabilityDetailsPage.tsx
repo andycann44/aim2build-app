@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import type { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
-import { API_BASE } from "../api/client";   
+
 
 
 type SetMeta = {
@@ -21,7 +21,8 @@ type SetPartRow = {
   img_url?: string;
 };
 
-
+const API =
+  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
 
 const BuildabilityDetailsPage: React.FC = () => {
   const { setNum: rawSetParam } = useParams<{ setNum: string }>();
