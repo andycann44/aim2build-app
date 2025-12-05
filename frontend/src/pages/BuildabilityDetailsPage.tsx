@@ -7,6 +7,7 @@ import React, {
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
+import { API_BASE } from "../api/client";
 
 type SetMeta = {
   set_num: string;
@@ -23,9 +24,6 @@ type SetPartRow = {
   short: number;
   img_url?: string;
 };
-
-const API_BASE: string =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://127.0.0.1:8000";
 
 const BuildabilityDetailsPage: React.FC = () => {
   const navigate = useNavigate();
