@@ -6,6 +6,9 @@ export type AuthResult = {
   error?: string;
 };
 
+export const API_BASE =
+  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
+
 export async function register(
   email: string,
   password: string
@@ -76,10 +79,6 @@ export async function login(
   return { ok: false, error: detail };
 }
 
-// Use server if env not set
-const API =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
-  
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const extraHeaders =
     init?.headers instanceof Headers
