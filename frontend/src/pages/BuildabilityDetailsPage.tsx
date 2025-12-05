@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import type { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
-import { API_BASE } from "../api/client";   // 👈 NEW
+import { API_BASE } from "../api/client";   
 
 
 type SetMeta = {
@@ -84,7 +84,7 @@ const BuildabilityDetailsPage: React.FC = () => {
         : [];
 
       // 2) INVENTORY PARTS
-      const invRes = await fetch(`${API}/api/inventory/parts_with_images`, {
+      const invRes = await fetch(`${API_BASE}/api/inventory/parts_with_images`, {
         headers: { ...authHeaders() },
       });
       if (!invRes.ok) {
