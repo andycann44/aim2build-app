@@ -1,13 +1,9 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { useLocation, useParams, useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useParams } from "react-router-dom";
 import type { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
-import { API_BASE } from "../api/client";
+import { API_BASE } from "../api/client";   // 👈 NEW
+
 
 type SetMeta = {
   set_num: string;
@@ -25,12 +21,12 @@ type SetPartRow = {
   img_url?: string;
 };
 
+
+
 const BuildabilityDetailsPage: React.FC = () => {
-  const navigate = useNavigate();
   const { setNum: rawSetParam } = useParams<{ setNum: string }>();
   const setNum = decodeURIComponent(rawSetParam || "");
-
-  const location = useLocation() as any;
+  const location = useLocation() as { state?: { item?: SetMeta } };
 
   const [meta, setMeta] = useState<SetMeta>({ set_num: setNum });
   const [parts, setParts] = useState<SetPartRow[]>([]);
@@ -41,10 +37,10 @@ const BuildabilityDetailsPage: React.FC = () => {
   const [totalNeed, setTotalNeed] = useState<number | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("default");
 
-  // pick up set meta from navigation state (tile → details)
+  // pick up meta from the tile we double-clicked, if it was passed via route state
   useEffect(() => {
-    const item = location.state?.item as SetMeta | undefined;
-    if (item && item.set_num === setNum) {
+    const item = location.state?.item;
+    if (item && item.set_num) {
       setMeta({
         set_num: item.set_num,
         name: item.name,
@@ -52,6 +48,7 @@ const BuildabilityDetailsPage: React.FC = () => {
         img_url: item.img_url,
       });
     } else if (setNum) {
+      // make sure set_num at least matches the URL
       setMeta((prev) => ({ ...prev, set_num: setNum }));
     }
   }, [location.state, setNum]);
@@ -71,15 +68,14 @@ const BuildabilityDetailsPage: React.FC = () => {
     };
 
     try {
-      // 1) SET PARTS FROM CATALOG
+      // 1) SET PARTS
       const partsRes = await fetch(
         `${API_BASE}/api/catalog/parts?set=${encodeURIComponent(setNum)}`
       );
       if (!partsRes.ok) {
         const msg = await partsRes.text();
-        throw new Error(`Failed to load set parts: ${msg}`);
+        throw new Error(`Failed to load set parts: ${msg || partsRes.statusText}`);
       }
-
       const partsData = await partsRes.json();
       const setPartsData: any[] = Array.isArray((partsData as any).parts)
         ? (partsData as any).parts
@@ -87,26 +83,24 @@ const BuildabilityDetailsPage: React.FC = () => {
         ? (partsData as any[])
         : [];
 
-      // 2) INVENTORY PARTS (WITH IMAGES)
-      const invRes = await fetch(
-        `${API_BASE}/api/inventory/parts_with_images`,
-        {
-          headers: { ...authHeaders() },
-        }
-      );
+      // 2) INVENTORY PARTS
+      const invRes = await fetch(`${API}/api/inventory/parts_with_images`, {
+        headers: { ...authHeaders() },
+      });
       if (!invRes.ok) {
         const msg = await invRes.text();
-        throw new Error(`Failed to load inventory parts: ${msg}`);
+        throw new Error(
+          `Failed to load inventory parts: ${msg || invRes.statusText}`
+        );
       }
       const inventory = await invRes.json();
 
       const invQtyMap = new Map<string, number>();
       const invImgMap = new Map<string, string | undefined>();
 
-      for (const row of inventory) {
+      for (const row of inventory as any[]) {
         const key = `${row.part_num}|${row.color_id}`;
         invQtyMap.set(key, Number(row.qty_total ?? row.qty ?? 0));
-
         const img =
           row.img_url ?? row.part_img_url ?? row.image ?? undefined;
         if (img) invImgMap.set(key, String(img));
@@ -115,9 +109,7 @@ const BuildabilityDetailsPage: React.FC = () => {
       // 3) BUILDABILITY SUMMARY
       try {
         const bRes = await fetch(
-          `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(
-            setNum
-          )}`,
+          `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(setNum)}`,
           {
             headers: { ...authHeaders() },
           }
@@ -150,7 +142,6 @@ const BuildabilityDetailsPage: React.FC = () => {
       for (const p of setPartsData) {
         const partNum = String(p.part_num);
         const colorId = Number(p.color_id);
-
         const need =
           Number(
             p.quantity ??
@@ -160,6 +151,8 @@ const BuildabilityDetailsPage: React.FC = () => {
               0
           ) || 0;
 
+        if (!partNum || Number.isNaN(colorId) || need <= 0) continue;
+
         const key = `${partNum}|${colorId}`;
         const have = invQtyMap.get(key) ?? 0;
         const short = Math.max(need - have, 0);
@@ -167,6 +160,7 @@ const BuildabilityDetailsPage: React.FC = () => {
         const imgFromPart =
           p.part_img_url ?? p.img_url ?? p.image ?? undefined;
         const imgFromInv = invImgMap.get(key);
+
         const finalImg =
           (imgFromPart && imgFromPart.trim()) ||
           (imgFromInv && imgFromInv.trim()) ||
@@ -182,7 +176,9 @@ const BuildabilityDetailsPage: React.FC = () => {
         });
       }
 
+      // most missing first
       rows.sort((a, b) => b.short - a.short || b.need - a.need);
+
       setParts(rows);
     } catch (err: any) {
       console.error(err);
@@ -204,7 +200,6 @@ const BuildabilityDetailsPage: React.FC = () => {
       const byPart = a.part_num.localeCompare(b.part_num);
       return byPart !== 0 ? byPart : a.color_id - b.color_id;
     };
-
     const byMissingThenNeed = (a: SetPartRow, b: SetPartRow) => {
       const diff = (b.short ?? 0) - (a.short ?? 0);
       return diff !== 0 ? diff : (b.need ?? 0) - (a.need ?? 0);
@@ -226,156 +221,54 @@ const BuildabilityDetailsPage: React.FC = () => {
   }, [parts, sortMode]);
 
   return (
-    <div className="page buildability-details-page">
-      {/* Hero */}
-      <div className="page-hero">
-        <div className="page-hero-inner">
-          <button
-            type="button"
-            className="pill-button pill-button--secondary"
-            onClick={() => navigate("/buildability")}
-          >
-            ← Back to Buildability
-          </button>
+    <div style={{ padding: 16 }}>
+      <h1>Set {meta.set_num || "Unknown Set"}</h1>
 
-          <h1 style={{ marginTop: 16 }}>
-            Set {meta.set_num}
-            {meta.name ? ` – ${meta.name}` : ""}
-          </h1>
+      {meta.name && (
+        <h2>
+          {meta.name}
+          {meta.year ? ` (${meta.year})` : ""}
+        </h2>
+      )}
 
-          {covPercent !== null && (
-            <p style={{ marginTop: 8 }}>
-              Coverage:&nbsp;
-              <strong>{covPercent}%</strong>
-              {typeof totalHave === "number" &&
-                typeof totalNeed === "number" &&
-                ` (${totalHave}/${totalNeed} parts)`}
-            </p>
-          )}
+      {covPercent !== null && (
+        <p>
+          Coverage: {covPercent}%
+          {typeof totalHave === "number" &&
+          typeof totalNeed === "number"
+            ? ` (${totalHave}/${totalNeed})`
+            : ""}
+        </p>
+      )}
+
+      {error && (
+        <div style={{ color: "red", marginBottom: 12 }}>
+          {error}
         </div>
-      </div>
+      )}
 
-      {/* Body */}
-      <div className="page-inner">
-        {/* Sort & summary row */}
-        <div
-          className="buildability-details-toolbar"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-            marginBottom: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div style={{ fontSize: "0.85rem", opacity: 0.8 }}>
-              View all parts required for this set, matched against your
-              inventory.
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <label style={{ fontSize: "0.85rem" }}>
-              Sort by:&nbsp;
-              <select
-                value={sortMode}
-                onChange={(e) =>
-                  setSortMode(e.target.value as SortMode)
-                }
-              >
-                <option value="default">Most missing</option>
-                <option value="qty_desc">Quantity (high → low)</option>
-                <option value="qty_asc">Quantity (low → high)</option>
-                <option value="color_asc">Colour</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        {/* Error / loading */}
-        {error && (
-          <div
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              background: "rgba(255,0,0,0.08)",
-              color: "#b00020",
-              fontSize: "0.9rem",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {loading && <div>Loading parts…</div>}
-
-        {/* Parts list */}
-        {!loading && !error && (
-          <div
-            className="buildability-parts-list"
-            style={{ display: "grid", gap: 8 }}
-          >
-            {sortedParts.map((p) => (
-              <div
-                key={`${p.part_num}-${p.color_id}`}
-                className="buildability-part-row"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: 8,
-                  borderRadius: 8,
-                  background: "rgba(0,0,0,0.04)",
-                }}
-              >
-                {p.img_url && (
-                  <div
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 8,
-                      overflow: "hidden",
-                      flexShrink: 0,
-                      background: "#fff",
-                    }}
-                  >
-                    <img
-                      src={p.img_url}
-                      alt={`${p.part_num} (${p.color_id})`}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "contain",
-                      }}
-                    />
-                  </div>
-                )}
-
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>
-                    {p.part_num}{" "}
-                    <span style={{ opacity: 0.7 }}>
-                      (colour {p.color_id})
-                    </span>
-                  </div>
-                  <div style={{ fontSize: "0.85rem", opacity: 0.85 }}>
-                    Need <strong>{p.need}</strong>, have{" "}
-                    <strong>{p.have}</strong>, short{" "}
-                    <strong>{p.short}</strong>
-                  </div>
-                </div>
+      {loading ? (
+        <div>Loading…</div>
+      ) : (
+        <ul style={{ listStyle: "none", padding: 0 }}>
+          {sortedParts.map((p) => (
+            <li key={`${p.part_num}-${p.color_id}`} style={{ marginBottom: 8 }}>
+              <div>
+                <strong>{p.part_num}</strong> (color {p.color_id}) — need{" "}
+                {p.need}, have {p.have}, short {p.short}
               </div>
-            ))}
-
-            {sortedParts.length === 0 && (
-              <div>No parts to display for this set.</div>
-            )}
-          </div>
-        )}
-      </div>
+              {p.img_url && (
+                <img
+                  alt={`${p.part_num} (${p.color_id})`}
+                  src={p.img_url}
+                  style={{ maxHeight: 50, marginTop: 4 }}
+                />
+              )}
+            </li>
+          ))}
+          {sortedParts.length === 0 && <li>No parts to display.</li>}
+        </ul>
+      )}
     </div>
   );
 };
