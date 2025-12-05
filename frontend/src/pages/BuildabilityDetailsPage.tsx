@@ -1,274 +1,234 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
-import type { SortMode } from "../components/SortMenu";
-import { authHeaders } from "../utils/auth";
+import React, { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { authHeaders } from "../api/client";
 
+const API_BASE =
+  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
 
-
-type SetMeta = {
-  set_num: string;
-  name?: string;
-  year?: number;
-  img_url?: string;
-};
-
-type SetPartRow = {
+type MissingPart = {
   part_num: string;
   color_id: number;
   need: number;
   have: number;
   short: number;
-  img_url?: string;
 };
 
-const API =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
+type CompareResult = {
+  set_num: string;
+  coverage: number;
+  total_needed: number;
+  total_have: number;
+  missing_parts: MissingPart[];
+};
+
+type CatalogPart = {
+  set_num: string;
+  part_num: string;
+  color_id: number;
+  quantity: number;
+  part_img_url?: string | null;
+  part_name?: string | null;
+};
 
 const BuildabilityDetailsPage: React.FC = () => {
-  const { setNum: rawSetParam } = useParams<{ setNum: string }>();
-  const setNum = decodeURIComponent(rawSetParam || "");
-  const location = useLocation() as { state?: { item?: SetMeta } };
+  const { setId } = useParams<{ setId: string }>(); // route: /buildability/:setId
 
-  const [meta, setMeta] = useState<SetMeta>({ set_num: setNum });
-  const [parts, setParts] = useState<SetPartRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [coverage, setCoverage] = useState<number | null>(null);
-  const [totalHave, setTotalHave] = useState<number | null>(null);
-  const [totalNeed, setTotalNeed] = useState<number | null>(null);
-  const [sortMode, setSortMode] = useState<SortMode>("default");
+  const [summary, setSummary] = useState<CompareResult | null>(null);
+  const [parts, setParts] = useState<CatalogPart[]>([]);
 
-  // pick up meta from the tile we double-clicked, if it was passed via route state
   useEffect(() => {
-    const item = location.state?.item;
-    if (item && item.set_num) {
-      setMeta({
-        set_num: item.set_num,
-        name: item.name,
-        year: item.year,
-        img_url: item.img_url,
-      });
-    } else if (setNum) {
-      // make sure set_num at least matches the URL
-      setMeta((prev) => ({ ...prev, set_num: setNum }));
-    }
-  }, [location.state, setNum]);
-
-  const load = useCallback(async () => {
-    if (!setNum) return;
-
-    setLoading(true);
-    setError(null);
-
-    type BuildabilityResultWithDisplay = {
-      set_num: string;
-      coverage?: number;
-      total_have?: number;
-      total_needed?: number;
-      display_total?: number | null;
-    };
-
-    try {
-      // 1) SET PARTS
-      const partsRes = await fetch(
-        `${API_BASE}/api/catalog/parts?set=${encodeURIComponent(setNum)}`
-      );
-      if (!partsRes.ok) {
-        const msg = await partsRes.text();
-        throw new Error(`Failed to load set parts: ${msg || partsRes.statusText}`);
-      }
-      const partsData = await partsRes.json();
-      const setPartsData: any[] = Array.isArray((partsData as any).parts)
-        ? (partsData as any).parts
-        : Array.isArray(partsData)
-        ? (partsData as any[])
-        : [];
-
-      // 2) INVENTORY PARTS
-      const invRes = await fetch(`${API_BASE}/api/inventory/parts_with_images`, {
-        headers: { ...authHeaders() },
-      });
-      if (!invRes.ok) {
-        const msg = await invRes.text();
-        throw new Error(
-          `Failed to load inventory parts: ${msg || invRes.statusText}`
-        );
-      }
-      const inventory = await invRes.json();
-
-      const invQtyMap = new Map<string, number>();
-      const invImgMap = new Map<string, string | undefined>();
-
-      for (const row of inventory as any[]) {
-        const key = `${row.part_num}|${row.color_id}`;
-        invQtyMap.set(key, Number(row.qty_total ?? row.qty ?? 0));
-        const img =
-          row.img_url ?? row.part_img_url ?? row.image ?? undefined;
-        if (img) invImgMap.set(key, String(img));
-      }
-
-      // 3) BUILDABILITY SUMMARY
-      try {
-        const bRes = await fetch(
-          `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(setNum)}`,
-          {
-            headers: { ...authHeaders() },
-          }
-        );
-
-        if (bRes.ok) {
-          const b = (await bRes.json()) as BuildabilityResultWithDisplay;
-          const cov = typeof b.coverage === "number" ? b.coverage : 0;
-          const have =
-            typeof b.total_have === "number" ? b.total_have : null;
-
-          const displayTotal =
-            typeof b.display_total === "number"
-              ? b.display_total
-              : typeof b.total_needed === "number"
-              ? b.total_needed
-              : null;
-
-          setCoverage(cov);
-          setTotalHave(have);
-          setTotalNeed(displayTotal);
-        }
-      } catch (err) {
-        console.warn("Buildability compare failed", err);
-      }
-
-      // 4) MERGE SET + INVENTORY
-      const rows: SetPartRow[] = [];
-
-      for (const p of setPartsData) {
-        const partNum = String(p.part_num);
-        const colorId = Number(p.color_id);
-        const need =
-          Number(
-            p.quantity ??
-              p.qty ??
-              p.quantity_total ??
-              p.qty_total ??
-              0
-          ) || 0;
-
-        if (!partNum || Number.isNaN(colorId) || need <= 0) continue;
-
-        const key = `${partNum}|${colorId}`;
-        const have = invQtyMap.get(key) ?? 0;
-        const short = Math.max(need - have, 0);
-
-        const imgFromPart =
-          p.part_img_url ?? p.img_url ?? p.image ?? undefined;
-        const imgFromInv = invImgMap.get(key);
-
-        const finalImg =
-          (imgFromPart && imgFromPart.trim()) ||
-          (imgFromInv && imgFromInv.trim()) ||
-          undefined;
-
-        rows.push({
-          part_num: partNum,
-          color_id: colorId,
-          need,
-          have,
-          short,
-          img_url: finalImg,
-        });
-      }
-
-      // most missing first
-      rows.sort((a, b) => b.short - a.short || b.need - a.need);
-
-      setParts(rows);
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message ?? "Failed to load set breakdown");
-    } finally {
+    if (!setId) {
+      setError("No set selected.");
       setLoading(false);
+      return;
     }
-  }, [setNum]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+    const controller = new AbortController();
+    const headers = authHeaders(); // OK even if not logged in; will just be {}
 
-  const covPercent =
-    coverage !== null ? Math.round((coverage || 0) * 100) : null;
+    async function load() {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const sortedParts = useMemo(() => {
-    const byPartThenColor = (a: SetPartRow, b: SetPartRow) => {
-      const byPart = a.part_num.localeCompare(b.part_num);
-      return byPart !== 0 ? byPart : a.color_id - b.color_id;
-    };
-    const byMissingThenNeed = (a: SetPartRow, b: SetPartRow) => {
-      const diff = (b.short ?? 0) - (a.short ?? 0);
-      return diff !== 0 ? diff : (b.need ?? 0) - (a.need ?? 0);
-    };
+        const compareUrl = `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(
+          setId
+        )}`;
+        const partsUrl = `${API_BASE}/api/catalog/parts?set=${encodeURIComponent(
+          setId
+        )}`;
 
-    switch (sortMode) {
-      case "qty_desc":
-        return [...parts].sort((a, b) => (b.have ?? 0) - (a.have ?? 0));
-      case "qty_asc":
-        return [...parts].sort((a, b) => (a.have ?? 0) - (b.have ?? 0));
-      case "color_asc":
-        return [...parts].sort((a, b) => {
-          if (a.color_id !== b.color_id) return a.color_id - b.color_id;
-          return byPartThenColor(a, b);
-        });
-      default:
-        return [...parts].sort(byMissingThenNeed);
+        const [compareRes, partsRes] = await Promise.all([
+          fetch(compareUrl, { headers, signal: controller.signal }),
+          fetch(partsUrl, { headers, signal: controller.signal }),
+        ]);
+
+        if (!compareRes.ok) {
+          const txt = await compareRes.text();
+          throw new Error(
+            `Compare failed (${compareRes.status}): ${txt || compareRes.statusText}`
+          );
+        }
+        if (!partsRes.ok) {
+          const txt = await partsRes.text();
+          throw new Error(
+            `Parts lookup failed (${partsRes.status}): ${
+              txt || partsRes.statusText
+            }`
+          );
+        }
+
+        const compareJson = (await compareRes.json()) as CompareResult;
+        const partsJson = (await partsRes.json()) as CatalogPart[];
+
+        setSummary(compareJson);
+        setParts(partsJson);
+      } catch (err: any) {
+        if (err.name === "AbortError") return;
+        console.error("Failed to load buildability details:", err);
+        setError(err.message || "Failed to load buildability details.");
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [parts, sortMode]);
+
+    load();
+
+    return () => controller.abort();
+  }, [setId]);
+
+  const missingMap = useMemo(() => {
+    const map = new Map<string, MissingPart>();
+    if (!summary) return map;
+    for (const m of summary.missing_parts || []) {
+      map.set(`${m.part_num}-${m.color_id}`, m);
+    }
+    return map;
+  }, [summary]);
+
+  if (!setId) {
+    return (
+      <div className="page buildability-details">
+        <h1>Buildability</h1>
+        <p>No set selected.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="page buildability-details">
+        <h1>Set {setId}</h1>
+        <p>Loading buildability details…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page buildability-details">
+        <h1>Set {setId}</h1>
+        <p style={{ color: "red" }}>{error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 16 }}>
-      <h1>Set {meta.set_num || "Unknown Set"}</h1>
+    <div className="page buildability-details">
+      <h1>Set {setId}</h1>
 
-      {meta.name && (
-        <h2>
-          {meta.name}
-          {meta.year ? ` (${meta.year})` : ""}
-        </h2>
-      )}
-
-      {covPercent !== null && (
-        <p>
-          Coverage: {covPercent}%
-          {typeof totalHave === "number" &&
-          typeof totalNeed === "number"
-            ? ` (${totalHave}/${totalNeed})`
-            : ""}
-        </p>
-      )}
-
-      {error && (
-        <div style={{ color: "red", marginBottom: 12 }}>
-          {error}
+      {summary && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <p>
+            Coverage: <strong>{Math.round(summary.coverage * 100)}%</strong>
+          </p>
+          <p>
+            Parts you have: <strong>{summary.total_have}</strong> /{" "}
+            <strong>{summary.total_needed}</strong>
+          </p>
         </div>
       )}
 
-      {loading ? (
-        <div>Loading…</div>
+      {parts.length === 0 ? (
+        <p>No parts to display.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          {sortedParts.map((p) => (
-            <li key={`${p.part_num}-${p.color_id}`} style={{ marginBottom: 8 }}>
-              <div>
-                <strong>{p.part_num}</strong> (color {p.color_id}) — need{" "}
-                {p.need}, have {p.have}, short {p.short}
-              </div>
-              {p.img_url && (
-                <img
-                  alt={`${p.part_num} (${p.color_id})`}
-                  src={p.img_url}
-                  style={{ maxHeight: 50, marginTop: 4 }}
-                />
-              )}
-            </li>
-          ))}
-          {sortedParts.length === 0 && <li>No parts to display.</li>}
-        </ul>
+        <div style={{ overflowX: "auto" }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "0.9rem",
+            }}
+          >
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "4px" }}>Image</th>
+                <th style={{ textAlign: "left", padding: "4px" }}>Part</th>
+                <th style={{ textAlign: "right", padding: "4px" }}>Need</th>
+                <th style={{ textAlign: "right", padding: "4px" }}>Have</th>
+                <th style={{ textAlign: "right", padding: "4px" }}>Short</th>
+              </tr>
+            </thead>
+            <tbody>
+              {parts.map((p) => {
+                const key = `${p.part_num}-${p.color_id}`;
+                const missing = missingMap.get(key);
+                const need = missing?.need ?? p.quantity ?? 0;
+                const have = missing ? missing.have : need;
+                const short = missing?.short ?? 0;
+
+                return (
+                  <tr key={key} style={{ borderTop: "1px solid #ccc" }}>
+                    <td style={{ padding: "4px" }}>
+                      {p.part_img_url ? (
+                        <img
+                          src={p.part_img_url}
+                          alt={p.part_name || p.part_num}
+                          style={{ width: 40, height: 40, objectFit: "contain" }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 4,
+                            border: "1px solid #ddd",
+                          }}
+                        />
+                      )}
+                    </td>
+                    <td style={{ padding: "4px" }}>
+                      <div>{p.part_num}</div>
+                      {p.part_name && (
+                        <div style={{ opacity: 0.7 }}>{p.part_name}</div>
+                      )}
+                      <div style={{ opacity: 0.7, fontSize: "0.8em" }}>
+                        Colour: {p.color_id}
+                      </div>
+                    </td>
+                    <td style={{ padding: "4px", textAlign: "right" }}>
+                      {need}
+                    </td>
+                    <td style={{ padding: "4px", textAlign: "right" }}>
+                      {have}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px",
+                        textAlign: "right",
+                        color: short > 0 ? "red" : "inherit",
+                      }}
+                    >
+                      {short}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
