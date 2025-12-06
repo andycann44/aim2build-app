@@ -119,6 +119,18 @@ const BuildabilityDetailsInner: React.FC = () => {
     return map;
   }, [summary]);
 
+  const missingPiecesTotal = useMemo(() => {
+    if (!summary?.missing_parts) return 0;
+
+    return summary.missing_parts.reduce((total, m) => {
+      const short =
+        typeof m.short === "number"
+          ? m.short
+          : Math.max((m.need ?? 0) - (m.have ?? 0), 0);
+      return total + short;
+    }, 0);
+  }, [summary]);
+
   const coveragePct =
     typeof summary?.coverage === "number"
       ? Math.round(summary.coverage * 100)
@@ -249,7 +261,7 @@ const BuildabilityDetailsInner: React.FC = () => {
                 ? summary.total_needed.toLocaleString()
                 : "—"}
             </span>
-            {summary?.missing_parts && summary.missing_parts.length > 0 && (
+            {missingPiecesTotal > 0 && (
               <span
                 className="hero-pill hero-pill--sort"
                 style={{
@@ -259,7 +271,7 @@ const BuildabilityDetailsInner: React.FC = () => {
                   fontWeight: 700,
                 }}
               >
-                Missing pieces: {summary.missing_parts.length}
+                Missing pieces: {missingPiecesTotal.toLocaleString()}
               </span>
             )}
           </div>

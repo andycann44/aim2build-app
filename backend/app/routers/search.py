@@ -3,6 +3,7 @@ import sqlite3
 from typing import List, Dict
 
 from fastapi import APIRouter, HTTPException, Query
+from rapidfuzz import fuzz
 
 router = APIRouter()
 
@@ -77,15 +78,65 @@ def _do_search(q: str) -> List[Dict]:
     con.close()
     return rows
 
+def fuzzy_search_sets(q: str, limit: int = 30, min_score: int = 65) -> List[Dict]:
+    q_norm = q.strip().lower()
+    if not q_norm:
+        return []
+
+    like = f"%{q_norm}%"
+    con = _db()
+    cur = con.cursor()
+    cur.execute(
+        """
+        SELECT set_num, name, year, num_parts
+        FROM sets
+        WHERE (lower(set_num) LIKE ? OR lower(name) LIKE ?)
+          AND num_parts >= 20
+        LIMIT 400
+        """,
+        (like, like),
+    )
+    candidates = []
+    for row in cur.fetchall():
+        set_num = row["set_num"]
+        name = row["name"] or ""
+        score = fuzz.token_set_ratio(q_norm, f"{set_num} {name}".lower())
+        if score >= min_score:
+            candidates.append(
+                {
+                    "set_num": set_num,
+                    "name": name,
+                    "year": int(row["year"]),
+                    "num_parts": int(row["num_parts"] or 0),
+                    "img_url": _guess_set_img_url(set_num),
+                    "_score": score,
+                }
+            )
+    con.close()
+
+    sorted_candidates = sorted(candidates, key=lambda x: x["_score"], reverse=True)
+    trimmed = sorted_candidates[:limit]
+    for item in trimmed:
+        item.pop("_score", None)
+    return trimmed
+
+def _search_with_fuzzy(q: str, fuzzy: bool = False) -> List[Dict]:
+    if fuzzy:
+        return fuzzy_search_sets(q)
+    exact = _do_search(q)
+    if exact:
+        return exact
+    return fuzzy_search_sets(q)
+
 @router.get("/search")
-def search(q: str = Query(..., min_length=1)) -> List[Dict]:
+def search(q: str = Query(..., min_length=1), fuzzy: bool = Query(False)) -> List[Dict]:
     """Primary search endpoint: /api/search?q=..."""
-    return _do_search(q)
+    return _search_with_fuzzy(q, fuzzy=fuzzy)
 
 @router.get("/search/sets")
-def search_sets(q: str = Query(..., min_length=1)) -> List[Dict]:
+def search_sets(q: str = Query(..., min_length=1), fuzzy: bool = Query(False)) -> List[Dict]:
     """Alias: /api/search/sets?q=..."""
-    return _do_search(q)
+    return _search_with_fuzzy(q, fuzzy=fuzzy)
 
 @router.get("/sets/search_sets")
 def legacy_search_sets(q: str = Query(..., min_length=1)) -> List[Dict]:
