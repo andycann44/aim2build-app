@@ -48,3 +48,4 @@ backend/app/data/*.db-*
 # PDFs / scratch data
 instruction_pdfs/
 *.csv
+backend/Test/apilocal.rest
