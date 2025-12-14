@@ -1,3 +1,10 @@
+from typing import List, Dict, Any
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.db import db, init_db
+from app.paths import DATA_DIR
 from app.routers import (
     mysets,
     wishlist,
@@ -8,11 +15,6 @@ from app.routers import (
     inventory_images,
 )
 from app.routers import auth as auth_router
-from app.db import db, init_db
-from app.paths import DATA_DIR
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict, Any
 
 app = FastAPI(title="Aim2Build API")
 
@@ -24,6 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
+
 
 def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
     """
@@ -67,37 +70,29 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
         for row in rows
     ]
 
-# Optional routers — included if available
-def try_include_routers():
-    # Buildability (compare endpoint)
-    for modname in ("app.routers.buildability", "app.routers.Buildability"):
-        try:
-            mod = __import__(modname, fromlist=["router"])
-            app.include_router(mod.router, prefix="/api/buildability", tags=["buildability"])
-            break
-        except Exception:
-            pass
 
-    # Catalog (shared sets/parts)
-    try:
-        mod = __import__("app.routers.catalog", fromlist=["router"])
-        app.include_router(mod.router, prefix="/api/catalog", tags=["catalog"])
-    except Exception:
-        pass
-
-try_include_routers()
+# Initialise DB on startup
 init_db()
+
 
 @app.get("/api/health")
 def health():
     return {"ok": True}
 
-app.include_router(inventory.router, prefix="/api/inventory")
-app.include_router(inventory_images.router)  # ⬅️ no extra prefix
+
+# Routers
 app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
 
-app.include_router(mysets.router,      prefix="/api/mysets")
-app.include_router(wishlist.router,    prefix="/api/wishlist")
+# Inventory core + strict image variant
+app.include_router(inventory.router, prefix="/api/inventory")
+# inventory_images router already has prefix="/api/inventory"
+app.include_router(inventory_images.router)
+
+# My Sets / Wishlist
+app.include_router(mysets.router, prefix="/api/mysets")
+app.include_router(wishlist.router, prefix="/api/wishlist")
+
+# Buildability, Catalog, Search
 app.include_router(buildability.router, prefix="/api/buildability")
-app.include_router(search.router,      prefix="/api")
-app.include_router(catalog.router,     prefix="/api/catalog")
+app.include_router(search.router, prefix="/api")
+app.include_router(catalog.router, prefix="/api/catalog")

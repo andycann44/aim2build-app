@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Set
 
-from app.catalog_db import get_catalog_parts_for_set, get_set_num_parts
+from app.catalog_db import db, get_catalog_parts_for_set, get_set_num_parts
 from app.routers.auth import get_current_user, User
 from app.routers.inventory import load_inventory_parts
+
 router = APIRouter()
 
 # -----------------------
@@ -35,7 +36,7 @@ def _inventory_map(rows: Optional[List[dict]] = None) -> Dict[Tuple[str, int], i
     Build a {(part_num, color_id): qty_total} map from inventory rows.
     """
     if rows is None:
-        rows = _load_inventory_json()
+        rows = []
 
     m: Dict[Tuple[str, int], int] = {}
     for r in rows:
@@ -61,6 +62,33 @@ def _normalize_set_id(raw: str) -> str:
     if "-" not in s:
         return f"{s}-1"
     return s
+
+
+def _related_part_nums(part_num: str, con) -> Set[str]:
+    """
+    For a given part_num, return a set of related part_nums including itself,
+    using the part_relationships table.
+
+    We treat parent/child as interchangeable for buildability coverage.
+    """
+    family: Set[str] = {part_num}
+
+    # Direct parent/child links in either direction
+    cur = con.execute(
+        """
+        SELECT parent_part_num, child_part_num
+        FROM part_relationships
+        WHERE parent_part_num = ? OR child_part_num = ?
+        """,
+        (part_num, part_num),
+    )
+    for row in cur.fetchall():
+        parent = str(row["parent_part_num"])
+        child = str(row["child_part_num"])
+        family.add(parent)
+        family.add(child)
+
+    return family
 
 
 # -----------------------
@@ -99,6 +127,10 @@ def compare_buildability(
           { "part_num": "...", "color_id": 5, "need": 2, "have": 1, "short": 1 }
         ]
       }
+
+    Parent/child part variants (from part_relationships) are treated as one
+    family: if you own a related variant in the same colour, it counts towards
+    coverage.
     """
     raw = set_num or set or id
     if not raw:
@@ -118,37 +150,42 @@ def compare_buildability(
             detail=f"No catalog parts found for set {set_id}",
         )
 
-    inv_map = _inventory_map(load_inventory_parts(current_user.id))
+    inv_rows = _load_inventory_json(current_user.id)
+    inv_map = _inventory_map(inv_rows)
 
     total_needed = 0
     total_have = 0
     missing_parts: List[Dict[str, int]] = []
 
-    for row in parts:
-        part_num = str(row["part_num"])
-        color_id = int(row["color_id"])
-        need = int(row["quantity"])
+    with db() as con:
+        for row in parts:
+            part_num = str(row["part_num"])
+            color_id = int(row["color_id"])
+            need = int(row["quantity"])
 
-        if need <= 0:
-            continue
+            if need <= 0:
+                continue
 
-        key = (part_num, color_id)
-        have = int(inv_map.get(key, 0))
+            # Sum inventory across this part + its parent/child variants
+            family_nums = _related_part_nums(part_num, con)
+            have = 0
+            for fam in family_nums:
+                have += int(inv_map.get((fam, color_id), 0))
 
-        total_needed += need
-        # cap have at need for coverage calculation
-        total_have += min(have, need)
+            total_needed += need
+            # cap have at need for coverage calculation
+            total_have += min(have, need)
 
-        if have < need:
-            missing_parts.append(
-                {
-                    "part_num": part_num,
-                    "color_id": color_id,
-                    "need": need,
-                    "have": have,
-                    "short": need - have,
-                }
-            )
+            if have < need:
+                missing_parts.append(
+                    {
+                        "part_num": part_num,
+                        "color_id": color_id,
+                        "need": need,
+                        "have": have,
+                        "short": need - have,
+                    }
+                )
 
     coverage = float(total_have / total_needed) if total_needed > 0 else 0.0
     display_total = get_set_num_parts(set_id)
@@ -161,6 +198,7 @@ def compare_buildability(
         "display_total": display_total,
         "missing_parts": missing_parts,
     }
+
 
 @router.post("/batch_compare")
 def batch_compare_buildability(
@@ -178,6 +216,8 @@ def batch_compare_buildability(
         { "set_num": "70618-1", "coverage": 1.0, "total_needed": 1234, "total_have": 1234 },
         ...
       ]
+
+    Uses the same parent/child family logic as /compare.
     """
     if not payload.sets:
         return []
@@ -187,59 +227,62 @@ def batch_compare_buildability(
 
     results: List[Dict[str, object]] = []
 
-    for raw in payload.sets:
-        set_id = _normalize_set_id(raw)
-        if not set_id:
-            results.append(
-                {
-                    "set_num": "",
-                    "coverage": 0.0,
-                    "total_needed": 0,
-                    "total_have": 0,
-                }
-            )
-            continue
+    with db() as con:
+        for raw in payload.sets:
+            set_id = _normalize_set_id(raw)
+            if not set_id:
+                results.append(
+                    {
+                        "set_num": "",
+                        "coverage": 0.0,
+                        "total_needed": 0,
+                        "total_have": 0,
+                    }
+                )
+                continue
 
-        parts = get_catalog_parts_for_set(set_id)
-        if not parts:
-            # Set not in catalog
+            parts = get_catalog_parts_for_set(set_id)
+            if not parts:
+                # Set not in catalog
+                results.append(
+                    {
+                        "set_num": set_id,
+                        "coverage": 0.0,
+                        "total_needed": 0,
+                        "total_have": 0,
+                    }
+                )
+                continue
+
+            total_needed = 0
+            total_have = 0
+
+            for row in parts:
+                part_num = str(row["part_num"])
+                color_id = int(row["color_id"])
+                need = int(row["quantity"])
+
+                if need <= 0:
+                    continue
+
+                family_nums = _related_part_nums(part_num, con)
+                have = 0
+                for fam in family_nums:
+                    have += int(inv_map.get((fam, color_id), 0))
+
+                total_needed += need
+                total_have += min(have, need)
+
+            coverage = float(total_have / total_needed) if total_needed > 0 else 0.0
+
             results.append(
                 {
                     "set_num": set_id,
-                    "coverage": 0.0,
-                    "total_needed": 0,
-                    "total_have": 0,
+                    "coverage": coverage,
+                    "total_needed": total_needed,
+                    "total_have": total_have,
                 }
             )
-            continue
-
-        total_needed = 0
-        total_have = 0
-
-        for row in parts:
-            part_num = str(row["part_num"])
-            color_id = int(row["color_id"])
-            need = int(row["quantity"])
-
-            if need <= 0:
-                continue
-
-            key = (part_num, color_id)
-            have = int(inv_map.get(key, 0))
-
-            total_needed += need
-            total_have += min(have, need)
-
-        coverage = float(total_have / total_needed) if total_needed > 0 else 0.0
-
-        results.append(
-            {
-                "set_num": set_id,
-                "coverage": coverage,
-                "total_needed": total_needed,
-                "total_have": total_have,
-            }
-        )
 
     return results
 

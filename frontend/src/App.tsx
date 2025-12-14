@@ -9,6 +9,8 @@ import SettingsPage from "./pages/SettingsPage";
 import BuildabilityDetailsPage from "./pages/BuildabilityDetailsPage";
 import HomePage from "./pages/HomePage";
 import AccountPage from "./pages/AccountPage";
+import InventoryAddCategoriesPage from "./pages/InventoryAddCategoriesPage";
+import InventoryAddBrickPage from "./pages/InventoryAddBrickPage";
 
 const App: React.FC = () => {
   return (
@@ -94,7 +96,9 @@ const App: React.FC = () => {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/my-sets" element={<MySetsPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/inventory/add" element={<InventoryAddCategoriesPage />} />
           <Route path="/buildability" element={<BuildabilityOverviewPage />} />
+          <Route path="/inventory/add/bricks" element={<InventoryAddBrickPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/settings" element={<SettingsPage />} />

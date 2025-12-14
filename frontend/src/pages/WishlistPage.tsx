@@ -3,10 +3,10 @@ import SetTile from "../components/SetTile";
 import { getWishlist, removeWishlist, SetSummary } from "../api/client";
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
+import { API_BASE } from "../api/client";
 
 // Use server if env not set
-const API =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
+const API = API_BASE;
 
 const WishlistPage: React.FC = () => {
   const [sets, setSets] = useState<SetSummary[]>([]);

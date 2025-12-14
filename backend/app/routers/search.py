@@ -9,6 +9,7 @@ router = APIRouter()
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "lego_catalog.db")
 
+
 def _db() -> sqlite3.Connection:
     if not os.path.exists(DB_PATH):
         raise HTTPException(status_code=500, detail="lego_catalog.db missing")
@@ -16,16 +17,19 @@ def _db() -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     return con
 
+
 def _guess_set_img_url(set_num: str) -> str:
     if not set_num:
         return ""
     # Simple Rebrickable-style pattern; frontend can use or ignore
     return f"https://cdn.rebrickable.com/media/sets/{set_num}.jpg"
 
+
 def _do_search(q: str) -> List[Dict]:
     q = q.strip()
     if not q:
         return []
+
     like = f"%{q}%"
     con = _db()
     cur = con.cursor()
@@ -63,6 +67,7 @@ def _do_search(q: str) -> List[Dict]:
         """,
         (like, like),
     )
+
     rows: List[Dict] = []
     for row in cur.fetchall():
         set_num = row["set_num"]
@@ -75,8 +80,10 @@ def _do_search(q: str) -> List[Dict]:
                 "img_url": _guess_set_img_url(set_num),
             }
         )
+
     con.close()
     return rows
+
 
 def fuzzy_search_sets(q: str, limit: int = 30, min_score: int = 65) -> List[Dict]:
     q_norm = q.strip().lower()
@@ -86,18 +93,32 @@ def fuzzy_search_sets(q: str, limit: int = 30, min_score: int = 65) -> List[Dict
     like = f"%{q_norm}%"
     con = _db()
     cur = con.cursor()
+
+    # First: cheap LIKE pre-filter
     cur.execute(
         """
         SELECT set_num, name, year, num_parts
         FROM sets
-        WHERE (lower(set_num) LIKE ? OR lower(name) LIKE ?)
-          AND num_parts >= 20
-        LIMIT 400
+        WHERE lower(name) LIKE ?
+           OR set_num LIKE ?
+        LIMIT 5000
         """,
         (like, like),
     )
-    candidates = []
-    for row in cur.fetchall():
+    rows = cur.fetchall()
+
+    # Fallback: if nothing matches LIKE, scan all sets
+    if not rows:
+        cur.execute(
+            """
+            SELECT set_num, name, year, num_parts
+            FROM sets
+            """
+        )
+        rows = cur.fetchall()
+
+    candidates: List[Dict] = []
+    for row in rows:
         set_num = row["set_num"]
         name = row["name"] or ""
         score = fuzz.token_set_ratio(q_norm, f"{set_num} {name}".lower())
@@ -112,33 +133,49 @@ def fuzzy_search_sets(q: str, limit: int = 30, min_score: int = 65) -> List[Dict
                     "_score": score,
                 }
             )
+
     con.close()
 
-    sorted_candidates = sorted(candidates, key=lambda x: x["_score"], reverse=True)
-    trimmed = sorted_candidates[:limit]
+    # Sort by fuzzy score, trim, and drop the internal score field
+    candidates.sort(key=lambda x: x["_score"], reverse=True)
+    trimmed = candidates[:limit]
     for item in trimmed:
         item.pop("_score", None)
     return trimmed
 
+
 def _search_with_fuzzy(q: str, fuzzy: bool = False) -> List[Dict]:
     if fuzzy:
         return fuzzy_search_sets(q)
+
     exact = _do_search(q)
     if exact:
         return exact
+
     return fuzzy_search_sets(q)
 
+
 @router.get("/search")
-def search(q: str = Query(..., min_length=1), fuzzy: bool = Query(False)) -> List[Dict]:
+def search(
+    q: str = Query(..., min_length=1),
+    fuzzy: bool = Query(False),
+) -> List[Dict]:
     """Primary search endpoint: /api/search?q=..."""
     return _search_with_fuzzy(q, fuzzy=fuzzy)
 
+
 @router.get("/search/sets")
-def search_sets(q: str = Query(..., min_length=1), fuzzy: bool = Query(False)) -> List[Dict]:
+def search_sets(
+    q: str = Query(..., min_length=1),
+    fuzzy: bool = Query(False),
+) -> List[Dict]:
     """Alias: /api/search/sets?q=..."""
     return _search_with_fuzzy(q, fuzzy=fuzzy)
 
+
 @router.get("/sets/search_sets")
-def legacy_search_sets(q: str = Query(..., min_length=1)) -> List[Dict]:
+def legacy_search_sets(
+    q: str = Query(..., min_length=1),
+) -> List[Dict]:
     """Legacy alias: /api/sets/search_sets?q=..."""
     return _do_search(q)

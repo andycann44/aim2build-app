@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import { API_BASE } from "../api/client";
 import React, { useCallback, useEffect, useState } from "react";
 import SetTile from "../components/SetTile";
 import {
@@ -12,8 +13,7 @@ import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
 
 // Use server if env not set
-const API =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
+const API = API_BASE;
 
 type BuildabilityResultWithDisplay = BuildabilityResult & {
   display_total?: number | null;

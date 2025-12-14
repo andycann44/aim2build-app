@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { getToken, saveToken, clearToken } from "../utils/auth";
+import { API_BASE } from "../api/client";
 
-const API =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
+const API = API_BASE;
+
 type AuthResult = {
   ok: boolean;
   token?: string;
