@@ -1,62 +1,161 @@
 from fastapi import APIRouter, HTTPException, Query, Body, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Tuple
-from pathlib import Path
-import json
 
 from app.user_db import user_db
-from app.catalog_db import get_catalog_parts_for_set
-from app.paths import DATA_DIR
+from app.catalog_db import get_catalog_parts_for_set, db as catalog_db
 from app.routers.auth import get_current_user, User
 from app.image_lookup import get_strict_element_image
-
 
 router = APIRouter()
 
 
-def _inventory_file(user_id: int) -> Path:
-    return DATA_DIR / f"inventory_parts_user_{user_id}.json"
 
+def _ensure_user_sets_poured(db) -> None:
+    """
+    Idempotent schema guard for Option B:
+      user_sets.poured INTEGER NOT NULL DEFAULT 0
+    """
+    cur = db.cursor()
+    cur.execute("PRAGMA table_info(user_sets)")
+    cols = [row[1] for row in cur.fetchall()]
+    if "poured" not in cols:
+        cur.execute("ALTER TABLE user_sets ADD COLUMN poured INTEGER NOT NULL DEFAULT 0")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_user_sets_user_poured ON user_sets(user_id, poured)")
+    db.commit()
+def _canonicalize_part_num(raw_part_num: str) -> str:
+    """
+    Catalog DB ONLY:
+      raw part_num -> canonical_part_num via part_canonical_map.
+    No guessing:
+      - If no mapping row exists, returns raw part_num.
+    """
+    raw = (raw_part_num or "").strip()
+    if not raw:
+        return raw
 
-# -----------------------
-# Internal helpers
-# -----------------------
+    try:
+        from app.catalog_db import db as catalog_db
+    except Exception:
+        return raw
 
-def _load(user_id: int) -> List[dict]:
-    """Load inventory from JSON file. Always returns a list."""
-    path = _inventory_file(user_id)
-    if not path.exists():
-        return []
-    with path.open("r", encoding="utf-8") as f:
+    with catalog_db() as db:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT canonical_part_num FROM part_canonical_map WHERE part_num = ? LIMIT 1",
+            (raw,),
+        )
+        row = cur.fetchone()
+
+    if not row:
+        return raw
+
+    canon = None
+    try:
+        canon = row["canonical_part_num"]
+    except Exception:
         try:
-            data = json.load(f) or []
-        except json.JSONDecodeError:
-            return []
-    if not isinstance(data, list):
-        raise ValueError("inventory file is not a list")
-    return data
+            canon = row[0]
+        except Exception:
+            canon = None
+
+    canon = (str(canon).strip() if canon is not None else "")
+    return canon if canon else raw
 
 
-def _save(user_id: int, rows: List[dict]) -> None:
-    """Persist inventory list to JSON file."""
-    path = _inventory_file(user_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(rows, f, indent=2, sort_keys=True)
+def _normalize_set_id(raw: str) -> str:
+    s = (raw or "").strip()
+    if not s:
+        return s
+    if "-" not in s:
+        return f"{s}-1"
+    return s
 
 
-def _index_by_key(rows: List[dict]) -> Dict[Tuple[str, int], dict]:
-    idx: Dict[Tuple[str, int], dict] = {}
-    for r in rows:
-        part = str(r.get("part_num"))
-        color = int(r.get("color_id", 0))
-        idx[(part, color)] = r
-    return idx
+def _lookup_img_url(part_num: str, color_id: int) -> Optional[str]:
+    """
+    Try strict element image, then canonical mapping, then aliases sharing the same canonical.
+    """
+
+    def _try_lookup(cur, pn: str, cid: int) -> Optional[str]:
+        cur.execute(
+            "SELECT img_url FROM element_images WHERE part_num = ? AND color_id = ? LIMIT 1",
+            (pn, cid),
+        )
+        row = cur.fetchone()
+        if row:
+            try:
+                return row["img_url"]
+            except Exception:
+                return row[0]
+        return None
+
+    with catalog_db() as con:
+        cur = con.cursor()
+
+        img = _try_lookup(cur, part_num, color_id)
+        if img:
+            return img
+
+        canonical = _canonicalize_part_num(part_num)
+        if canonical != part_num:
+            img = _try_lookup(cur, canonical, color_id)
+            if img:
+                return img
+
+        target = canonical if canonical else part_num
+        cur.execute(
+            "SELECT part_num FROM part_canonical_map WHERE canonical_part_num = ?",
+            (target,),
+        )
+        for row in cur.fetchall():
+            alias = str(row["part_num"])
+            img = _try_lookup(cur, alias, color_id)
+            if img:
+                return img
+
+    return None
+
+
+def _fetch_user_inventory(user_id: int) -> List[dict]:
+    """
+    Read inventory from user_inventory_parts and attach part_img_url with alias fallback.
+    """
+    rows: List[dict] = []
+    with user_db() as db:
+        cur = db.cursor()
+        cur.execute(
+            """
+            SELECT part_num, color_id, qty
+            FROM user_inventory_parts
+            WHERE user_id = ?
+            ORDER BY part_num, color_id
+            """,
+            (user_id,),
+        )
+        db_rows = cur.fetchall()
+
+    for r in db_rows:
+        part_num = str(r["part_num"])
+        color_id = int(r["color_id"])
+        qty = int(r["qty"])
+        img = get_strict_element_image(part_num, color_id)
+        if img is None:
+            img = _lookup_img_url(part_num, color_id)
+        rows.append(
+            {
+                "part_num": part_num,
+                "color_id": color_id,
+                "qty_total": qty,
+                "part_img_url": img,
+            }
+        )
+    return rows
 
 
 def load_inventory_parts(user_id: int) -> List[dict]:
-    """Helper exposed for other routers (e.g., buildability)"""
-    return _load(user_id)
+    """Helper exposed for other routers (canonical DB source)."""
+    return _fetch_user_inventory(user_id)
 
 
 # -----------------------
@@ -100,20 +199,35 @@ class DeleteKeys(BaseModel):
 
 class DeleteBatch(BaseModel):
     keys: List[DeleteKeys]
-    
+
+
 class AddCanonicalPayload(BaseModel):
     part_num: str
     color_id: int
     qty: int = 1
-    
+
+
 class DecCanonicalPayload(BaseModel):
     part_num: str
     color_id: int
-    delta: int = Field(1, gt=0)    
+    delta: int = Field(1, gt=0)
 
 
 # -----------------------
-# Endpoints
+# Canonical DB inventory list (SOURCE OF TRUTH for UI)
+# -----------------------
+
+def _list_db_inventory_parts(user_id: int) -> List[InventoryPart]:
+    """
+    Reads canonical inventory from user DB (user_inventory_parts),
+    and attaches images with alias fallback.
+    """
+    rows = _fetch_user_inventory(user_id)
+    return [InventoryPart(**r) for r in rows]
+
+
+# -----------------------
+# Endpoints (Inventory list)
 # -----------------------
 
 @router.get("/parts", response_model=List[InventoryPart])
@@ -121,43 +235,24 @@ def list_inventory_parts(
     current_user: User = Depends(get_current_user),
 ) -> List[InventoryPart]:
     """
-    STRICT IMAGE VERSION
-
-    Rules:
-      - Only element_images (part_num, color_id) -> img_url
-      - If missing / blank -> part_img_url = None
-      - No fallback to parts.part_img_url
-      - No parent fallback
-      - No "any color" fallback
+    Canonical DB-backed inventory list + STRICT images.
     """
-    rows = _load(current_user.id)
-    out: List[InventoryPart] = []
-
-    for r in rows:
-        part_num = str(r.get("part_num"))
-        color_id = int(r.get("color_id", 0))
-        qty_total = int(r.get("qty_total", 0))
-
-        img = get_strict_element_image(part_num, color_id)
-
-        out.append(
-            InventoryPart(
-                part_num=part_num,
-                color_id=color_id,
-                qty_total=qty_total,
-                part_img_url=img,
-            )
-        )
-
-    return out
+    return _list_db_inventory_parts(current_user.id)
 
 
 @router.get("/parts_with_images", response_model=List[InventoryPart])
 def list_inventory_parts_with_images(
     current_user: User = Depends(get_current_user),
 ) -> List[InventoryPart]:
-    return list_inventory_parts(current_user)
+    """
+    Keep this route name for existing frontend calls.
+    """
+    return _list_db_inventory_parts(current_user.id)
 
+
+# -----------------------
+# Legacy JSON endpoints (kept)
+# -----------------------
 
 @router.post("/add")
 def add_inventory(
@@ -170,218 +265,10 @@ def add_inventory(
     ),
     current_user: User = Depends(get_current_user),
 ):
-    rows = _load(current_user.id)
-    index = _index_by_key(rows)
-
-    # --------- Mode 1: add by set from catalog ---------
-    chosen = set_num or set or id
-    if chosen:
-        set_id = chosen.strip()
-        if not set_id:
-            raise HTTPException(status_code=400, detail="Empty set id")
-
-        set_parts = get_catalog_parts_for_set(set_id)
-        if not set_parts:
-            raise HTTPException(status_code=404, detail=f"No catalog parts found for set {set_id}")
-
-        added_unique = 0
-        for row in set_parts:
-            part = str(row["part_num"])
-            color = int(row["color_id"])
-            need_qty = int(row["quantity"])
-            key = (part, color)
-
-            existing = index.get(key)
-            if existing is None:
-                index[key] = {
-                    "part_num": part,
-                    "color_id": color,
-                    "qty_total": need_qty,
-                }
-                added_unique += 1
-            else:
-                existing_qty = int(existing.get("qty_total", 0))
-                existing["qty_total"] = existing_qty + need_qty
-
-        rows = list(index.values())
-        _save(current_user.id, rows)
-        return {
-            "ok": True,
-            "mode": "set",
-            "set_num": set_id,
-            "unique_parts_touched": added_unique,
-            "total_rows": len(rows),
-        }
-
-    # --------- Mode 2: add a single line ---------
-    if line is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either provide set/set_num/id query or a JSON body for a single part line.",
-        )
-
-    data = line.dict()
-    part = data["part_num"]
-    color = int(data["color_id"])
-    qty = int(data["qty_total"])
-    key = (part, color)
-
-    existing = index.get(key)
-    if existing is None:
-        index[key] = {
-            "part_num": part,
-            "color_id": color,
-            "qty_total": qty,
-        }
-    else:
-        existing_qty = int(existing.get("qty_total", 0))
-        existing["qty_total"] = existing_qty + qty
-
-    rows = list(index.values())
-    _save(current_user.id, rows)
-    return {"ok": True, "mode": "single", "total_rows": len(rows)}
-
-
-@router.post("/add_batch")
-def add_inventory_batch(
-    payload: InvBatch,
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Add or increment multiple inventory lines in one call.
-
-    Each item:
-      { part_num, color_id, qty_total }
-
-    (No part_img_url is accepted/stored — image is derived strictly.)
-    """
-    rows = _load(current_user.id)
-    index = _index_by_key(rows)
-    touched = 0
-
-    for line in payload.items:
-        data = line.dict()
-        part = data["part_num"]
-        color = int(data["color_id"])
-        qty = int(data["qty_total"])
-
-        if qty <= 0:
-            continue
-
-        key = (part, color)
-        existing = index.get(key)
-
-        if existing is None:
-            index[key] = {
-                "part_num": part,
-                "color_id": color,
-                "qty_total": qty,
-            }
-        else:
-            existing_qty = int(existing.get("qty_total", 0))
-            existing["qty_total"] = existing_qty + qty
-
-        touched += 1
-
-    rows = list(index.values())
-    _save(current_user.id, rows)
-    return {"ok": True, "mode": "batch", "touched": touched, "total_rows": len(rows)}
-
-
-@router.post("/replace")
-def replace_inventory(
-    lines: List[InvLine],
-    current_user: User = Depends(get_current_user),
-):
-    rows: List[dict] = []
-    for line in lines:
-        d = line.dict()
-        d["qty_total"] = int(d.get("qty_total", 0))
-        rows.append(d)
-    _save(current_user.id, rows)
-    return {"ok": True, "count": len(rows)}
-
-
-@router.delete("/part")
-def delete_part(
-    part_num: str,
-    color_id: int,
-    current_user: User = Depends(get_current_user),
-):
-    rows = _load(current_user.id)
-    key = (str(part_num), int(color_id))
-    before = len(rows)
-    rows = [r for r in rows if (str(r.get("part_num")), int(r.get("color_id", 0))) != key]
-    removed = before - len(rows)
-    if removed == 0:
-        raise HTTPException(status_code=404, detail=f"Item {part_num}/{color_id} not found")
-    _save(current_user.id, rows)
-    return {"ok": True, "removed": removed, "remaining": len(rows)}
-
-
-@router.post("/decrement")
-def decrement_one(
-    payload: DecrementOne,
-    current_user: User = Depends(get_current_user),
-):
-    rows = _load(current_user.id)
-    index = _index_by_key(rows)
-    key = (payload.part_num, int(payload.color_id))
-    existing = index.get(key)
-    if existing is None:
-        raise HTTPException(status_code=404, detail=f"Item {payload.part_num}/{payload.color_id} not found")
-
-    current = int(existing.get("qty_total", 0))
-    new_qty = current - payload.delta
-    if new_qty <= 0:
-        index.pop(key, None)
-    else:
-        existing["qty_total"] = new_qty
-
-    rows = list(index.values())
-    _save(current_user.id, rows)
-    return {"ok": True, "remaining": len(rows)}
-
-
-@router.post("/batch_decrement")
-def batch_decrement(
-    payload: DecrementBatch,
-    current_user: User = Depends(get_current_user),
-):
-    rows = _load(current_user.id)
-    index = _index_by_key(rows)
-
-    for item in payload.items:
-        key = (item.part_num, int(item.color_id))
-        existing = index.get(key)
-        if existing is None:
-            continue
-        current = int(existing.get("qty_total", 0))
-        new_qty = current - item.delta
-        if new_qty <= 0:
-            index.pop(key, None)
-        else:
-            existing["qty_total"] = new_qty
-
-    rows = list(index.values())
-    _save(current_user.id, rows)
-    return {"ok": True, "remaining": len(rows)}
-
-
-@router.post("/batch_delete")
-def batch_delete(
-    payload: DeleteBatch,
-    current_user: User = Depends(get_current_user),
-):
-    rows = _load(current_user.id)
-    keyset = {(k.part_num, int(k.color_id)) for k in payload.keys}
-    before = len(rows)
-    rows = [r for r in rows if (str(r.get("part_num")), int(r.get("color_id", 0))) not in keyset]
-    removed = before - len(rows)
-    _save(current_user.id, rows)
-    if removed == 0:
-        raise HTTPException(status_code=404, detail="No matching items found to delete")
-    return {"ok": True, "removed": removed, "remaining": len(rows)}
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy JSON inventory removed. Use /add-set-canonical or /add-canonical.",
+    )
 
 
 @router.post("/remove_set")
@@ -391,45 +278,10 @@ def remove_set(
     id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
 ):
-    raw = set_num or set or id
-    if not raw:
-        raise HTTPException(status_code=400, detail="Provide one of set, set_num or id query parameters.")
-
-    catalog_parts = get_catalog_parts_for_set(raw)
-    if not catalog_parts:
-        raise HTTPException(status_code=404, detail=f"No catalog parts found for set {raw}")
-
-    rows = _load(current_user.id)
-    idx = _index_by_key(rows)
-    touched = 0
-
-    for p in catalog_parts:
-        key = (str(p["part_num"]), int(p["color_id"]))
-        need = int(p["quantity"])
-        existing = idx.get(key)
-        if existing is None:
-            continue
-
-        current = int(existing.get("qty_total", 0))
-        new_qty = current - need
-        if new_qty < 0:
-            new_qty = 0
-        if new_qty != current:
-            touched += 1
-        if new_qty == 0:
-            idx.pop(key, None)
-        else:
-            existing["qty_total"] = new_qty
-
-    rows = list(idx.values())
-    _save(current_user.id, rows)
-
-    return {
-        "ok": True,
-        "set_num": raw,
-        "touched": touched,
-        "remaining": len(rows),
-    }
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy JSON inventory removed. Use /add-set-canonical or /add-canonical.",
+    )
 
 
 @router.delete("/clear")
@@ -438,9 +290,179 @@ def clear_inventory(
     current_user: User = Depends(get_current_user),
 ):
     if confirm != "YES":
-        raise HTTPException(status_code=400, detail='Refused. Pass confirm=YES to clear all inventory.')
-    _save(current_user.id, [])
-    return {"ok": True, "cleared": True, "count": 0}
+        raise HTTPException(
+            status_code=400,
+            detail='Refused. Pass confirm=YES to clear all inventory.',
+        )
+
+    user_id = current_user.id
+
+    # Clear canonical DB inventory + set markers (SOURCE OF TRUTH)
+    with user_db() as db:
+        cur = db.cursor()
+
+        # ----- count inventory parts -----
+        cur.execute(
+            "SELECT COUNT(1) AS n FROM user_inventory_parts WHERE user_id = ?",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            inv_n = 0
+        else:
+            try:
+                inv_n = int(row["n"])
+            except Exception:
+                inv_n = int(row[0])
+
+        # ----- count sets -----
+        cur.execute(
+            "SELECT COUNT(1) AS n FROM user_sets WHERE user_id = ?",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            sets_n = 0
+        else:
+            try:
+                sets_n = int(row["n"])
+            except Exception:
+                sets_n = int(row[0])
+
+        # ----- delete -----
+        cur.execute("DELETE FROM user_inventory_parts WHERE user_id = ?", (user_id,))
+        cur.execute("DELETE FROM user_sets WHERE user_id = ?", (user_id,))
+        db.commit()
+
+    return {
+        "ok": True,
+        "cleared": True,
+        "deleted_parts_rows": inv_n,
+        "deleted_sets_rows": sets_n,
+    }
+
+@router.delete("/part")
+def delete_inventory_part(
+    part_num: str = Query(...),
+    color_id: int = Query(...),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Hard-delete one inventory row (canonical DB).
+    """
+    pn = _canonicalize_part_num((part_num or "").strip())
+    if not pn:
+        raise HTTPException(status_code=400, detail="part_num required")
+
+    with user_db() as db:
+        cur = db.cursor()
+        cur.execute(
+            """
+            DELETE FROM user_inventory_parts
+            WHERE user_id = ? AND part_num = ? AND color_id = ?
+            """,
+            (current_user.id, pn, int(color_id)),
+        )
+        deleted = cur.rowcount
+        db.commit()
+
+    return {"ok": True, "deleted": int(deleted)}
+
+@router.get("/sets")
+def list_inventory_sets(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Returns the set_nums already added to inventory for this user.
+    Source of truth: user DB table user_sets.
+    """
+    with user_db() as db:
+        cur = db.cursor()
+        _ensure_user_sets_poured(db)
+        cur.execute(
+            "SELECT set_num FROM user_sets WHERE user_id = ? AND poured = 1 ORDER BY set_num",
+            (current_user.id,),
+        )
+        rows = cur.fetchall()
+
+    return {"sets": [str(r["set_num"]) for r in rows]}
+
+
+@router.post("/add-set-canonical")
+def add_set_canonical(
+    set: Optional[str] = Query(None, description="LEGO set number to add (alias: set_num, id)"),
+    set_num: Optional[str] = Query(None),
+    id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Add a set to inventory ONCE (idempotent):
+      - Reads set parts from Catalog DB (get_catalog_parts_for_set)
+      - Canonicalizes part_num via part_canonical_map (no guessing)
+      - Writes ONLY canonical parts into user DB user_inventory_parts
+      - Marks the set in user DB user_sets
+    """
+    chosen_raw = (set_num or set or id or "").strip()
+    if not chosen_raw:
+        raise HTTPException(status_code=400, detail="Provide set/set_num/id")
+    chosen = _normalize_set_id(chosen_raw)
+
+    user_id = current_user.id
+
+    # If already added, do nothing (prevents double-add)
+    with user_db() as db:
+        cur = db.cursor()
+        _ensure_user_sets_poured(db)
+        cur.execute(
+            "SELECT 1 FROM user_sets WHERE user_id = ? AND set_num = ? AND poured = 1 LIMIT 1",
+            (user_id, chosen),
+        )
+        if cur.fetchone() is not None:
+            return {"ok": True, "set_num": chosen, "already_owned": True}
+
+    set_parts = get_catalog_parts_for_set(chosen)
+    if not set_parts:
+        raise HTTPException(status_code=404, detail=f"No catalog parts found for set {chosen}")
+
+    lines_written = 0
+    with user_db() as db:
+        cur = db.cursor()
+
+        for row in set_parts:
+            raw_part = str(row["part_num"])
+            color_id = int(row["color_id"])
+            qty = int(row["quantity"])
+
+            canonical_part = _canonicalize_part_num(raw_part)
+
+            cur.execute(
+                """
+                INSERT INTO user_inventory_parts (user_id, part_num, color_id, qty)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, part_num, color_id)
+                DO UPDATE SET qty = qty + excluded.qty
+                """,
+                (user_id, canonical_part, color_id, qty),
+            )
+            lines_written += 1
+
+        _ensure_user_sets_poured(db)
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO user_sets (user_id, set_num, qty, poured)
+            VALUES (?, ?, 1, 1)
+            """,
+            (user_id, chosen),
+        )
+        cur.execute(
+            "UPDATE user_sets SET poured = 1 WHERE user_id = ? AND set_num = ?",
+            (user_id, chosen),
+        )
+
+        db.commit()
+
+    return {"ok": True, "set_num": chosen, "already_owned": False, "lines_written": lines_written}
+
 
 @router.post("/add-canonical")
 def add_canonical_part(
@@ -449,7 +471,7 @@ def add_canonical_part(
 ):
     user_id = current_user.id
 
-    part_num = (payload.part_num or "").strip()
+    part_num = _canonicalize_part_num((payload.part_num or "").strip())
     if not part_num:
         raise HTTPException(status_code=400, detail="part_num required")
 
@@ -483,18 +505,113 @@ def add_canonical_part(
         raise HTTPException(status_code=500, detail="insert succeeded but row not found")
 
     return dict(row)
+
+@router.post("/remove-set-canonical")
+def remove_set_canonical(
+    set: Optional[str] = Query(None, description="LEGO set number (alias: set_num, id)"),
+    set_num: Optional[str] = Query(None),
+    id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+):
+    chosen_raw = (set_num or set or id or "").strip()
+    if not chosen_raw:
+        raise HTTPException(status_code=400, detail="Provide set/set_num/id")
+
+    chosen = _normalize_set_id(chosen_raw)
+    user_id = current_user.id
+
+    # Only remove if this set was actually poured into inventory
+    with user_db() as db:
+        cur = db.cursor()
+        _ensure_user_sets_poured(db)
+        cur.execute(
+            "SELECT 1 FROM user_sets WHERE user_id = ? AND set_num = ? AND poured = 1 LIMIT 1",
+            (user_id, chosen),
+        )
+        if cur.fetchone() is None:
+            return {"ok": True, "set_num": chosen, "was_in_inventory": False}
+
+    set_parts = get_catalog_parts_for_set(chosen)
+    if not set_parts:
+        raise HTTPException(status_code=404, detail=f"No catalog parts found for set {chosen}")
+
+    touched = 0
+    removed_rows = 0
+
+    with user_db() as db:
+        cur = db.cursor()
+
+        for row in set_parts:
+            raw_part = str(row["part_num"])
+            color_id = int(row["color_id"])
+            need = int(row["quantity"])
+            part_num = _canonicalize_part_num(raw_part)
+
+            cur.execute(
+                """
+                SELECT qty FROM user_inventory_parts
+                WHERE user_id = ? AND part_num = ? AND color_id = ?
+                """,
+                (user_id, part_num, color_id),
+            )
+            r = cur.fetchone()
+            if r is None:
+                continue
+
+            current_qty = int(r["qty"])
+            new_qty = current_qty - need
+            if new_qty < 0:
+                new_qty = 0
+
+            if new_qty != current_qty:
+                touched += 1
+
+            if new_qty == 0:
+                cur.execute(
+                    """
+                    DELETE FROM user_inventory_parts
+                    WHERE user_id = ? AND part_num = ? AND color_id = ?
+                    """,
+                    (user_id, part_num, color_id),
+                )
+                removed_rows += 1
+            else:
+                cur.execute(
+                    """
+                    UPDATE user_inventory_parts
+                    SET qty = ?
+                    WHERE user_id = ? AND part_num = ? AND color_id = ?
+                    """,
+                    (new_qty, user_id, part_num, color_id),
+                )
+
+        # Unmark poured, but keep row (My Sets uses the same table)
+        cur.execute(
+            "UPDATE user_sets SET poured = 0 WHERE user_id = ? AND set_num = ?",
+            (user_id, chosen),
+        )
+
+        db.commit()
+
+    return {
+        "ok": True,
+        "set_num": chosen,
+        "was_in_inventory": True,
+        "touched": touched,
+        "removed_rows": removed_rows,
+    }
+
 @router.post("/decrement-canonical")
 def decrement_canonical_part(
     payload: DecCanonicalPayload,
     current_user: User = Depends(get_current_user),
 ):
-    part_num = (payload.part_num or "").strip()
+    part_num = _canonicalize_part_num((payload.part_num or "").strip())
     if not part_num:
         raise HTTPException(status_code=400, detail="part_num required")
 
     with user_db() as db:
         cur = db.cursor()
-
         cur.execute(
             """
             SELECT qty
@@ -506,7 +623,6 @@ def decrement_canonical_part(
         row = cur.fetchone()
 
         if row is None:
-            # already 0 effectively
             return {
                 "user_id": current_user.id,
                 "part_num": part_num,
@@ -552,7 +668,9 @@ def decrement_canonical_part(
             "qty": new_qty,
             "changed": True,
         }
-        @router.get("/canonical-parts")
+
+
+@router.get("/canonical-parts")
 def list_canonical_inventory_parts(
     current_user: User = Depends(get_current_user),
 ):
@@ -574,10 +692,6 @@ def list_canonical_inventory_parts(
         rows = cur.fetchall()
 
     return [
-        {
-            "part_num": row["part_num"],
-            "color_id": row["color_id"],
-            "qty": int(row["qty"]),
-        }
+        {"part_num": row["part_num"], "color_id": row["color_id"], "qty": int(row["qty"])}
         for row in rows
     ]
