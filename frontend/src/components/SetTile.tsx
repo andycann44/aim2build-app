@@ -59,6 +59,7 @@ const SetTile: React.FC<SetTileProps> = ({
     !!set.in_inventory
   );
   const [isAddingInventory, setIsAddingInventory] = React.useState<boolean>(false);
+  const [isRemovingInventory, setIsRemovingInventory] = React.useState<boolean>(false);
 
   // keep local state in sync if parent updates it later
   React.useEffect(() => {
@@ -77,16 +78,27 @@ const SetTile: React.FC<SetTileProps> = ({
     if (onAddWishlist) onAddWishlist(set_num);
   };
 
-  const handleAddInventory = async () => {
+  const handleInventoryToggle = async () => {
+    // If already in inventory, allow removing (unpours)
+    if (localInInventory) {
+      if (!onRemoveFromInventory) return;
+      if (isRemovingInventory) return;
+      try {
+        setIsRemovingInventory(true);
+        await onRemoveFromInventory(set_num);
+        setLocalInInventory(false);
+      } finally {
+        setIsRemovingInventory(false);
+      }
+      return;
+    }
+
+    // Otherwise add/pour
     if (!onAddInventory) return;
-
-    // HARD GUARD: prevents double-add spam clicks
-    if (isAddingInventory || localInInventory) return;
-
+    if (isAddingInventory) return;
     try {
       setIsAddingInventory(true);
       await onAddInventory(set_num);
-      // Only mark in-inventory AFTER a successful response
       setLocalInInventory(true);
     } finally {
       setIsAddingInventory(false);
@@ -111,7 +123,7 @@ const SetTile: React.FC<SetTileProps> = ({
   };
 
   const inInventory = localInInventory;
-  const inventoryButtonDisabled = isAddingInventory;
+  const inventoryButtonDisabled = isAddingInventory || isRemovingInventory;
 
   return (
     <div
@@ -316,6 +328,8 @@ const SetTile: React.FC<SetTileProps> = ({
             >
               {isAddingInventory
                 ? "Adding..."
+                : isRemovingInventory
+                ? "Removing..."
                 : inInventory
                 ? "In Inventory"
                 : "Add to Inventory"}
