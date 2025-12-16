@@ -12,11 +12,13 @@ export interface SetTileProps {
   set: TileSet;
   onAddMySet?: (setNum: string) => void;
   onAddWishlist?: (setNum: string) => void;
-  onAddInventory?: (setNum: string) => void;
+
+  // allow async or sync handlers (minimal + backward compatible)
+  onAddInventory?: (setNum: string) => void | Promise<void>;
   onRemoveMySet?: (setNum: string) => void; // 👈 NEW
   inMySets?: boolean;
   inWishlist?: boolean;
-  onRemoveFromInventory?: (setNum: string) => void;
+  onRemoveFromInventory?: (setNum: string) => void | Promise<void>;
   onOpenDetails?: (setNum: string) => void;
 }
 
@@ -50,8 +52,18 @@ const SetTile: React.FC<SetTileProps> = ({
   onRemoveFromInventory,
   onOpenDetails,
 }) => {
-  const { set_num, name, year, num_parts, img_url, in_inventory } = set;
-  const inInventory = !!in_inventory;
+  const { set_num, name, year, num_parts, img_url } = set;
+
+  // local optimistic state so the button blanks off immediately after success
+  const [localInInventory, setLocalInInventory] = React.useState<boolean>(
+    !!set.in_inventory
+  );
+  const [isAddingInventory, setIsAddingInventory] = React.useState<boolean>(false);
+
+  // keep local state in sync if parent updates it later
+  React.useEffect(() => {
+    setLocalInInventory(!!set.in_inventory);
+  }, [set.in_inventory]);
 
   const handleAddMySet = () => {
     if (onAddMySet) onAddMySet(set_num);
@@ -65,17 +77,41 @@ const SetTile: React.FC<SetTileProps> = ({
     if (onAddWishlist) onAddWishlist(set_num);
   };
 
-  const handleAddInventory = () => {
-    if (onAddInventory) onAddInventory(set_num);
+  const handleAddInventory = async () => {
+    if (!onAddInventory) return;
+
+    // HARD GUARD: prevents double-add spam clicks
+    if (isAddingInventory || localInInventory) return;
+
+    try {
+      setIsAddingInventory(true);
+      await onAddInventory(set_num);
+      // Only mark in-inventory AFTER a successful response
+      setLocalInInventory(true);
+    } finally {
+      setIsAddingInventory(false);
+    }
   };
 
-  const handleRemoveFromInventory = () => {
-    if (onRemoveFromInventory) onRemoveFromInventory(set_num);
+  const handleRemoveFromInventory = async () => {
+    if (!onRemoveFromInventory) return;
+    if (isAddingInventory) return;
+
+    try {
+      setIsAddingInventory(true);
+      await onRemoveFromInventory(set_num);
+      setLocalInInventory(false);
+    } finally {
+      setIsAddingInventory(false);
+    }
   };
 
   const handleOpenDetails = () => {
     if (onOpenDetails) onOpenDetails(set_num);
   };
+
+  const inInventory = localInInventory;
+  const inventoryButtonDisabled = isAddingInventory;
 
   return (
     <div
@@ -262,7 +298,10 @@ const SetTile: React.FC<SetTileProps> = ({
           {(onAddInventory || inInventory) && (
             <button
               type="button"
-              onClick={inInventory ? handleRemoveFromInventory : handleAddInventory}
+              disabled={inventoryButtonDisabled}
+              onClick={
+                inInventory ? handleRemoveFromInventory : handleAddInventory
+              }
               style={{
                 ...pillBase,
                 width: "100%",
@@ -271,10 +310,15 @@ const SetTile: React.FC<SetTileProps> = ({
                   ? "linear-gradient(135deg,#22c55e,#a3e635)"
                   : "linear-gradient(135deg,#0f172a,#111827)",
                 color: inInventory ? "#052e16" : "#f9fafb",
-                cursor: "pointer",
+                cursor: inventoryButtonDisabled ? "default" : "pointer",
+                opacity: inventoryButtonDisabled ? 0.85 : 1,
               }}
             >
-              {inInventory ? "In Inventory" : "Add to Inventory"}
+              {isAddingInventory
+                ? "Adding..."
+                : inInventory
+                ? "In Inventory"
+                : "Add to Inventory"}
             </button>
           )}
         </div>
