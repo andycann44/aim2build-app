@@ -3,6 +3,8 @@ import PartsTile from "../components/PartsTile";
 import SortMenu, { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
+import { useNavigate } from "react-router-dom";
+import { API_BASE } from "../api/client";
 
 type InventoryPart = {
   part_num: string;
@@ -12,9 +14,9 @@ type InventoryPart = {
 };
 
 
-const API =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
+const API = API_BASE;
 const InventoryPage: React.FC = () => {
+  const navigate = useNavigate();
   const [parts, setParts] = useState<InventoryPart[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -234,6 +236,14 @@ const InventoryPage: React.FC = () => {
             }}
           >
             Refresh
+          </button>
+
+          <button
+            type="button"
+            className="a2b-hero-button"
+            onClick={() => navigate("/inventory/add")}
+          >
+            + Add bricks
           </button>
 
           <button

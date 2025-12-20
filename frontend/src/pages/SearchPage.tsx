@@ -1,3 +1,4 @@
+import { API_BASE } from "../api/client";
 import React, {
   FormEvent,
   useCallback,
@@ -19,8 +20,7 @@ import SetTile from "../components/SetTile";
 import { authHeaders } from "../utils/auth";
 
 // Use server if env not set
-const API =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
+const API = API_BASE;
 
 const SearchPage: React.FC = () => {
   const [term, setTerm] = useState("");

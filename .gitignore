@@ -37,3 +37,15 @@ csv/
 
 # Python venv
 .venv/
+
+# Local user data (never commit)
+backend/app/data/*_user_*.json
+
+# Local databases
+backend/app/data/*.db
+backend/app/data/*.db-*
+
+# PDFs / scratch data
+instruction_pdfs/
+*.csv
+backend/Test/apilocal.rest

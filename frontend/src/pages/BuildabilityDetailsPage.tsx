@@ -1,11 +1,11 @@
+import { API_BASE } from "../api/client";
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 
-const API_BASE =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
+const API = API_BASE;
 
 type MissingPart = {
   part_num: string;
