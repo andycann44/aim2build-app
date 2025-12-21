@@ -158,6 +158,15 @@ export interface BuildabilityResult {
   total_have: number;
 }
 
+// types
+export type BuildabilityBatchResult = {
+  set_num: string;
+  source?: string;
+  coverage: number;
+  total_needed: number;
+  total_have: number;
+};
+
 export async function searchParts(
   q: string,
   categoryId?: number,
@@ -323,6 +332,37 @@ export async function getBuildability(
   );
 }
 
+export async function batchCompareBuildability(
+  sets: string[]
+): Promise<
+  {
+    set_num: string;
+    coverage: number;
+    total_needed: number;
+    total_have: number;
+  }[]
+> {
+  if (!sets || sets.length === 0) return [];
+
+  const trimmed = sets
+    .map((s) => (s || "").trim())
+    .filter((s) => s.length > 0);
+
+  if (trimmed.length === 0) return [];
+
+  return json<
+    {
+      set_num: string;
+      coverage: number;
+      total_needed: number;
+      total_have: number;
+    }[]
+  >(`/api/buildability/batch_compare`, {
+    method: "POST",
+    body: JSON.stringify({ sets: trimmed }),
+  });
+}
+
 export const apiClient = {
   get: <T>(path: string, init?: RequestInit) => json<T>(path, init),
   post: <T>(path: string, init?: RequestInit) =>
@@ -330,3 +370,48 @@ export const apiClient = {
   delete: <T>(path: string, init?: RequestInit) =>
     json<T>(path, { ...(init ?? {}), method: init?.method ?? "DELETE" }),
 };
+
+// ----------------------------
+// Inventory (canonical) helpers
+// ----------------------------
+export async function getInventorySets(): Promise<string[]> {
+  const data = await json<{ sets?: string[] }>(`/api/inventory/sets`);
+  return Array.isArray(data?.sets) ? data.sets.map((s) => String(s)) : [];
+}
+
+export async function addInventorySetCanonical(set_num: string): Promise<any> {
+  const set = (set_num || "").trim();
+  if (!set) throw new Error("set_num required");
+
+  const url = `${API_BASE}/api/inventory/add-set-canonical?set=${encodeURIComponent(set)}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`addInventorySetCanonical failed: ${res.status} ${txt}`);
+  }
+
+  // backend returns JSON
+  return await res.json();
+}
+
+export async function removeInventorySetCanonical(set_num: string): Promise<any> {
+  const set = (set_num || "").trim();
+  if (!set) throw new Error("set_num required");
+
+  const url = `${API_BASE}/api/inventory/remove-set-canonical?set=${encodeURIComponent(set)}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`removeInventorySetCanonical failed: ${res.status} ${txt}`);
+  }
+
+  return await res.json();
+}
