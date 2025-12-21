@@ -3,11 +3,19 @@ from typing import Optional
 from pathlib import Path
 import json
 
-from app.db import db
+from app.catalog_db import db as catalog_db
 from app.paths import DATA_DIR
 from app.routers.auth import get_current_user, User
 
 router = APIRouter()
+
+def _normalize_set_id(raw: str) -> str:
+    sn = (raw or "").strip()
+    if not sn:
+        return ""
+    if "-" not in sn:
+        return f"{sn}-1"
+    return sn
 
 def _wishlist_file(user_id: int) -> Path:
     return DATA_DIR / f"wishlist_user_{user_id}.json"
@@ -31,16 +39,42 @@ def _save(user_id: int, obj):
         json.dump(obj, f)
 
 def _resolve_set_num(raw: str) -> str:
-    sn = raw.strip()
-    with db() as con:
-        cur = con.cursor()
-        cur.execute("SELECT set_num FROM sets WHERE set_num=? LIMIT 1", (sn,))
-        row = cur.fetchone()
-        if not row:
-            cur.execute("SELECT set_num FROM sets WHERE set_num LIKE ? ORDER BY year DESC LIMIT 1", (sn+'-%',))
-            row = cur.fetchone()
-    if not row: raise HTTPException(status_code=404, detail=f"Set {raw} not found in catalog")
-    return row[0]
+    sn = (raw or "").strip()
+    if not sn:
+        return ""
+
+    candidates = [sn]
+    normalized = _normalize_set_id(sn)
+    if normalized not in candidates:
+        candidates.append(normalized)
+
+    try:
+        with catalog_db() as con:
+            cur = con.cursor()
+            for cand in candidates:
+                cur.execute("SELECT set_num FROM sets WHERE set_num=? LIMIT 1", (cand,))
+                row = cur.fetchone()
+                if row:
+                    try:
+                        return row["set_num"]
+                    except Exception:
+                        return row[0]
+
+            if "-" not in sn:
+                cur.execute(
+                    "SELECT set_num FROM sets WHERE set_num LIKE ? ORDER BY year DESC LIMIT 1",
+                    (sn + "-%",),
+                )
+                row = cur.fetchone()
+                if row:
+                    try:
+                        return row["set_num"]
+                    except Exception:
+                        return row[0]
+    except Exception:
+        return ""
+
+    return ""
 
 @router.get("")
 def list_wishlist(current_user: User = Depends(get_current_user)):
@@ -56,6 +90,8 @@ def add_wishlist(
     raw = set_num or set or id
     if not raw: raise HTTPException(status_code=422, detail="Provide set, set_num, or id")
     sn = _resolve_set_num(raw)
+    if not sn:
+        raise HTTPException(status_code=404, detail="Unknown set_num")
     data = _load(current_user.id)
     if any(s == sn or (isinstance(s,dict) and s.get("set_num")==sn) for s in data["sets"]):
         return {"ok": True, "duplicate": True, "count": len(data["sets"])}
@@ -73,6 +109,8 @@ def remove_wishlist(
     raw = set_num or set or id
     if not raw: raise HTTPException(status_code=422, detail="Provide set, set_num, or id")
     sn = _resolve_set_num(raw)
+    if not sn:
+        raise HTTPException(status_code=404, detail="Unknown set_num")
     data = _load(current_user.id)
     before = len(data["sets"])
     data["sets"] = [s for s in data["sets"] if (s != sn and (not isinstance(s,dict) or s.get("set_num") != sn))]

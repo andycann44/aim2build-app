@@ -1,4 +1,3 @@
-import { API_BASE } from "../api/client";
 import React, {
   FormEvent,
   useCallback,
@@ -10,17 +9,11 @@ import {
   searchSets,
   addMySet,
   addWishlist,
-  removeMySet,
-  removeWishlist,
   getMySets,
   getWishlist,
   SetSummary,
 } from "../api/client";
 import SetTile from "../components/SetTile";
-import { authHeaders } from "../utils/auth";
-
-// Use server if env not set
-const API = API_BASE;
 
 const SearchPage: React.FC = () => {
   const [term, setTerm] = useState("");
@@ -63,73 +56,38 @@ const SearchPage: React.FC = () => {
     };
   }, []);
 
-  // 🔄 TRUE TOGGLE: add if missing, remove (and clean inventory) if present
-  const handleToggleMySets = useCallback(
+  // Add to My Sets with optimistic UI
+  const handleAddMySets = useCallback(
     async (setNum: string) => {
-      const alreadyIn = mySetIds.has(setNum);
-
+      if (mySetIds.has(setNum)) return;
       try {
-        if (alreadyIn) {
-          // 🔴 TURNING OFF from Search:
-          // 1) remove from My Sets
-          await removeMySet(setNum);
-
-          // 2) mirror My Sets page behaviour – also remove its inventory
-          await fetch(
-            `${API}/api/inventory/remove_set?set=${encodeURIComponent(
-              setNum
-            )}`,
-            {
-              method: "POST",
-              headers: authHeaders(),
-            }
-          );
-
-          // 3) update local state
-          setMySetIds((prev) => {
-            const next = new Set(prev);
-            next.delete(setNum);
-            return next;
-          });
-        } else {
-          // 🟢 TURNING ON
-          await addMySet(setNum);
-          setMySetIds((prev) => {
-            const next = new Set(prev);
-            next.add(setNum);
-            return next;
-          });
-        }
+        await addMySet(setNum);
+        setMySetIds((prev) => {
+          const next = new Set(prev);
+          next.add(setNum);
+          return next;
+        });
       } catch (err) {
         console.error(err);
-        setError("Could not update My Sets. Please try again.");
+        setError("Could not add to My Sets. Please try again.");
       }
     },
     [mySetIds]
   );
 
-  const handleToggleWishlist = useCallback(
+  const handleAddWishlist = useCallback(
     async (setNum: string) => {
-      const alreadyIn = wishlistIds.has(setNum);
+      if (wishlistIds.has(setNum)) return;
       try {
-        if (alreadyIn) {
-          await removeWishlist(setNum);
-          setWishlistIds((prev) => {
-            const next = new Set(prev);
-            next.delete(setNum);
-            return next;
-          });
-        } else {
-          await addWishlist(setNum);
-          setWishlistIds((prev) => {
-            const next = new Set(prev);
-            next.add(setNum);
-            return next;
-          });
-        }
+        await addWishlist(setNum);
+        setWishlistIds((prev) => {
+          const next = new Set(prev);
+          next.add(setNum);
+          return next;
+        });
       } catch (err) {
         console.error(err);
-        setError("Could not update wishlist. Please try again.");
+        setError("Could not add to wishlist. Please try again.");
       }
     },
     [wishlistIds]
@@ -337,9 +295,9 @@ const SearchPage: React.FC = () => {
               set={s}
               inMySets={mySetIds.has(s.set_num)}
               inWishlist={wishlistIds.has(s.set_num)}
-              // 🔌 wire tiles to the TRUE toggle handlers
-              onAddMySet={handleToggleMySets}
-              onAddWishlist={handleToggleWishlist}
+              // 🔌 wire tiles to add handlers with optimistic state
+              onAddMySet={handleAddMySets}
+              onAddWishlist={handleAddWishlist}
             />
           ))}
 
