@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { getInventoryParts } from '../api/client';
+import { authHeaders } from "../utils/auth";
 
 type InventoryPart = {
   part_num: string;
@@ -100,7 +101,7 @@ export default function InventoryManager(): JSX.Element {
       try {
         const res = await fetch(`/api/inventory/add`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...authHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({
             part_num: trimmedPart,
             color_id: colorId,
