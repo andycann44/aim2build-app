@@ -200,6 +200,58 @@ def add_canonical_part(
         raise HTTPException(status_code=500, detail="insert succeeded but row not found")
 
     return dict(row)
+
+
+@router.post("/set-canonical")
+def set_canonical(payload: dict, current_user: User = Depends(get_current_user)):
+    """
+    LOCKED: canonical-only mutation.
+    Set exact qty for (part_num, color_id).
+    qty=0 removes the row.
+    """
+    part_num = str(payload.get("part_num") or "").strip()
+    color_id = payload.get("color_id")
+    qty = payload.get("qty")
+
+    if not part_num:
+        raise HTTPException(status_code=400, detail="part_num required")
+
+    try:
+        color_id = int(color_id)
+        qty = int(qty)
+    except Exception:
+        raise HTTPException(status_code=400, detail="color_id and qty must be ints")
+
+    if qty < 0:
+        raise HTTPException(status_code=400, detail="qty must be >= 0")
+
+    from app.user_db import user_db
+
+    with user_db() as con:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS user_inventory_parts ("
+            "user_id INTEGER, part_num TEXT, color_id INTEGER, qty INTEGER, "
+            "PRIMARY KEY(user_id, part_num, color_id))"
+        )
+
+        if qty == 0:
+            con.execute(
+                "DELETE FROM user_inventory_parts "
+                "WHERE user_id=? AND part_num=? AND color_id=?",
+                (current_user.id, part_num, color_id),
+            )
+        else:
+            con.execute(
+                "INSERT INTO user_inventory_parts(user_id, part_num, color_id, qty) "
+                "VALUES (?,?,?,?) "
+                "ON CONFLICT(user_id, part_num, color_id) DO UPDATE SET qty=excluded.qty",
+                (current_user.id, part_num, color_id, qty),
+            )
+
+        con.commit()
+
+    return {"ok": True, "part_num": part_num, "color_id": color_id, "qty": qty}
+
 @router.post("/decrement-canonical")
 def decrement_canonical_part(
     payload: DecCanonicalPayload,
