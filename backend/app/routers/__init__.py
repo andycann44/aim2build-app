@@ -1,17 +1,6 @@
-from . import inventory
-from . import inventory_images
-from . import catalog
-from . import buildability
-from . import mysets
-from . import wishlist
-from . import auth
+"""
+Router package.
 
-__all__ = [
-    "inventory",
-    "inventory_images",
-    "catalog",
-    "buildability",
-    "mysets",
-    "wishlist",
-    "auth",
-]
+DO NOT import router modules here.
+Import routers directly in app/main.py.
+"""
