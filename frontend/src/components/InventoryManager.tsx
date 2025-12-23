@@ -129,7 +129,12 @@ export default function InventoryManager(): JSX.Element {
       setError(null);
       setMessage(null);
       try {
-        const res = await fetch(`/api/inventory/part?part_num=${encodeURIComponent(part.part_num)}&color_id=${part.color_id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/inventory/set-canonical`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ part_num: part.part_num, color_id: part.color_id, qty: 0 }),
+});
+
         if (!res.ok) {
           const text = await res.text().catch(() => '');
           throw new Error(`Remove failed: ${res.status} ${res.statusText} ${text}`);
