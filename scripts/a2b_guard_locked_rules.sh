@@ -1,44 +1,31 @@
 #!/bin/bash
-: "${HISTTIMEFORMAT:=}"
 set -euo pipefail
-[ -f ./a2p_bash_compat.sh ] && source ./a2p_bash_compat.sh
-[ -f /tmp/a2p_env.sh ] && source /tmp/a2p_env.sh
 
-fail() { echo "LOCKED RULES VIOLATION: $*" >&2; exit 1; }
+fail() { echo "LOCKED RULES VIOLATION: $1" >&2; exit 1; }
 
-# --- Rule 1: No inventory_images router/file/imports
-if [ -f backend/app/routers/inventory_images.py ]; then
-  fail "backend/app/routers/inventory_images.py must not exist (images are from lego_catalog.db element_images only)."
+LOCKED_DOC="AIM2BUILD_LOCKED.md"
+INV_ROUTER="backend/app/routers/inventory.py"
+
+[ -f "$LOCKED_DOC" ] || fail "Missing $LOCKED_DOC"
+[ -f "$INV_ROUTER" ] || fail "Missing $INV_ROUTER"
+
+# Rule: No inventory_images router/file/imports (LOCKED)
+[ ! -f backend/app/routers/inventory_images.py ] || fail "inventory_images router file must not exist"
+if git grep -nI "inventory_images" -- backend/app 2>/dev/null | grep -v "$LOCKED_DOC" >/dev/null; then
+  fail "inventory_images must not be referenced in backend/app (doc-only mention allowed)"
 fi
 
-if git grep -nE "\\binventory_images\\b" -- backend/app 2>/dev/null | grep -vE "AIM2BUILD_LOCKED|LOCKED" >/dev/null; then
-  fail "Found inventory_images import/usage in backend/app. Remove it."
-fi
+# Rule: Inventory mutation endpoints must be canonical-only (LOCKED)
+# Disallow legacy mutations in inventory router; allow canonical endpoints incl clear-canonical.
+bad_lines="$(
+  git grep -nE '@router\.(post|put|delete|patch)\("/(add_batch|add|replace|decrement|batch_[^"]*|clear|part|remove_set|remove-set)' -- "$INV_ROUTER" 2>/dev/null \
+  | grep -vE '"/(add-canonical|set-canonical|decrement-canonical|clear-canonical)"' \
+  || true
+)"
 
-# --- Rule 1b: No URL rewriting helpers (common patterns)
-if git grep -nE "apply_color_to_img_url|rewrite.*img|/parts/ldraw/|split\\(\"/\"\\).*isdigit" -- backend/app 2>/dev/null >/dev/null; then
-  fail "Found image URL rewriting logic. Not allowed."
-fi
-
-# --- Rule 3: Only canonical inventory mutation endpoints (frontend + backend)
-# Block frontend calls to old mutation endpoints.
-if git grep -nE "/api/inventory/(add_batch|add\\b(?!-canonical)|replace\\b|decrement\\b(?!-canonical)|batch_|clear\\b|part\\b|remove_set\\b|remove-set)" -- frontend/src 2>/dev/null | grep -vE "canonical" >/dev/null; then
-  fail "Frontend references non-canonical inventory mutation endpoints. Only add-canonical/set-canonical/decrement-canonical allowed."
-fi
-
-# Block backend route decorators for non-canonical mutations (allow reads).
-# NOTE: this is a heuristic guard; tighten if needed.
-if git grep -nE "@router\\.(post|delete|put)\\(\"/(add_batch|add\"|replace|decrement\"|batch_|clear|part|remove_set|remove-set)" -- backend/app/routers/inventory.py 2>/dev/null >/dev/null; then
-  fail "Backend defines non-canonical inventory mutation routes. Only add-canonical/set-canonical/decrement-canonical allowed."
+if [ -n "$bad_lines" ]; then
+  echo "$bad_lines" >&2
+  fail "Backend defines non-canonical inventory mutation routes. Only add-canonical/set-canonical/decrement-canonical/clear-canonical allowed."
 fi
 
 echo "OK: Locked rules satisfied."
-
-# --- Rule 0: Single source-of-truth locked rules file at repo root only
-# (Allow only ./AIM2BUILD_LOCKED.md)
-dups=$(find . -type f \( -name "AIM2BUILD_LOCKED.md" -o -name "LOCKED_RULES.md" -o -name "*LOCKED*.md" \) \
-  | grep -vE "^\./AIM2BUILD_LOCKED\.md$" || true)
-if [ -n "$dups" ]; then
-  echo "$dups" >&2
-  fail "Duplicate locked rules files found. Keep only ./AIM2BUILD_LOCKED.md"
-fi

@@ -350,3 +350,17 @@ def list_canonical_inventory_parts(
         }
         for row in rows
     ]
+
+
+@router.post("/clear-canonical")
+def clear_canonical(current_user: User = Depends(get_current_user)):
+    """LOCKED: canonical-only mutation. Clears ALL inventory parts for this user."""
+    from app.user_db import user_db
+    with user_db() as con:
+        con.execute(
+            "DELETE FROM user_inventory_parts WHERE user_id=?",
+            (current_user.id,),
+        )
+        con.commit()
+    return {"ok": True}
+

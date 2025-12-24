@@ -12,7 +12,6 @@ from app.routers import (
     inventory,
     catalog,
     search,
-    inventory_images,
 )
 from app.routers import auth as auth_router
 
@@ -85,10 +84,6 @@ app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
 
 # Inventory core + strict image variant
 app.include_router(inventory.router, prefix="/api/inventory")
-# inventory_images router already has prefix="/api/inventory"
-app.include_router(inventory_images.router)
-
-# My Sets / Wishlist
 app.include_router(mysets.router, prefix="/api/mysets")
 app.include_router(wishlist.router, prefix="/api/wishlist")
 

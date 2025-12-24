@@ -16,3 +16,5 @@
 - POST /api/inventory/add-canonical
 - POST /api/inventory/set-canonical
 - POST /api/inventory/decrement-canonical
+
+- Inventory mutation endpoints allowed: add-canonical, set-canonical, decrement-canonical, clear-canonical

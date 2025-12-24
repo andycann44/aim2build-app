@@ -21,6 +21,28 @@ const initialForm: FormState = {
 };
 
 export default function InventoryManager(): JSX.Element {
+
+  async function clearInventory() {
+    try {
+      setError("");
+      const res = await fetch(`/api/inventory/clear-canonical`, {
+        method: "POST",
+        headers: { ...authHeaders() },
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`Clear failed: ${res.status} ${res.statusText} ${text}`);
+      }
+      // instant UI update
+      setInventory([]);
+      setMessage("Inventory cleared.");
+      // optional: re-sync from server (keeps totals consistent if you show any derived counts)
+      await loadInventory({ showSpinner: false });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear inventory.");
+    }
+  }
+
   const [inventory, setInventory] = useState<InventoryPart[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
