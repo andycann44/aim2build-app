@@ -99,13 +99,13 @@ export default function InventoryManager(): JSX.Element {
       setMessage(null);
 
       try {
-        const res = await fetch(`/api/inventory/add`, {
+        const res = await fetch(`/api/inventory/add-canonical`, {
           method: 'POST',
           headers: { ...authHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({
             part_num: trimmedPart,
             color_id: colorId,
-            qty_total: quantity
+            qty: quantity
           })
         });
         if (!res.ok) {
@@ -140,6 +140,7 @@ export default function InventoryManager(): JSX.Element {
           const text = await res.text().catch(() => '');
           throw new Error(`Remove failed: ${res.status} ${res.statusText} ${text}`);
         }
+        setInventory(prev => prev.filter(p => !(p.part_num === part.part_num && p.color_id === part.color_id)));
         setMessage(`Removed ${part.part_num} (color ${part.color_id}).`);
         await loadInventory({ showSpinner: false });
       } catch (err) {
