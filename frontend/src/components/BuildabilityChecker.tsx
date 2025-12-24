@@ -15,6 +15,7 @@ type BuildabilityResponse = {
   name?: string;
   coverage: number;
   total_needed: number;
+  display_total?: number | null;
   total_have: number;
   missing_parts: MissingPart[];
 };
@@ -129,6 +130,14 @@ export default function BuildabilityChecker(): JSX.Element {
           <p className="status success">
             {result.name ? `${result.name} — ` : ''}
             Coverage {coverageLabel} ({result.total_have} / {result.total_needed} parts)
+
+            <div className="muted" style={{ marginTop: 6 }}>
+              <div>Required parts (no spares/figs): {result.total_needed.toLocaleString()}</div>
+              {typeof result.display_total === "number" ? (
+                <div>Box parts: {result.display_total.toLocaleString()}</div>
+              ) : null}
+            </div>
+
           </p>
           <div className="coverage-meter" aria-label={`Coverage ${coverageLabel}`}>
             <div className="coverage-bar">

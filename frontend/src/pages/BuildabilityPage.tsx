@@ -72,7 +72,8 @@ const BuildabilityPage: React.FC = () => {
               year: s.year,
               img_url: s.img_url,
               coverage,
-              total_needed: displayTotal,
+              display_total: displayTotal,
+              total_needed: totalNeeded,
               total_have: totalHave,
             };
 
@@ -87,14 +88,14 @@ const BuildabilityPage: React.FC = () => {
               year: s.year,
               img_url: s.img_url,
               coverage: 0,
-              total_needed: displayTotal,
+              total_needed: totalNeeded,
               total_have: 0,
             };
 
             const fallback: BuildabilityResultWithDisplay = {
               set_num: s.set_num,
               coverage: 0,
-              total_needed: displayTotal,
+              total_needed: totalNeeded,
               total_have: 0,
               missing_parts: [],
             } as BuildabilityResultWithDisplay;
