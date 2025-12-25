@@ -249,7 +249,7 @@ def get_parts(current_user: User = Depends(get_current_user)):
 def get_parts_with_images(current_user: User = Depends(get_current_user)):
     parts = _load_db_parts(current_user.id)
     for p in parts:
-        p["img_url"] = _img_for(p["part_num"], int(p["color_id"]))
+        p["part_img_url"] = _img_for(p["part_num"], int(p["color_id"]))
     return parts
 
 @router.post("/add-canonical")
