@@ -4,10 +4,11 @@ from typing import List, Dict
 
 from fastapi import APIRouter, HTTPException, Query
 from rapidfuzz import fuzz
+from app.paths import DATA_DIR
 
 router = APIRouter()
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "lego_catalog.db")
+DB_PATH = str(DATA_DIR / "lego_catalog.db")
 
 
 def _db() -> sqlite3.Connection:

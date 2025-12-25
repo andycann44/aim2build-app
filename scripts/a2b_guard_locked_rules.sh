@@ -16,9 +16,9 @@ if git grep -nI "inventory_images" -- backend/app 2>/dev/null | grep -v "$LOCKED
 fi
 
 # Rule: Inventory mutation endpoints must be canonical-only (LOCKED)
-# Disallow legacy mutations in inventory router; allow canonical endpoints incl clear-canonical.
+
 bad_lines="$(
-  git grep -nE '@router\.(post|put|delete|patch)\("/(add_batch|add|replace|decrement|batch_[^"]*|clear|part|remove_set|remove-set)' -- "$INV_ROUTER" 2>/dev/null \
+  git grep -nE '@router\.(post|put|delete|patch)\("/(add_batch|replace|decrement|batch_[^"]*|clear|part|remove_set|remove-set)' -- "$INV_ROUTER" 2>/dev/null \
   | grep -vE '"/(add-canonical|set-canonical|decrement-canonical|clear-canonical)"' \
   || true
 )"

@@ -9,9 +9,134 @@ from app.catalog_db import get_catalog_parts_for_set
 from app.paths import DATA_DIR
 from app.routers.auth import get_current_user, User
 from app.image_lookup import get_strict_element_image
+from app.catalog_db import db as catalog_db
 
 
 router = APIRouter()
+
+
+def _load_db_parts(user_id: int):
+    # Canonical inventory source of truth: user_inventory_parts (DB)
+    with user_db() as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT part_num, color_id, qty
+            FROM user_inventory_parts
+            WHERE user_id = ?
+            ORDER BY part_num, color_id
+            """,
+            (user_id,),
+        )
+        rows = cur.fetchall()
+
+    out = []
+    for r in rows:
+        if hasattr(r, "keys"):
+            part_num = r["part_num"]
+            color_id = int(r["color_id"])
+            qty = int(r["qty"])
+        else:
+            part_num = r[0]
+            color_id = int(r[1])
+            qty = int(r[2])
+        out.append({"part_num": part_num, "color_id": color_id, "qty": qty, "qty_total": qty})
+    return out
+
+
+def _img_for(part_num: str, color_id: int):
+    # Images source of truth: catalog DB table element_images(part_num,color_id,img_url)
+    try:
+        with catalog_db() as con:
+            cur = con.cursor()
+            cur.execute(
+                "SELECT img_url FROM element_images WHERE part_num = ? AND color_id = ? LIMIT 1",
+                (part_num, color_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            return row[0]
+    except Exception:
+        return None
+
+
+
+def _norm_set_id(raw: str) -> str:
+    sn = (raw or "").strip()
+    if not sn:
+        return sn
+    if "-" not in sn and sn.isdigit():
+        sn = f"{sn}-1"
+    return sn
+
+def _get_set_parts_strict(set_num: str):
+    """
+    Returns list of {part_num,color_id,quantity} for the set.
+    Uses catalog DB ONLY.
+    """
+    sn = _norm_set_id(set_num)
+    if not sn:
+        return []
+    with catalog_db() as con:
+        cur = con.cursor()
+        # Prefer inventories+inventory_parts if present (your catalog schema),
+        # otherwise fall back to set_parts if that's what you have.
+        try:
+            cur.execute("""
+                SELECT p.part_num, p.color_id, p.quantity
+                FROM inventories i
+                JOIN inventory_parts p ON p.inventory_id = i.inventory_id
+                WHERE i.set_num = ?
+            """, (sn,))
+            rows = cur.fetchall()
+            if rows:
+                return [{"part_num": r[0], "color_id": int(r[1]), "quantity": int(r[2])} for r in rows]
+        except Exception:
+            pass
+
+        cur.execute("""
+            SELECT part_num, color_id, quantity
+            FROM set_parts
+            WHERE set_num = ?
+        """, (sn,))
+        rows = cur.fetchall()
+        return [{"part_num": r[0], "color_id": int(r[1]), "quantity": int(r[2])} for r in rows]
+
+@router.post("/add-set-canonical")
+def add_set_canonical(set: str = "", set_num: str = "", id: str = "", current_user: User = Depends(get_current_user)):
+    raw = set or set_num or id
+    sn = _norm_set_id(raw)
+    if not sn:
+        raise HTTPException(status_code=422, detail="Missing set id")
+
+    parts = _get_set_parts_strict(sn)
+    if not parts:
+        raise HTTPException(status_code=404, detail=f"No parts found for set {sn}")
+
+    # Pour into user inventory strictly (part_num,color_id)
+    with user_db() as con:
+        cur = con.cursor()
+        for it in parts:
+            part_num = it["part_num"]
+            color_id = int(it["color_id"])
+            qty = int(it["quantity"])
+
+            cur.execute("""
+                INSERT INTO user_inventory_parts (user_id, part_num, color_id, qty)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, part_num, color_id)
+                DO UPDATE SET qty = qty + excluded.qty
+            """, (current_user.id, part_num, color_id, qty))
+
+        con.commit()
+
+    return {"ok": True, "set_num": sn, "poured_parts": len(parts)}
+
+@router.post("/add")
+def add_set_legacy(set: str = "", set_num: str = "", id: str = "", current_user: User = Depends(get_current_user)):
+    # Legacy compat: old UI uses /api/inventory/add?set=...
+    return add_set_canonical(set=set, set_num=set_num, id=id, current_user=current_user)
 
 
 def _inventory_file(user_id: int) -> Path:
@@ -117,47 +242,15 @@ class DecCanonicalPayload(BaseModel):
 # -----------------------
 
 @router.get("/parts", response_model=List[InventoryPart])
-def list_inventory_parts(
-    current_user: User = Depends(get_current_user),
-) -> List[InventoryPart]:
-    """
-    STRICT IMAGE VERSION
-
-    Rules:
-      - Only element_images (part_num, color_id) -> img_url
-      - If missing / blank -> part_img_url = None
-      - No fallback to parts.part_img_url
-      - No parent fallback
-      - No "any color" fallback
-    """
-    rows = _load(current_user.id)
-    out: List[InventoryPart] = []
-
-    for r in rows:
-        part_num = str(r.get("part_num"))
-        color_id = int(r.get("color_id", 0))
-        qty_total = int(r.get("qty_total", 0))
-
-        img = get_strict_element_image(part_num, color_id)
-
-        out.append(
-            InventoryPart(
-                part_num=part_num,
-                color_id=color_id,
-                qty_total=qty_total,
-                part_img_url=img,
-            )
-        )
-
-    return out
-
+def get_parts(current_user: User = Depends(get_current_user)):
+    return _load_db_parts(current_user.id)
 
 @router.get("/parts_with_images", response_model=List[InventoryPart])
-def list_inventory_parts_with_images(
-    current_user: User = Depends(get_current_user),
-) -> List[InventoryPart]:
-    return list_inventory_parts(current_user)
-
+def get_parts_with_images(current_user: User = Depends(get_current_user)):
+    parts = _load_db_parts(current_user.id)
+    for p in parts:
+        p["img_url"] = _img_for(p["part_num"], int(p["color_id"]))
+    return parts
 
 @router.post("/add-canonical")
 def add_canonical_part(
