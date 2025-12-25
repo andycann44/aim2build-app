@@ -138,18 +138,14 @@ const MySetsPage: React.FC = () => {
       try {
         await addSetToInventory(setNum);
 
-        // mark as in inventory locally so pill goes green
-        setAddedInventory((prev) => {
-          const next = new Set(prev);
-          next.add(setNum);
-          return next;
-        });
-      } catch (err: any) {
+        // Refresh everything (sets + buildability-derived pills + effective parts)
+        await load();
+} catch (err: any) {
         console.error(err);
         alert(err?.message ?? "Failed to add to inventory");
       }
     },
-    [addedInventory]
+    [addedInventory, load]
   );
 
   const handleRemoveMySetWithToggle = useCallback(
