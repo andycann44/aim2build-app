@@ -179,7 +179,7 @@ const InventoryAddBrickInner: React.FC = () => {
         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginTop: "1rem" }}>
           {BRICK_SIZES.map((b) => (
             <button
-              key={b.part_num}
+              key={`${b.part_num}-${b.label}`}
               onClick={() => loadElementsByPart(b.part_num)}
               style={{
                 padding: "0.45rem 0.9rem",
