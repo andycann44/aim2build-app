@@ -446,7 +446,13 @@ def list_canonical_inventory_parts(
 
 
 @router.post("/clear-canonical")
-def clear_canonical(current_user: User = Depends(get_current_user)):
+def clear_canonical(
+    confirm: str = Query("NO"),
+    current_user: User = Depends(get_current_user),
+):
+    if confirm != "YES":
+        raise HTTPException(status_code=400, detail="confirm=YES required")
+
     """LOCKED: canonical-only mutation. Clears ALL inventory parts for this user."""
     from app.user_db import user_db
     with user_db() as con:
