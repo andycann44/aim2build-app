@@ -14,7 +14,7 @@ export interface SetTileProps {
   onAddWishlist?: (setNum: string) => void;
   inInventory?: boolean;
   onAddInventory?: (setNum: string) => void;
-  onRemoveMySet?: (setNum: string) => void; // 👈 NEW
+  onRemoveMySet?: (setNum: string) => void;
   inMySets?: boolean;
   inWishlist?: boolean;
   onRemoveFromInventory?: (setNum: string) => void;
@@ -44,6 +44,7 @@ const SetTile: React.FC<SetTileProps> = ({
   set,
   onAddMySet,
   onAddWishlist,
+  inInventory,
   onAddInventory,
   onRemoveMySet,
   inMySets,
@@ -52,6 +53,7 @@ const SetTile: React.FC<SetTileProps> = ({
   onOpenDetails,
 }) => {
   const { set_num, name, year, num_parts, img_url, in_inventory } = set;
+
   const resolvedInInventory =
     typeof inInventory === "boolean" ? inInventory : !!in_inventory;
 
@@ -102,7 +104,6 @@ const SetTile: React.FC<SetTileProps> = ({
           gap: "0.75rem",
         }}
       >
-        {/* IMAGE */}
         <div
           style={{
             borderRadius: 22,
@@ -141,7 +142,6 @@ const SetTile: React.FC<SetTileProps> = ({
           )}
         </div>
 
-        {/* TITLE + PCS PILL */}
         <div
           style={{
             display: "flex",
@@ -189,7 +189,6 @@ const SetTile: React.FC<SetTileProps> = ({
           </div>
         </div>
 
-        {/* BUTTON ROWS */}
         <div
           style={{
             marginTop: "0.75rem",
@@ -264,7 +263,9 @@ const SetTile: React.FC<SetTileProps> = ({
           {(onAddInventory || resolvedInInventory) && (
             <button
               type="button"
-              onClick={resolvedInInventory ? handleRemoveFromInventory : handleAddInventory}
+              onClick={
+                resolvedInInventory ? handleRemoveFromInventory : handleAddInventory
+              }
               style={{
                 ...pillBase,
                 width: "100%",
