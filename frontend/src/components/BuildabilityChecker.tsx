@@ -62,7 +62,7 @@ export default function BuildabilityChecker(): JSX.Element {
 
       try {
         const data = await apiClient.get<BuildabilityResponse>(
-          `/api/buildability/compare?set=${encodeURIComponent(trimmed)}`,
+          `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(trimmed)}`,
           { signal: controller.signal }
         );
         setResult(data);

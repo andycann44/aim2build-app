@@ -308,18 +308,18 @@ export async function removeWishlist(set_num: string): Promise<void> {
 }
 
 export async function getInventoryParts(): Promise<InventoryPart[]> {
-  return json<InventoryPart[]>(`/api/inventory/parts_with_images_with_images`);
+  return json<InventoryPart[]>(`${API_BASE}/api/inventory/parts_with_images`);
 }
 
 export async function clearInventory(): Promise<void> {
-  await json(`/api/inventory/clear?confirm=YES`, { method: "DELETE" });
+  await json(`${API_BASE}/api/inventory/clear-canonical?confirm=YES`, { method: "POST" });
 }
 
 export async function getBuildability(
   set_num: string
 ): Promise<BuildabilityResult> {
   return json<BuildabilityResult>(
-    `/api/buildability/compare?set=${encodeURIComponent(set_num)}`
+    `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(set_num)}`
   );
 }
 

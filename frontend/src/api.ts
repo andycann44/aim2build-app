@@ -112,7 +112,7 @@ export async function addSetPartsToInventory(set_num: string): Promise<void> {
  *   { part_num, color_id, qty_total, img_url?, part_img_url? }
  */
 export async function fetchInventoryParts(): Promise<InventoryPart[]> {
-  const url = `${API}/api/inventory/parts_with_images_with_images`;
+  const url = `${API}/api/inventory/parts_with_images`;
   const data = await getJson<any[]>(url);
 
   if (!Array.isArray(data)) return [];
