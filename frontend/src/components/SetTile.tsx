@@ -12,6 +12,7 @@ export interface SetTileProps {
   set: TileSet;
   onAddMySet?: (setNum: string) => void;
   onAddWishlist?: (setNum: string) => void;
+  inInventory?: boolean;
   onAddInventory?: (setNum: string) => void;
   onRemoveMySet?: (setNum: string) => void; // 👈 NEW
   inMySets?: boolean;
@@ -51,7 +52,8 @@ const SetTile: React.FC<SetTileProps> = ({
   onOpenDetails,
 }) => {
   const { set_num, name, year, num_parts, img_url, in_inventory } = set;
-  const inInventory = !!in_inventory;
+  const resolvedInInventory =
+    typeof inInventory === "boolean" ? inInventory : !!in_inventory;
 
   const handleAddMySet = () => {
     if (onAddMySet) onAddMySet(set_num);
@@ -259,22 +261,22 @@ const SetTile: React.FC<SetTileProps> = ({
             </div>
           )}
 
-          {(onAddInventory || inInventory) && (
+          {(onAddInventory || resolvedInInventory) && (
             <button
               type="button"
-              onClick={inInventory ? handleRemoveFromInventory : handleAddInventory}
+              onClick={resolvedInInventory ? handleRemoveFromInventory : handleAddInventory}
               style={{
                 ...pillBase,
                 width: "100%",
                 justifyContent: "center",
-                background: inInventory
+                background: resolvedInInventory
                   ? "linear-gradient(135deg,#22c55e,#a3e635)"
                   : "linear-gradient(135deg,#0f172a,#111827)",
-                color: inInventory ? "#052e16" : "#f9fafb",
+                color: resolvedInInventory ? "#052e16" : "#f9fafb",
                 cursor: "pointer",
               }}
             >
-              {inInventory ? "In Inventory" : "Add to Inventory"}
+              {resolvedInInventory ? "In Inventory" : "Add to Inventory"}
             </button>
           )}
         </div>

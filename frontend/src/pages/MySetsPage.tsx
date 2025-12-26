@@ -70,8 +70,9 @@ const MySetsPage: React.FC = () => {
       const data = await getMySets();
       setSets(data);
 
-      // 2) for each set, ask buildability/compare if it's fully covered
-      const inInv = new Set<string>();
+      // 2) buildability is used ONLY for parts counts/display
+      //    "in inventory" is POUR STATE (addedInventory), not coverage>=0.999
+      const inInv = new Set<string>(Array.from(addedInventory));
       const partsMap: Record<string, number> = {};
 
       await Promise.all(
@@ -81,20 +82,14 @@ const MySetsPage: React.FC = () => {
               s.set_num
             )) as BuildabilityResultWithDisplay;
 
-            const cov =
-              typeof cmp.coverage === "number" ? cmp.coverage : 0;
-            if (cov >= 0.999) {
-              inInv.add(s.set_num);
-            }
-
             const totalNeeded =
               typeof cmp.total_needed === "number"
                 ? cmp.total_needed
                 : typeof cmp.display_total === "number"
-                ? cmp.display_total
-                : typeof s.num_parts === "number"
-                ? s.num_parts
-                : 0;
+                  ? cmp.display_total
+                  : typeof s.num_parts === "number"
+                    ? s.num_parts
+                    : 0;
             partsMap[s.set_num] = totalNeeded;
           } catch (err) {
             console.warn(
@@ -114,7 +109,7 @@ const MySetsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addedInventory]);
 
   useEffect(() => {
     void load();
@@ -138,9 +133,16 @@ const MySetsPage: React.FC = () => {
       try {
         await addSetToInventory(setNum);
 
-        // Refresh everything (sets + buildability-derived pills + effective parts)
+        // Mark as poured immediately so the button flips right away
+        setAddedInventory((prev) => {
+          const next = new Set(prev);
+          next.add(setNum);
+          return next;
+        });
+
+        // Refresh everything (sets + parts counts)
         await load();
-} catch (err: any) {
+      } catch (err: any) {
         console.error(err);
         alert(err?.message ?? "Failed to add to inventory");
       }
@@ -184,6 +186,13 @@ const MySetsPage: React.FC = () => {
           );
           if (!invRes.ok) {
             console.warn("inventory remove_set failed", invRes.status);
+          } else {
+            // If we removed poured parts, flip pill back
+            setAddedInventory((prev) => {
+              const next = new Set(prev);
+              next.delete(setNum);
+              return next;
+            });
           }
         }
 
@@ -218,6 +227,14 @@ const MySetsPage: React.FC = () => {
           );
           return;
         }
+
+        // Flip pill back immediately
+        setAddedInventory((prev) => {
+          const next = new Set(prev);
+          next.delete(setNum);
+          return next;
+        });
+
         await load();
       } catch (err) {
         console.error(err);
@@ -330,15 +347,11 @@ const MySetsPage: React.FC = () => {
               return (
                 <SetTile
                   key={s.set_num}
-                  set={{
-                    ...setWithOverride,
-                    in_inventory: inInv,
-                  }}
+                  set={setWithOverride}
+                  inInventory={inInv}
                   inMySets={true}
                   onAddInventory={inInv ? undefined : handleAddInventory}
-                  onRemoveFromInventory={(setNum) =>
-                    handleRemoveFromInventory(setNum)
-                  }
+                  onRemoveFromInventory={handleRemoveFromInventory}
                   onRemoveMySet={(setNum) =>
                     handleRemoveMySetWithToggle(setNum, inInv)
                   }
