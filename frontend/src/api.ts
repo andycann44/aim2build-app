@@ -107,12 +107,12 @@ export async function addSetPartsToInventory(set_num: string): Promise<void> {
 
 /**
  * Fetch your current brick inventory.
- * Backend: GET /api/inventory/parts
+ * Backend: GET /api/inventory/parts_with_images
  * Canonical shape (per your spec):
  *   { part_num, color_id, qty_total, img_url?, part_img_url? }
  */
 export async function fetchInventoryParts(): Promise<InventoryPart[]> {
-  const url = `${API}/api/inventory/parts`;
+  const url = `${API}/api/inventory/parts_with_images_with_images`;
   const data = await getJson<any[]>(url);
 
   if (!Array.isArray(data)) return [];

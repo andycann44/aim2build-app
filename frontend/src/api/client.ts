@@ -308,7 +308,7 @@ export async function removeWishlist(set_num: string): Promise<void> {
 }
 
 export async function getInventoryParts(): Promise<InventoryPart[]> {
-  return json<InventoryPart[]>(`/api/inventory/parts`);
+  return json<InventoryPart[]>(`/api/inventory/parts_with_images_with_images`);
 }
 
 export async function clearInventory(): Promise<void> {
