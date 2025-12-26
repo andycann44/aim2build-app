@@ -25,7 +25,7 @@ export default function InventoryManager(): JSX.Element {
   async function clearInventory() {
     try {
       setError("");
-      const res = await fetch(`/api/inventory/clear-canonical`, {
+      const res = await fetch(`${API}/api/inventory/clear-canonical?confirm=YES`, {
         method: "POST",
         headers: { ...authHeaders() },
       });

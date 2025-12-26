@@ -72,9 +72,9 @@ const InventoryPage: React.FC = () => {
     if (!window.confirm("Clear ALL inventory parts?")) return;
     try {
       const res = await fetch(
-        `${API}/api/inventory/clear?confirm=YES`,
+        `${API}/api/inventory/clear-canonical?confirm=YES`,
         {
-          method: "DELETE",
+          method: "POST",
           headers: {
             ...authHeaders(),
           },
