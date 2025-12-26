@@ -1,0 +1,583 @@
+:root {
+  /* Light, bright, toy-ish but not babyish */
+  --bg: #f3f4f6;
+  --bg-elevated: #ffffff;
+  --bg-soft: #e5e7eb;
+  --border-subtle: #e5e7eb;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+
+  /* Accent colours (brick-inspired but not LEGO exact) */
+  --accent: #2563eb;
+  /* blue */
+  --accent-soft: rgba(37, 99, 235, 0.06);
+  --accent-yellow: #facc15;
+  /* yellow */
+  --accent-red: #f97316;
+  /* warm orange-red */
+
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.08);
+
+  --shadow-soft: 0 14px 45px rgba(15, 23, 42, 0.26);
+  --shadow-subtle: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+
+/* Typography helpers */
+.aim2-heading-xl {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.aim2-heading-lg {
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.aim2-text-muted {
+  color: var(--text-muted);
+}
+
+/* Global reset */
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ----------------- BODY / ROOT SHELL ----------------- */
+
+body.aim2-root {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    sans-serif;
+  color: var(--text-main);
+  background: var(--bg-soft);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(15, 23, 42, 0.3);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(15, 23, 42, 0.45);
+}
+
+/* ----------------- APP LAYOUT ----------------- */
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 24px;
+}
+
+.app-maxwidth {
+  width: 100%;
+  max-width: 1240px;
+  display: flex;
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: var(--shadow-soft);
+  background: linear-gradient(135deg, #020617, #020617 35%, #111827 100%);
+}
+
+/* ----------------- SIDEBAR ----------------- */
+
+.app-sidebar {
+  width: 230px;
+  background: radial-gradient(circle at top left, #1d4ed8 0, #020617 40%),
+    #020617;
+  color: #e5e7eb;
+  padding: 18px 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.app-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.app-sidebar-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e, #38bdf8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+}
+
+.app-sidebar-logo span {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #020617;
+}
+
+.app-sidebar-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-sidebar-title-main {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.app-sidebar-title-sub {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.75;
+}
+
+/* Nav list */
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+/* 🔥 Pill-style sidebar links to match hero buttons */
+.app-nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  text-decoration: none;
+  color: #e5e7eb;
+  opacity: 0.9;
+
+  border: 2px solid rgba(255, 255, 255, 0.32);
+  background: rgba(15, 23, 42, 0.6);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.55);
+
+  transition:
+    background 0.16s ease,
+    opacity 0.16s ease,
+    transform 0.12s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.app-nav-link span {
+  flex: 1;
+}
+
+.app-nav-link-indicator {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+/* Hover state – a bit brighter, small lift */
+.app-nav-link:hover {
+  opacity: 1;
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.7);
+  transform: translateY(-1px);
+}
+
+/* Active state – same gradient language as hero SEARCH button */
+.app-nav-link-active {
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
+  color: #020617;
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.9);
+}
+
+/* Sidebar footer */
+.app-sidebar-footer {
+  margin-top: auto;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+/* ----------------- MAIN CONTENT AREA ----------------- */
+
+.app-main {
+  flex: 1;
+  background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.15), transparent 38%),
+    radial-gradient(circle at 20% 80%, rgba(244, 63, 94, 0.16), transparent 45%),
+    var(--bg);
+  padding: 20px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.app-main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.app-main-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.app-main-header-title h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.app-main-header-title p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+/* Main content body */
+.app-main-body {
+  flex: 1;
+  border-radius: 24px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-subtle);
+  padding: 18px 18px 18px;
+  overflow: auto;
+}
+
+/* Generic page body content */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* 🔹 Page headers – match hero style */
+.page-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  /* existing text style */
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+
+  /* put it inside a pill box */
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 1.6rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
+  color: #020617;
+  border: 3px solid #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.55);
+  text-shadow: none;
+}
+
+.page-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* ----------------- SEARCH PAGE ----------------- */
+
+.page-search .page-body {
+  margin-top: 0.35rem;
+}
+
+/* Hero container margin; main hero styles are inline in SearchPage.tsx */
+.search-hero {
+  margin-bottom: 1.2rem;
+}
+
+/* Narrow helper text */
+.search-empty {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* 🔧 Search / My Sets / Buildability tiles – 2 across on desktop */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.4rem;
+}
+
+/* ----------------- INVENTORY PAGE ----------------- */
+
+.inventory-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.inventory-summary-row .left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.inventory-summary-row .right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Inventory sort menu */
+.hero-sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.35);
+  color: #e5e7eb;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  cursor: pointer;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.12s ease;
+}
+
+.hero-pill--sort {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.hero-pill:hover {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.6);
+  transform: translateY(-1px);
+}
+
+.hero-pill__value {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hero-sort-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+  padding: 0.4rem;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+.hero-sort-option {
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  padding: 0.45rem 0.5rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.hero-sort-option:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.hero-sort-option--active {
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.hero-sort-option--active:hover {
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
+}
+
+/* ----------------- WISHLIST PANEL ----------------- */
+
+.wishlist-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+/* ----------------- SEARCH EMPTY CARD ----------------- */
+
+.search-empty-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #f9fafb;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+}
+
+.search-empty-title {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.search-empty-text {
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+/* ----------------- RESPONSIVE ----------------- */
+
+@media (max-width: 960px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  /* Make the main content always fill the space next to the sidebar */
+  .app-shell>.main {
+    flex: 1 1 auto;
+  }
+
+  .app-maxwidth {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 24px 24px 0 0;
+  }
+
+  .app-main {
+    border-radius: 0 0 24px 24px;
+  }
+
+  .app-main-body {
+    padding: 14px;
+  }
+
+  /* 1 tile per row on smaller screens */
+  .tile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-sidebar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+
+  .app-main {
+    padding: 14px;
+  }
+
+  .app-main-body {
+    padding: 12px;
+  }
+}
+
+/* ---------- GLOBAL NAV PILLS (Search / My Sets / Inventory / etc) ---------- */
+
+/* base style for all nav links */
+nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  margin-right: 8px;
+
+  border-radius: 999px;
+  text-decoration: none;
+
+  font-size: 0.85rem;
+  font-weight: 600;
+
+  /* pill look */
+  background: #0f172a;
+  color: #f9fafb;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.45);
+
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.12s ease;
+}
+
+nav a:hover {
+  background: #020617;
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.7);
+  transform: translateY(-1px);
+}
+
+/* active page – matches the hero SEARCH button vibe */
+nav a[aria-current="page"] {
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
+  color: #020617;
+  border-color: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.9);
+}
+
+/* Make the nav a vertical stack */
+nav {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* Each pill takes full nav width */
+nav a {
+  display: flex;
+  width: 180px;
+  /* tweak this width if you want tighter/wider */
+  justify-content: center;
+}

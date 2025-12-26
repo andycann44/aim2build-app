@@ -22,3 +22,29 @@ frontend/dist/
 .DS_Store
 *.log
 frontend/.vite/
+backend_experiment_20251116_090044/app/data/lego_catalog.db
+csv/inventory_parts.csv
+backend_experiment_20251116_090044/app/data/lego_catalog.db
+csv/inventory_parts.csv
+
+# Local Python/Node stuff
+.venv/
+venv/
+__pycache__/
+node_modules/
+
+csv/
+
+# Python venv
+.venv/
+
+# Local user data (never commit)
+backend/app/data/*_user_*.json
+
+# Local databases
+backend/app/data/*.db
+backend/app/data/*.db-*
+
+# PDFs / scratch data
+instruction_pdfs/
+*.csv

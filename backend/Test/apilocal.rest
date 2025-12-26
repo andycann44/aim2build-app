@@ -1,0 +1,62 @@
+@baseUrl = http://127.0.0.1:8000
+@email = andy+localtest001@example.com
+@password = Password123!
+
+### Docs
+GET {{baseUrl}}/docs
+
+### Optional health
+GET {{baseUrl}}/api/health
+
+### Search sets
+GET {{baseUrl}}/api/search?q=home
+
+
+### Register (local test account)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+
+### Login (get token from response)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### After running the Login request above:
+###  - Copy "access_token" from the JSON response
+###  - Paste it into the @token variable below
+
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2IiwiZXhwIjoxNzY0ODQwMDM5fQ.fET3ZkwAsYdKMOR19zNpyapA6N4ekLvTS2m-hHRbavA
+
+### Get My Sets (requires auth)
+GET {{baseUrl}}/api/mysets
+Authorization: Bearer {{token}}
+
+
+### Get Wishlist (requires auth)
+GET {{baseUrl}}/api/wishlist
+Authorization: Bearer {{token}}
+
+
+### Buildability compare for a set
+GET {{baseUrl}}/api/buildability/compare?set=21330-1
+Authorization: Bearer {{token}}
+
+
+### Inventory parts with images
+GET {{baseUrl}}/api/inventory/parts_with_images
+Authorization: Bearer {{token}}
+
+
+### Catalog: get parts for a set
+GET {{baseUrl}}/api/catalog/parts?set=21330-1
+Authorization: Bearer {{token}}

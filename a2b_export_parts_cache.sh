@@ -34,7 +34,7 @@ OUT="$OUT_DIR/$SET_NORM.json"
 # Export parts for the set into JSON (part_num,color_id,quantity), grouped
 sqlite3 -separator '|' "$DB" "
   SELECT part_num, color_id, SUM(quantity)
-  FROM inventory_parts
+  FROM inventory_parts_summary
   WHERE set_num='$SET_NORM'
   GROUP BY part_num, color_id
   ORDER BY part_num, color_id;
