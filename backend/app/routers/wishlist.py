@@ -3,7 +3,7 @@ from typing import Optional
 from pathlib import Path
 import json
 
-from app.db import db
+from app.catalog_db import db as catalog_db
 from app.paths import DATA_DIR
 from app.routers.auth import get_current_user, User
 
@@ -30,14 +30,24 @@ def _save(user_id: int, obj):
     with path.open("w", encoding="utf-8") as f:
         json.dump(obj, f)
 
+def _normalize_set_id(raw: str) -> str:
+    sn = (raw or "").strip()
+    if not sn:
+        return ""
+    if "-" not in sn and sn.isdigit():
+        return f"{sn}-1"
+    return sn
+
 def _resolve_set_num(raw: str) -> str:
-    sn = raw.strip()
-    with db() as con:
+    trimmed = (raw or "").strip()
+    sn = _normalize_set_id(trimmed)
+    with catalog_db() as con:
         cur = con.cursor()
         cur.execute("SELECT set_num FROM sets WHERE set_num=? LIMIT 1", (sn,))
         row = cur.fetchone()
         if not row:
-            cur.execute("SELECT set_num FROM sets WHERE set_num LIKE ? ORDER BY year DESC LIMIT 1", (sn+'-%',))
+            base = trimmed.split("-")[0] if "-" in trimmed else trimmed
+            cur.execute("SELECT set_num FROM sets WHERE set_num LIKE ? ORDER BY year DESC LIMIT 1", (base+'-%',))
             row = cur.fetchone()
     if not row: raise HTTPException(status_code=404, detail=f"Set {raw} not found in catalog")
     return row[0]

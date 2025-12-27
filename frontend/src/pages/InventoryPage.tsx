@@ -69,25 +69,26 @@ const InventoryPage: React.FC = () => {
   }, []);
 
   const clearInventory = async () => {
-    if (!window.confirm("Clear ALL inventory parts?")) return;
-    try {
-      const res = await fetch(
-        `${API}/api/inventory/clear?confirm=YES`,
-        {
-          method: "DELETE",
-          headers: {
-            ...authHeaders(),
-          },
-        }
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setParts([]);
-      setStats({ unique: 0, total: 0 });
-    } catch (err) {
-      console.error("Failed to clear inventory", err);
-      alert("Failed to clear inventory, see console for details.");
-    }
-  };
+  if (!window.confirm("Clear ALL inventory parts?")) return;
+
+  try {
+    const res = await fetch(`${API}/api/inventory/clear-canonical`, {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    // safest: reload from backend truth
+    await loadParts();
+  } catch (err) {
+    console.error("Failed to clear inventory", err);
+    alert("Failed to clear inventory, see console for details.");
+  }
+};
 
   const sortedParts = useMemo(() => {
     const byPartThenColor = (a: InventoryPart, b: InventoryPart) => {
