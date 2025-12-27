@@ -1,113 +1,136 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel
-from typing import List, Optional
-from pathlib import Path
-import json
+from typing import List, Dict, Any
 
+from app.user_db import user_db
 from app.catalog_db import db as catalog_db
-from app.paths import DATA_DIR
 from app.routers.auth import get_current_user, User
 
 router = APIRouter()
 
-def _mysets_file(user_id: int) -> Path:
-    return DATA_DIR / f"my_sets_user_{user_id}.json"
 
-class SetEntry(BaseModel):
-    set_num: str
-    name: Optional[str] = None
-    year: Optional[int] = None
-    img_url: Optional[str] = None
-    num_parts: Optional[int] = None
+def _ensure_user_mysets_table(con) -> None:
+    """
+    USER DB (aim2build_app.db) source of truth for My Sets.
+    """
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS user_mysets ("
+        "user_id INTEGER NOT NULL, "
+        "set_num TEXT NOT NULL, "
+        "created_at TEXT DEFAULT (datetime('now')) NOT NULL, "
+        "PRIMARY KEY(user_id, set_num)"
+        ")"
+    )
 
-def _load(user_id: int):
-    path = _mysets_file(user_id)
-    if not path.exists(): return {"sets":[]}
-    with path.open("r", encoding="utf-8") as f:
-        try:
-            d = json.load(f) or {"sets":[]}
-            if isinstance(d, list): d = {"sets": d}  # tolerate old shape
-            if "sets" not in d: d = {"sets":[]}
-            return d
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="my_sets.json is invalid")
 
-def _save(user_id: int, obj):
-    path = _mysets_file(user_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(obj, f)
-
-def _normalize_set_id(raw: str) -> str:
+def _norm_set_id(raw: str) -> str:
     sn = (raw or "").strip()
     if not sn:
-        return ""
+        return sn
     if "-" not in sn and sn.isdigit():
         return f"{sn}-1"
     return sn
 
-def _resolve_set_num(raw: str) -> str:
-    trimmed = (raw or "").strip()
-    sn = _normalize_set_id(trimmed)
-    with catalog_db() as con:
-        cur = con.cursor()
-        # try exact first
-        cur.execute("SELECT set_num,name,year,num_parts FROM sets WHERE set_num=? LIMIT 1", (sn,))
-        row = cur.fetchone()
-        if not row:
-            # accept plain id like '21330' → pick latest '-1' if present
-            base = trimmed.split("-")[0] if "-" in trimmed else trimmed
-            cur.execute("SELECT set_num,name,year,num_parts FROM sets WHERE set_num LIKE ? ORDER BY year DESC LIMIT 1", (base+'-%',))
-            row = cur.fetchone()
-    if not row: raise HTTPException(status_code=404, detail=f"Set {raw} not found in catalog")
-    return row[0]
 
-def _catalog_row(sn: str):
-    with catalog_db() as con:
-        cur = con.cursor()
-        cur.execute("SELECT set_num,name,year,num_parts FROM sets WHERE set_num=? LIMIT 1", (sn,))
-        row = cur.fetchone()
-    if not row: return None
-    # try to guess an image URL (Rebrickable pattern)
-    img = f"https://cdn.rebrickable.com/media/sets/{row[0]}.jpg"
-    return {"set_num": row[0], "name": row[1], "year": row[2], "num_parts": row[3], "img_url": img}
+def _catalog_set_meta(set_num: str) -> Dict[str, Any]:
+    """
+    READ-ONLY: lego_catalog.db lookup for tile metadata.
+    """
+    sn = _norm_set_id(set_num)
+    if not sn:
+        return {"set_num": sn}
+
+    try:
+        with catalog_db() as con:
+            cur = con.cursor()
+            cur.execute(
+                "SELECT set_num, name, year, num_parts, set_img_url "
+                "FROM sets WHERE set_num = ? LIMIT 1",
+                (sn,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"set_num": sn}
+
+            set_img_url = (row[4] or "").strip()
+            if not set_img_url:
+                set_img_url = f"https://cdn.rebrickable.com/media/sets/{sn}.jpg"
+
+            return {
+                "set_num": row[0] or sn,
+                "name": row[1],
+                "year": int(row[2]) if row[2] is not None else None,
+                "num_parts": int(row[3] or 0),
+                "img_url": set_img_url,
+            }
+    except Exception:
+        return {"set_num": sn}
+
 
 @router.get("")
-def list_my_sets(current_user: User = Depends(get_current_user)):
-    return _load(current_user.id)
+def list_mysets(current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
+    """
+    Returns { sets: [...] } from USER DB, enriched from catalog DB.
+    """
+    with user_db() as con:
+        _ensure_user_mysets_table(con)
+        cur = con.cursor()
+        cur.execute(
+            "SELECT set_num FROM user_mysets "
+            "WHERE user_id = ? "
+            "ORDER BY created_at DESC",
+            (current_user.id,),
+        )
+        rows = cur.fetchall()
+
+    sets: List[Dict[str, Any]] = []
+    for r in rows:
+        sn = r["set_num"] if hasattr(r, "keys") else r[0]
+        sets.append(_catalog_set_meta(sn))
+
+    return {"sets": sets}
+
 
 @router.post("/add")
-def add_my_set(
-    set: Optional[str]=Query(None),
-    set_num: Optional[str]=Query(None),
-    id: Optional[str]=Query(None),
+def add_myset(
+    set: str = Query(""),
+    set_num: str = Query(""),
+    id: str = Query(""),
     current_user: User = Depends(get_current_user),
-):
-    raw = set_num or set or id
-    if not raw: raise HTTPException(status_code=422, detail="Provide set, set_num, or id")
-    sn = _resolve_set_num(raw)
-    info = _catalog_row(sn)
-    data = _load(current_user.id)
-    if any(s.get("set_num")==sn for s in data["sets"]):
-        return {"ok": True, "duplicate": True, "count": len(data["sets"])}
-    data["sets"].append(info or {"set_num": sn})
-    _save(current_user.id, data)
-    return {"ok": True, "count": len(data["sets"])}
+) -> Dict[str, Any]:
+    raw = set or set_num or id
+    sn = _norm_set_id(raw)
+    if not sn:
+        raise HTTPException(status_code=422, detail="Missing set id")
+
+    with user_db() as con:
+        _ensure_user_mysets_table(con)
+        con.execute(
+            "INSERT OR IGNORE INTO user_mysets (user_id, set_num) VALUES (?, ?)",
+            (current_user.id, sn),
+        )
+        con.commit()
+
+    return {"ok": True, "set_num": sn}
+
 
 @router.delete("/remove")
-def remove_my_set(
-    set: Optional[str]=Query(None),
-    set_num: Optional[str]=Query(None),
-    id: Optional[str]=Query(None),
+def remove_myset(
+    set: str = Query(""),
+    set_num: str = Query(""),
+    id: str = Query(""),
     current_user: User = Depends(get_current_user),
-):
-    raw = set_num or set or id
-    if not raw: raise HTTPException(status_code=422, detail="Provide set, set_num, or id")
-    sn = _resolve_set_num(raw)
-    data = _load(current_user.id)
-    before = len(data["sets"])
-    data["sets"] = [s for s in data["sets"] if s.get("set_num") != sn]
-    if len(data["sets"]) == before:
-        raise HTTPException(status_code=404, detail=f"{sn} not in My Sets")
-    _save(current_user.id, data)
-    return {"ok": True, "removed": sn, "count": len(data["sets"])}
+) -> Dict[str, Any]:
+    raw = set or set_num or id
+    sn = _norm_set_id(raw)
+    if not sn:
+        raise HTTPException(status_code=422, detail="Missing set id")
+
+    with user_db() as con:
+        _ensure_user_mysets_table(con)
+        con.execute(
+            "DELETE FROM user_mysets WHERE user_id = ? AND set_num = ?",
+            (current_user.id, sn),
+        )
+        con.commit()
+
+    return {"ok": True, "set_num": sn}
