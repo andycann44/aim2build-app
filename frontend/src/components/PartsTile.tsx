@@ -4,9 +4,11 @@ import React from "react";
 export type InventoryPart = {
   part_num: string;
   color_id: number;
-  qty_total: number;
+  qty_total?: number;
+  qty?: number;
   // canonical image field – from backend when available
   part_img_url?: string | null;
+  img_url?: string | null;
 };
 
 type PartsTileProps = {
@@ -34,7 +36,7 @@ const PartsTile: React.FC<PartsTileProps> = ({
 }) => {
   // STRICT: only use backend-provided part_img_url.
   // If missing, show "No image". Never guess/fallback to ldraw.
-  const imgUrl = (part.part_img_url ?? "").trim() || undefined;
+  const imgUrl = ((part.part_img_url ?? part.img_url ?? "").trim() || undefined);
 
   const [imageError, setImageError] = React.useState(false);
 
@@ -44,7 +46,7 @@ const PartsTile: React.FC<PartsTileProps> = ({
   // - Add Bricks page: default 0 unless explicitly provided
   // - Inventory: use part.qty_total
     const displayQtyRaw =
-    typeof qty === "number" ? qty : isAddBricks ? 0 : part.qty_total ?? 0;
+    typeof qty === "number" ? qty : isAddBricks ? 0 : ((part.qty_total ?? part.qty) ?? 0);
   const displayQty = Math.max(0, displayQtyRaw);
   const minQty = 0; // future: set-floor goes here
   const canDec = !!onChangeQty && displayQty > minQty;
@@ -145,7 +147,7 @@ const PartsTile: React.FC<PartsTileProps> = ({
                 color: "#6b7280",
               }}
             >
-              Colour {part.color_id > 0 ? part.color_id : "—"}
+              Colour {String(part.color_id)}
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import type { SetSummary, InventoryPart } from "./types";
+import type { SetSummary, InventoryPart } from "./api/client";
 
 const API =
   (import.meta as any)?.env?.VITE_API_BASE || "http://35.178.138.33:8000";
@@ -76,14 +76,14 @@ export async function removeFromMySets(set_num: string): Promise<void> {
 
 /**
  * Add all parts from a given set into the inventory.
- * Backend route: POST /api/inventory/add_set_parts?set=<set_num>
+ * Backend route: POST /api/inventory/add?set=<set_num>
  */
 export async function addSetPartsToInventory(set_num: string): Promise<void> {
   const q = set_num.trim();
   if (!q) return;
 
   const res = await fetch(
-    `${API}/api/inventory/add_set_parts?set=${encodeURIComponent(q)}`,
+    `${API}/api/inventory/add?set=${encodeURIComponent(q)}`,
     {
       method: "POST",
       headers: {
@@ -108,8 +108,9 @@ export async function addSetPartsToInventory(set_num: string): Promise<void> {
 /**
  * Fetch your current brick inventory.
  * Backend: GET /api/inventory/parts
- * Canonical shape (per your spec):
- *   { part_num, color_id, qty_total, img_url?, part_img_url? }
+ * Canonical shape:
+ *   { part_num, color_id, qty, color_name?, img_url? }
+ * (compat: accept qty_total/part_img_url if still present)
  */
 export async function fetchInventoryParts(): Promise<InventoryPart[]> {
   const url = `${API}/api/inventory/parts`;

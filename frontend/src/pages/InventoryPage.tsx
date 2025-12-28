@@ -26,28 +26,32 @@ const InventoryPage: React.FC = () => {
   const loadParts = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await fetch(`${API}/api/inventory/parts_with_images`, {
         headers: {
           ...authHeaders(),
         },
       });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data: InventoryPart[] = await res.json();
 
-      // Merge duplicates: same part_num + color_id
+      // De-dupe: same part_num + color_id (DO NOT sum — backend should be the truth)
       const mergedMap = new Map<string, InventoryPart>();
       for (const p of data) {
         const key = `${p.part_num}-${p.color_id}`;
         const existing = mergedMap.get(key);
-        if (existing) {
-          existing.qty_total =
-            (existing.qty_total ?? 0) + (p.qty_total ?? 0);
+
+        if (!existing) {
+          mergedMap.set(key, { ...p });
+        } else {
+          // keep image if existing is missing it
           if (!existing.part_img_url && p.part_img_url) {
             existing.part_img_url = p.part_img_url;
           }
-        } else {
-          mergedMap.set(key, { ...p });
+          // keep qty_total as-is (no summing)
         }
       }
 
@@ -55,10 +59,7 @@ const InventoryPage: React.FC = () => {
       setParts(mergedParts);
 
       const unique = mergedParts.length;
-      const total = mergedParts.reduce(
-        (sum, p) => sum + (p.qty_total ?? 0),
-        0
-      );
+      const total = mergedParts.reduce((sum, p) => sum + (Number(p.qty ?? p.qty_total) || 0), 0);
       setStats({ unique, total });
     } catch (err: any) {
       console.error("Failed to load inventory parts", err);
@@ -69,26 +70,26 @@ const InventoryPage: React.FC = () => {
   }, []);
 
   const clearInventory = async () => {
-  if (!window.confirm("Clear ALL inventory parts?")) return;
+    if (!window.confirm("Clear ALL inventory parts?")) return;
 
-  try {
-    const res = await fetch(`${API}/api/inventory/clear-canonical`, {
-      method: "POST",
-      headers: {
-        ...authHeaders(),
-        Accept: "application/json",
-      },
-    });
+    try {
+      const res = await fetch(`${API}/api/inventory/clear-canonical`, {
+        method: "POST",
+        headers: {
+          ...authHeaders(),
+          Accept: "application/json",
+        },
+      });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    // safest: reload from backend truth
-    await loadParts();
-  } catch (err) {
-    console.error("Failed to clear inventory", err);
-    alert("Failed to clear inventory, see console for details.");
-  }
-};
+      // safest: reload from backend truth
+      await loadParts();
+    } catch (err) {
+      console.error("Failed to clear inventory", err);
+      alert("Failed to clear inventory, see console for details.");
+    }
+  };
 
   const sortedParts = useMemo(() => {
     const byPartThenColor = (a: InventoryPart, b: InventoryPart) => {
