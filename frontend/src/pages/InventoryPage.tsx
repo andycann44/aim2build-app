@@ -299,6 +299,7 @@ const InventoryPage: React.FC = () => {
                   part={p}
                   need={qty}
                   have={qty}
+                  mode="inventory"
                 />
               );
             })}

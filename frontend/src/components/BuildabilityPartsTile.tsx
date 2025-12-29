@@ -6,6 +6,7 @@ type BuildabilityPartsTileProps = {
   part: InventoryPart;
   need: number;
   have: number;
+  mode?: "inventory" | "buildability" | "missing";
   editableQty?: boolean;
   onChangeQty?: (delta: number) => void;
 };
@@ -14,9 +15,11 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
   part,
   need,
   have,
+  mode = "buildability",
   editableQty = false,
   onChangeQty,
 }) => {
+
   const missing = Math.max(need - have, 0);
   const canDec = editableQty && !!onChangeQty && have > 0;
   const canInc = editableQty && !!onChangeQty;
@@ -201,27 +204,29 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
           </div>
 
           {/* Need / have / missing line (still INSIDE card) */}
-          <div
-            style={{
-              marginTop: "0.15rem",
-              fontSize: "0.78rem",
-              color: "#4b5563",
-            }}
-          >
-            <span>
-              Set needs <strong>{need}</strong> · You have{" "}
-              <strong>{have}</strong>
-            </span>
-            {missing > 0 && (
-              <>
-                {" · "}
+          {mode !== "inventory" && (
+            <div
+              style={{
+                marginTop: "0.15rem",
+                fontSize: "0.78rem",
+                color: "#4b5563",
+              }}
+            >
+              {mode === "buildability" && (
+                <span>
+                  Set needs <strong>{need}</strong> · You have{" "}
+                  <strong>{have}</strong>
+                </span>
+              )}
+
+              {mode === "missing" && (
                 <span style={{ color: "#b91c1c" }}>
                   Missing <strong>{missing}</strong>
                 </span>
-              </>
-            )}
+              )}
+            </div>
+          )}        
           </div>
-        </div>
       </div>
     </div>
   );
