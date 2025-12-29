@@ -165,6 +165,33 @@ export interface BuildabilityResult {
   total_have: number;
 }
 
+export async function getPouredSets(): Promise<string[]> {
+  const data = await json<any[]>(`/api/inventory/sets`);
+  if (!Array.isArray(data)) return [];
+  // tolerate either ["21330-1", ...] or [{set_num:"21330-1"}]
+  return data
+    .map((row) =>
+      typeof row === "string"
+        ? row
+        : typeof row?.set_num === "string"
+        ? row.set_num
+        : null
+    )
+    .filter(Boolean) as string[];
+}
+
+export async function pourSet(set_num: string): Promise<void> {
+  await json(`/api/inventory/pour-set?set=${encodeURIComponent(set_num)}`, {
+    method: "POST",
+  });
+}
+
+export async function unpourSet(set_num: string): Promise<void> {
+  await json(`/api/inventory/unpour-set?set=${encodeURIComponent(set_num)}`, {
+    method: "POST",
+  });
+}
+
 export async function searchParts(
   q: string,
   categoryId?: number,

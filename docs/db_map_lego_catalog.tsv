@@ -1,0 +1,108 @@
+table	cid	name	type	notnull	dflt_value	pk
+colors	0	color_id	INTEGER	0		1
+colors	1	name	TEXT	1		0
+colors	2	rgb	TEXT	1		0
+colors	3	is_trans	INTEGER	1	0	0
+element_family_map	0	family_part_num	TEXT	1		1
+element_family_map	1	element_id	TEXT	1		2
+element_images	0	part_num	TEXT	1		1
+element_images	1	color_id	INTEGER	1		2
+element_images	2	img_url	TEXT	1		0
+elements	0	element_id	TEXT	0		1
+elements	1	part_num	TEXT	1		0
+elements	2	color_id	INTEGER	0		0
+elements	3	design_id	TEXT	0		0
+elements	4	element_img_url	TEXT	0		0
+elements	5	element_url	TEXT	0		0
+elements	6	year_from	INTEGER	0		0
+elements	7	year_to	INTEGER	0		0
+instruction_set_elements	0	set_num	TEXT	1		1
+instruction_set_elements	1	element_id	TEXT	1		2
+instruction_set_elements	2	qty	INTEGER	1		0
+instruction_set_elements	3	source	TEXT	1	'pdf'	0
+instruction_set_elements	4	created_at	TEXT	1	datetime('now')	0
+instruction_set_requirements	0	set_num	TEXT	1		1
+instruction_set_requirements	1	family_part_num	TEXT	1		2
+instruction_set_requirements	2	color_id	INTEGER	1		3
+instruction_set_requirements	3	qty	INTEGER	1		0
+instruction_set_requirements	4	source	TEXT	1	'pdf'	0
+instruction_set_requirements	5	created_at	TEXT	1	datetime('now')	0
+inventories	0	inventory_id	INTEGER	0		1
+inventories	1	set_num	TEXT	1		0
+inventories	2	version	INTEGER	0		0
+inventory_minifigs	0	inventory_id	INTEGER	1		0
+inventory_minifigs	1	fig_num	TEXT	1		0
+inventory_minifigs	2	quantity	INTEGER	0		0
+inventory_parts	0	inventory_id	INTEGER	1		0
+inventory_parts	1	part_num	TEXT	1		0
+inventory_parts	2	color_id	INTEGER	0		0
+inventory_parts	3	quantity	INTEGER	0		0
+inventory_parts	4	is_spare	INTEGER	0		0
+inventory_parts	5	element_id	TEXT	0		0
+inventory_parts_summary	0	set_num	TEXT	1		1
+inventory_parts_summary	1	part_num	TEXT	1		2
+inventory_parts_summary	2	color_id	INTEGER	1		3
+inventory_parts_summary	3	quantity	INTEGER	1		0
+inventory_parts_summary	4	part_img_url	TEXT	0		0
+minifigs	0	fig_num	TEXT	0		1
+minifigs	1	name	TEXT	1		0
+minifigs	2	num_parts	INTEGER	0		0
+minifigs	3	fig_img_url	TEXT	0		0
+minifigs	4	fig_url	TEXT	0		0
+minifigs	5	last_modified_dt	TEXT	0		0
+part_canonical_map	0	part_num	TEXT	0		1
+part_canonical_map	1	canonical_part_num	TEXT	1		0
+part_categories	0	part_cat_id	INTEGER	0		1
+part_categories	1	name	TEXT	1		0
+part_categories	2	parent_id	INTEGER	0		0
+part_family_map	0	family_key	TEXT	1		1
+part_family_map	1	canonical_part_num	TEXT	1		0
+part_family_map	2	part_num	TEXT	1		2
+part_relationships	0	rel_type	TEXT	1		0
+part_relationships	1	child_part_num	TEXT	1		0
+part_relationships	2	parent_part_num	TEXT	1		0
+part_relationships	3	is_spare	INTEGER	0		0
+parts	0	part_num	TEXT	0		1
+parts	1	name	TEXT	1		0
+parts	2	part_cat_id	INTEGER	0		0
+parts	3	part_material	TEXT	0		0
+parts	4	part_url	TEXT	0		0
+parts	5	part_img_url	TEXT	0		0
+parts	6	part_thumb_url	TEXT	0		0
+parts	7	year_from	INTEGER	0		0
+parts	8	year_to	INTEGER	0		0
+parts	9	print_of	TEXT	0		0
+parts	10	mold	TEXT	0		0
+parts	11	is_obsolete	INTEGER	0		0
+parts	12	design_id	TEXT	0		0
+set_parts	0	set_num	TEXT	1		1
+set_parts	1	part_num	TEXT	1		2
+set_parts	2	color_id	INTEGER	1		3
+set_parts	3	qty_per_set	INTEGER	1		0
+set_parts	4	part_img_url	TEXT	0		0
+sets	0	set_num	TEXT	0		1
+sets	1	name	TEXT	1		0
+sets	2	year	INTEGER	0		0
+sets	3	theme_id	INTEGER	0		0
+sets	4	num_parts	INTEGER	0		0
+sets	5	set_img_url	TEXT	0		0
+sets	6	set_url	TEXT	0		0
+sets	7	last_modified_dt	TEXT	0		0
+themes	0	theme_id	INTEGER	0		1
+themes	1	name	TEXT	1		0
+themes	2	parent_id	INTEGER	0		0
+truth_category_rules	0	category_name	TEXT	0		1
+truth_category_rules	1	counts_for_buildability	INTEGER	1	1	0
+truth_category_rules	2	counts_for_complete	INTEGER	1	1	0
+truth_gap_review	0	set_num	TEXT	1		0
+truth_gap_review	1	part_num	TEXT	1		0
+truth_gap_review	2	color_id	INTEGER	1		0
+truth_gap_review	3	qty	INTEGER	1		0
+truth_gap_review	4	side	TEXT	1		0
+truth_gap_review	5	category	TEXT	1	'UNKNOWN'	0
+truth_gap_review	6	note	TEXT	0		0
+truth_gap_review	7	created_at	TEXT	1	datetime('now')	0
+users	0	id	INTEGER	0		1
+users	1	email	TEXT	1		0
+users	2	password_hash	TEXT	1		0
+users	3	created_at	TEXT	1	CURRENT_TIMESTAMP	0

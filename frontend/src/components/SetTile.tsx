@@ -259,11 +259,13 @@ const SetTile: React.FC<SetTileProps> = ({
             </div>
           )}
 
-          {(onAddInventory || inInventory) && (
+          {(onAddInventory || onRemoveFromInventory || inInventory) && (
             <button
               type="button"
-              disabled={inInventory}
-              onClick={inInventory ? undefined : handleAddInventory}
+              disabled={inInventory ? !onRemoveFromInventory : !onAddInventory}
+              onClick={
+                inInventory ? handleRemoveFromInventory : handleAddInventory
+              }
               style={{
                 ...pillBase,
                 width: "100%",
@@ -272,12 +274,21 @@ const SetTile: React.FC<SetTileProps> = ({
                   ? "linear-gradient(135deg,#22c55e,#a3e635)"
                   : "linear-gradient(135deg,#0f172a,#111827)",
                 color: inInventory ? "#052e16" : "#f9fafb",
-                cursor: inInventory ? "default" : "pointer",
+                cursor:
+                  inInventory && onRemoveFromInventory
+                    ? "pointer"
+                    : !inInventory && onAddInventory
+                    ? "pointer"
+                    : "default",
                 opacity: inInventory ? 0.9 : 1,
               }}
-              title={inInventory ? "Already in inventory" : "Add this set to inventory"}
+              title={
+                inInventory
+                  ? "Remove this set from inventory"
+                  : "Add this set to inventory"
+              }
             >
-              {inInventory ? "In Inventory" : "Add to Inventory"}
+              {inInventory ? "Remove from Inventory" : "Add to Inventory"}
             </button>
           )}
         </div>
