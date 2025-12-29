@@ -151,6 +151,33 @@ def compare_buildability(
                     }
                 )
 
+    # Enrich missing_parts with strict catalog images (element_images exact match)
+    if missing_parts:
+        unique_keys = {(m["part_num"], int(m["color_id"])) for m in missing_parts}
+        clauses = []
+        params = []
+        for pn, cid in unique_keys:
+            clauses.append("(part_num = ? AND color_id = ?)")
+            params.extend([pn, cid])
+
+        if clauses:
+            with db() as con:
+                query = (
+                    "SELECT part_num, color_id, img_url "
+                    "FROM element_images "
+                    f"WHERE {' OR '.join(clauses)}"
+                )
+                cur = con.execute(query, params)
+                img_map = {
+                    (str(row["part_num"]), int(row["color_id"])): row["img_url"]
+                    for row in cur.fetchall()
+                    if row["img_url"]
+                }
+            for m in missing_parts:
+                key = (m["part_num"], int(m["color_id"]))
+                if key in img_map:
+                    m["part_img_url"] = img_map[key]
+
     coverage = float(total_have / total_needed) if total_needed > 0 else 0.0
     display_total = get_set_num_parts(set_id)
 

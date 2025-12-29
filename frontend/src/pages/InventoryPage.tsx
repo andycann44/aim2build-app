@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import PartsTile from "../components/PartsTile";
+import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import SortMenu, { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
@@ -291,12 +291,17 @@ const InventoryPage: React.FC = () => {
               alignItems: "flex-start",
             }}
           >
-            {sortedParts.map((p) => (
-              <PartsTile
-                key={`${p.part_num}-${p.color_id}`}
-                part={p}
-              />
-            ))}
+            {sortedParts.map((p) => {
+              const qty = Number(p.qty_total ?? 0);
+              return (
+                <BuildabilityPartsTile
+                  key={`${p.part_num}-${p.color_id}`}
+                  part={p}
+                  need={qty}
+                  have={qty}
+                />
+              );
+            })}
           </div>
         )}
       </div>

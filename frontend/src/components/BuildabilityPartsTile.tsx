@@ -6,14 +6,20 @@ type BuildabilityPartsTileProps = {
   part: InventoryPart;
   need: number;
   have: number;
+  editableQty?: boolean;
+  onChangeQty?: (delta: number) => void;
 };
 
 const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
   part,
   need,
   have,
+  editableQty = false,
+  onChangeQty,
 }) => {
   const missing = Math.max(need - have, 0);
+  const canDec = editableQty && !!onChangeQty && have > 0;
+  const canInc = editableQty && !!onChangeQty;
 
   return (
     <div
@@ -103,23 +109,85 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
               {part.part_num}
             </div>
 
-            <div
-              style={{
-                borderRadius: "999px",
-                padding: "0.25rem 0.7rem",
-                background:
-                  missing > 0
-                    ? "linear-gradient(90deg,#fecaca,#f97373)"
-                    : "linear-gradient(90deg,#bbf7d0,#22c55e)",
-                color: missing > 0 ? "#7f1d1d" : "#022c22",
-                fontSize: "0.8rem",
-                fontWeight: 700,
-                minWidth: "3rem",
-                textAlign: "center",
-              }}
-            >
-              x{have}
-            </div>
+            {editableQty ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={canDec ? () => onChangeQty && onChangeQty(-1) : undefined}
+                  disabled={!canDec}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: "50%",
+                    border: "1px solid rgba(148,163,184,0.9)",
+                    background: "rgba(15,23,42,0.95)",
+                    color: "#e5e7eb",
+                    cursor: canDec ? "pointer" : "default",
+                    opacity: canDec ? 1 : 0.35,
+                    fontWeight: 900,
+                    lineHeight: "22px",
+                  }}
+                  aria-label="Decrease"
+                >
+                  −
+                </button>
+                <div
+                  style={{
+                    borderRadius: "999px",
+                    padding: "0.2rem 0.65rem",
+                    background:
+                      missing > 0
+                        ? "linear-gradient(90deg,#fecaca,#f97373)"
+                        : "linear-gradient(90deg,#bbf7d0,#22c55e)",
+                    color: missing > 0 ? "#7f1d1d" : "#022c22",
+                    fontSize: "0.8rem",
+                    fontWeight: 700,
+                    minWidth: "3rem",
+                    textAlign: "center",
+                  }}
+                >
+                  x{have}
+                </div>
+                <button
+                  type="button"
+                  onClick={canInc ? () => onChangeQty && onChangeQty(1) : undefined}
+                  disabled={!canInc}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: "50%",
+                    border: "1px solid rgba(148,163,184,0.9)",
+                    background: "rgba(15,23,42,0.95)",
+                    color: "#e5e7eb",
+                    cursor: canInc ? "pointer" : "default",
+                    opacity: canInc ? 1 : 0.35,
+                    fontWeight: 900,
+                    lineHeight: "22px",
+                  }}
+                  aria-label="Increase"
+                >
+                  +
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  borderRadius: "999px",
+                  padding: "0.25rem 0.7rem",
+                  background:
+                    missing > 0
+                      ? "linear-gradient(90deg,#fecaca,#f97373)"
+                      : "linear-gradient(90deg,#bbf7d0,#22c55e)",
+                  color: missing > 0 ? "#7f1d1d" : "#022c22",
+                  fontSize: "0.8rem",
+                  fontWeight: 700,
+                  minWidth: "3rem",
+                  textAlign: "center",
+                }}
+              >
+                x{have}
+              </div>
+            )}
           </div>
 
           {/* Colour line */}
