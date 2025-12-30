@@ -40,6 +40,188 @@ def _normalize_set_id(raw: str) -> str:
     return (raw or "").strip()
 
 
+@router.get("/part-categories")
+def list_part_categories(parent_id: Optional[int] = Query(None)) -> List[Dict[str, Any]]:
+    """
+    List part categories filtered by parent_id.
+    - parent_id omitted => top-level (parent_id IS NULL)
+    - parent_id provided => children of that parent
+    """
+    with db() as con:
+        if parent_id is None:
+            cur = con.execute(
+                """
+                SELECT part_cat_id, name, parent_id
+                FROM part_categories
+                WHERE parent_id IS NULL
+                ORDER BY name
+                """
+            )
+        else:
+            cur = con.execute(
+                """
+                SELECT part_cat_id, name, parent_id
+                FROM part_categories
+                WHERE parent_id = ?
+                ORDER BY name
+                """,
+                (int(parent_id),),
+            )
+        rows = cur.fetchall()
+
+    return [
+        {
+            "part_cat_id": int(r["part_cat_id"]),
+            "name": r["name"],
+            "parent_id": r["parent_id"],
+        }
+        for r in rows
+    ]
+
+
+@router.get("/part-categories/{part_cat_id:int}")
+def get_part_category(part_cat_id: int) -> Dict[str, Any]:
+    """
+    Return a single part category row (for breadcrumb/back navigation).
+    """
+    with db() as con:
+        cur = con.execute(
+            """
+            SELECT part_cat_id, name, parent_id
+            FROM part_categories
+            WHERE part_cat_id = ?
+            LIMIT 1
+            """,
+            (int(part_cat_id),),
+        )
+        row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    return {
+        "part_cat_id": int(row["part_cat_id"]),
+        "name": row["name"],
+        "parent_id": row["parent_id"],
+    }
+
+
+@router.get("/part-categories/top")
+def list_top_part_categories() -> List[Dict[str, Any]]:
+    """
+    Return top-level categories (parent_id IS NULL) excluding Duplo/Quatro/Primo.
+    Also include a sample_img_url drawn randomly from any part in this category
+    or its descendants (element_images only, exact part_num match, any colour).
+    """
+    with db() as con:
+        cur = con.execute(
+            """
+            SELECT part_cat_id, name, parent_id
+            FROM part_categories
+            WHERE parent_id IS NULL
+              AND lower(name) NOT LIKE '%duplo%'
+              AND lower(name) NOT LIKE '%quatro%'
+              AND lower(name) NOT LIKE '%primo%'
+            ORDER BY name
+            """
+        )
+        top_rows = cur.fetchall()
+
+        out: List[Dict[str, Any]] = []
+        for row in top_rows:
+            cat_id = int(row["part_cat_id"])
+
+            # Recursive CTE to gather descendants for this top category
+            img_cur = con.execute(
+                """
+                WITH RECURSIVE cats(id) AS (
+                  SELECT part_cat_id FROM part_categories WHERE part_cat_id = ?
+                  UNION ALL
+                  SELECT pc.part_cat_id
+                  FROM part_categories pc
+                  JOIN cats c ON pc.parent_id = c.id
+                )
+                SELECT ei.img_url
+                FROM parts p
+                JOIN cats c ON p.part_cat_id = c.id
+                JOIN element_images ei ON ei.part_num = p.part_num
+                WHERE ei.img_url IS NOT NULL
+                  AND TRIM(ei.img_url) <> ''
+                ORDER BY RANDOM()
+                LIMIT 1
+                """,
+                (cat_id,),
+            )
+            img_row = img_cur.fetchone()
+            sample_img = img_row["img_url"] if img_row else None
+
+            out.append(
+                {
+                    "part_cat_id": cat_id,
+                    "name": row["name"],
+                    "parent_id": row["parent_id"],
+                    "sample_img_url": sample_img,
+                }
+            )
+
+    return out
+
+
+@router.get("/parts/by-category")
+def parts_by_category(
+    category_id: int = Query(..., description="part_cat_id to browse (includes descendants)"),
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+) -> List[Dict[str, Any]]:
+    """
+    Return parts for a category and all its descendants.
+    Images are strict from element_images (any colour, exact part_num match).
+    """
+    with db() as con:
+        cur = con.execute(
+            """
+            WITH RECURSIVE cats(id) AS (
+              SELECT part_cat_id FROM part_categories WHERE part_cat_id = ?
+              UNION ALL
+              SELECT pc.part_cat_id
+              FROM part_categories pc
+              JOIN cats c ON pc.parent_id = c.id
+            )
+            SELECT
+              p.part_num,
+              p.name AS part_name,
+              p.part_cat_id,
+              (
+                SELECT ei.img_url
+                FROM element_images ei
+                WHERE ei.part_num = p.part_num
+                  AND ei.img_url IS NOT NULL
+                  AND TRIM(ei.img_url) <> ''
+                ORDER BY
+                  CASE WHEN ei.color_id = 0 THEN 1 ELSE 0 END,
+                  ei.color_id
+                LIMIT 1
+              ) AS part_img_url
+            FROM parts p
+            WHERE p.part_cat_id IN (SELECT id FROM cats)
+            ORDER BY p.part_num
+            LIMIT ? OFFSET ?
+            """,
+            (int(category_id), int(limit), int(offset)),
+        )
+        rows = cur.fetchall()
+
+    return [
+        {
+            "part_num": r["part_num"],
+            "part_name": r["part_name"],
+            "part_cat_id": r["part_cat_id"],
+            "part_img_url": r["part_img_url"],
+        }
+        for r in rows
+    ]
+
+
 @router.get("/parts")
 def get_catalog_parts(
     set: Optional[str] = Query(None, description="LEGO set number (alias: set_num, id)"),

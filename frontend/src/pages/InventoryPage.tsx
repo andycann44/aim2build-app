@@ -204,65 +204,63 @@ const InventoryPage: React.FC = () => {
             position: "relative",
             zIndex: 1,
             display: "flex",
-            flexWrap: "wrap",
+            justifyContent: "space-between",
             gap: "0.5rem",
+            flexWrap: "wrap",
             alignItems: "center",
           }}
         >
-          <div
-            style={{
-              borderRadius: "999px",
-              background: "rgba(15,23,42,0.8)",
-              padding: "0.25rem 0.85rem",
-              fontSize: "0.8rem",
-              border: "1px solid rgba(148,163,184,0.5)",
-            }}
-          >
-            {stats.unique.toLocaleString()} unique parts ·{" "}
-            {stats.total.toLocaleString()} pieces
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+            <div
+              style={{
+                borderRadius: "999px",
+                background: "rgba(15,23,42,0.8)",
+                padding: "0.25rem 0.85rem",
+                fontSize: "0.8rem",
+                border: "1px solid rgba(148,163,184,0.5)",
+              }}
+            >
+              {stats.unique.toLocaleString()} unique parts ·{" "}
+              {stats.total.toLocaleString()} pieces
+            </div>
+
+            <SortMenu sortMode={sortMode} onChange={setSortMode} />
+
+            <button
+              type="button"
+              onClick={loadParts}
+              style={{
+                borderRadius: "6px",
+                padding: "0.25rem 0.75rem",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+                background: "rgba(15,23,42,0.35)",
+                color: "#e5e7eb",
+                border: "1px solid rgba(148,163,184,0.35)",
+              }}
+            >
+              Refresh
+            </button>
           </div>
 
-          <SortMenu sortMode={sortMode} onChange={setSortMode} />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+            <button
+              type="button"
+              className="a2b-hero-button a2b-cta-dark"
+              onClick={() => navigate("/inventory/add")}
+              title="Add loose bricks to your inventory (no sets required)."
+            >
+              + Add bricks
+            </button>
 
-          <button
-            type="button"
-            onClick={loadParts}
-            style={{
-              borderRadius: "6px",
-              padding: "0.25rem 0.75rem",
-              fontSize: "0.8rem",
-              cursor: "pointer",
-              background: "rgba(15,23,42,0.35)",
-              color: "#e5e7eb",
-              border: "1px solid rgba(148,163,184,0.35)",
-            }}
-          >
-            Refresh
-          </button>
-
-          <button
-            type="button"
-            className="a2b-hero-button"
-            onClick={() => navigate("/inventory/add")}
-          >
-            + Add bricks
-          </button>
-
-          <button
-            type="button"
-            onClick={clearInventory}
-            style={{
-              borderRadius: "6px",
-              padding: "0.25rem 0.75rem",
-              fontSize: "0.8rem",
-              cursor: "pointer",
-              background: "rgba(220,38,38,0.16)",
-              color: "#fecdd3",
-              border: "1px solid rgba(248,113,113,0.4)",
-            }}
-          >
-            Clear Inventory
-          </button>
+            <button
+              type="button"
+              onClick={clearInventory}
+              className="a2b-btn-glass-danger"
+            >
+              Clear Inventory
+            </button>
+          </div>
         </div>
       </div>
 

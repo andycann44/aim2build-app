@@ -1,4 +1,4 @@
-# lego_catalog.db schema map
+    # lego_catalog.db schema map
 
 - Generated: 2025-12-28 19:19:11Z
 - Path: backend/app/data/lego_catalog.db
