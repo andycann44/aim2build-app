@@ -6,20 +6,12 @@ import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import { searchParts, API_BASE } from "../api/client";
 import { authHeaders } from "../utils/auth";
 
-type ElementRow = {
-  part_num: string;
-  color_id: number;
-  color_name?: string | null;
-  part_img_url?: string | null;
-  img_url?: string | null;
-};
-
 type PartSummary = {
   part_num: string;
   part_name?: string | null;
   part_img_url?: string | null;
 
-  // If the part has exactly one element colour, we cache it here so the part tile can be actionable.
+  // If the part has exactly one element colour, cache it here so the part tile can be actionable.
   default_color_id?: number | null;
   default_color_name?: string | null;
   default_img_url?: string | null;
@@ -37,7 +29,8 @@ const BRICK_SIZES: { label: string; part_num: string }[] = [
 
 const key = (part: string, color: number) => `${part}::${color}`;
 
-async function fetchElementsByPart(partNum: string): Promise<ElementRow[]> {
+async function fetchElementsByPart(partNum: string) {
+  // NOTE: we only use this to detect single-colour parts.
   const res = await fetch(
     `${API_BASE}/api/catalog/elements/by-part?part_num=${encodeURIComponent(partNum)}`,
     { headers: { ...authHeaders() } }
@@ -72,20 +65,23 @@ async function postAddCanonical(part_num: string, color_id: number, qty: number)
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
     throw new Error(
-      msg ? `Error adding part: ${res.status} – ${msg}` : `Error adding part: ${res.status}`
+      msg
+        ? `Error adding part: ${res.status} – ${msg}`
+        : `Error adding part: ${res.status}`
     );
   }
   return res.json().catch(() => null);
 }
 
-async function postDecCanonical(part_num: string, color_id: number, delta: number) {
+async function postDecCanonical(part_num: string, color_id: number, qty: number) {
+  // NOTE: inventory router expects "qty" (not "delta") in your other code paths.
   const res = await fetch(`${API_BASE}/api/inventory/decrement-canonical`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders(),
     },
-    body: JSON.stringify({ part_num, color_id, delta }),
+    body: JSON.stringify({ part_num, color_id, qty }),
   });
   if (!res.ok) {
     const msg = await res.text().catch(() => "");
@@ -143,7 +139,6 @@ const InventoryAddBrickInner: React.FC = () => {
   const [term, setTerm] = useState("");
   const [categoryParts, setCategoryParts] = useState<PartSummary[]>([]);
   const [searchPartsList, setSearchPartsList] = useState<PartSummary[]>([]);
-  const [elements, setElements] = useState<ElementRow[]>([]);
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -173,35 +168,20 @@ const InventoryAddBrickInner: React.FC = () => {
     }
   }, []);
 
-  const loadElementsByPart = useCallback(async (partNum: string) => {
-    setSelectedPart(partNum);
-    setElements([]);
-    setLoading(true);
-    setError("");
-
-    try {
-      const data = await fetchElementsByPart(partNum);
-      setElements(
-        (data || []).map((row) => ({
-          part_num: String(row.part_num),
-          color_id: Number(row.color_id ?? 0),
-          color_name: row.color_name,
-          part_img_url: row.part_img_url ?? row.img_url ?? null,
-        }))
-      );
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to load colours");
-      setElements([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // NEW FLOW: open dedicated colour picker page
+  const openPickColour = useCallback(
+    (partNum: string) => {
+      setSelectedPart(partNum);
+      const q = categoryId ? `?category_id=${encodeURIComponent(categoryId)}` : "";
+      navigate(`/inventory/add/bricks/part/${encodeURIComponent(partNum)}${q}`);
+    },
+    [navigate, categoryId]
+  );
 
   const runSearch = useCallback(
     async (value: string) => {
       setTerm(value);
       setSelectedPart(null);
-      setElements([]);
       setError("");
 
       const v = value.trim();
@@ -247,21 +227,15 @@ const InventoryAddBrickInner: React.FC = () => {
 
       setCategoryParts(hydrated);
 
-      if (hydrated.length > 0) {
-        const first = hydrated[0].part_num;
-        setSelectedPart(first);
-        await loadElementsByPart(first);
-      } else {
-        setElements([]);
-      }
+      // No auto-open of colours; user clicks a part to pick colour
+      setSelectedPart("");
     } catch (e: any) {
       setError(e?.message ?? "Failed to load category parts");
       setCategoryParts([]);
-      setElements([]);
     } finally {
       setLoading(false);
     }
-  }, [categoryId, loadElementsByPart, orderParts]);
+  }, [categoryId, orderParts]);
 
   const changeQty = useCallback(
     async (part_num: string, color_id: number, delta: number) => {
@@ -277,8 +251,8 @@ const InventoryAddBrickInner: React.FC = () => {
             resp && typeof resp.qty === "number"
               ? resp.qty
               : resp && typeof resp.qty_total === "number"
-                ? resp.qty_total
-                : optimistic;
+              ? resp.qty_total
+              : optimistic;
           setOwned((m) => ({ ...m, [k]: serverQty }));
         } else if (delta < 0) {
           const resp = await postDecCanonical(part_num, color_id, Math.abs(delta));
@@ -286,8 +260,8 @@ const InventoryAddBrickInner: React.FC = () => {
             resp && typeof resp.qty === "number"
               ? resp.qty
               : resp && typeof resp.qty_total === "number"
-                ? resp.qty_total
-                : Math.max(optimistic, 0);
+              ? resp.qty_total
+              : Math.max(optimistic, 0);
           setOwned((m) => ({ ...m, [k]: serverQty }));
         }
       } catch (err: any) {
@@ -382,7 +356,7 @@ const InventoryAddBrickInner: React.FC = () => {
             <button
               key={b.part_num}
               type="button"
-              onClick={() => loadElementsByPart(b.part_num)}
+              onClick={() => openPickColour(b.part_num)}
               style={{
                 padding: "0.45rem 0.9rem",
                 borderRadius: 999,
@@ -401,7 +375,7 @@ const InventoryAddBrickInner: React.FC = () => {
         <div style={{ marginTop: "1rem", maxWidth: 720 }}>
           <input
             value={term}
-            onChange={(e) => runSearch(e.target.value)}
+            onChange={(e) => void runSearch(e.target.value)}
             placeholder="3001 or brick 2 x 4"
             style={{
               width: "100%",
@@ -430,12 +404,10 @@ const InventoryAddBrickInner: React.FC = () => {
             typeof p.default_color_id === "number" && Number.isFinite(p.default_color_id as number);
 
           const colorId = hasSingleColour ? (p.default_color_id as number) : -1;
-
           const ownedQty = hasSingleColour ? owned[key(p.part_num, colorId)] ?? 0 : 0;
 
           const onClickTile = () => {
-            // Always load element colours grid (so multi-colour parts work)
-            void loadElementsByPart(p.part_num);
+            void openPickColour(p.part_num);
           };
 
           return (
@@ -458,12 +430,8 @@ const InventoryAddBrickInner: React.FC = () => {
                 need={0}
                 have={ownedQty}
                 mode="inventory"
-                editableQty={hasSingleColour} // ✅ qty adjuster appears ONLY when colour is real and unambiguous
-                onChangeQty={
-                  hasSingleColour
-                    ? (delta) => changeQty(p.part_num, colorId, delta)
-                    : undefined
-                }
+                editableQty={hasSingleColour}
+                onChangeQty={hasSingleColour ? (delta) => changeQty(p.part_num, colorId, delta) : undefined}
                 showBottomLine={false}
                 showInfoButton={true}
                 infoText={p.default_color_name || p.part_name || p.part_num}
@@ -475,40 +443,6 @@ const InventoryAddBrickInner: React.FC = () => {
 
       {loading && <div style={{ padding: "0.75rem" }}>Loading…</div>}
       {error && <div style={{ padding: "0.75rem", color: "#dc2626" }}>{error}</div>}
-
-      {/* COLOUR / ELEMENT RESULTS */}
-      {elements.length > 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-            gap: "1.1rem",
-            paddingBottom: "2.5rem",
-          }}
-        >
-          {elements.map((e) => {
-            const ownedQty = owned[key(e.part_num, e.color_id)] ?? 0;
-            return (
-              <BuildabilityPartsTile
-                key={`${e.part_num}-${e.color_id}`}
-                part={{
-                  part_num: e.part_num,
-                  color_id: e.color_id,
-                  part_img_url: e.part_img_url ?? e.img_url ?? null,
-                }}
-                mode="inventory"
-                have={ownedQty}
-                need={0}
-                editableQty={true}
-                onChangeQty={(delta) => changeQty(e.part_num, e.color_id, delta)}
-                showBottomLine={false}
-                showInfoButton={true}
-                infoText={e.color_name || e.part_num}
-              />
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };

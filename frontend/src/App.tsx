@@ -12,7 +12,7 @@ import HomePage from "./pages/HomePage";
 import AccountPage from "./pages/AccountPage";
 import InventoryAddCategoriesPage from "./pages/InventoryAddCategoriesPage";
 import InventoryAddBrickPage from "./pages/InventoryAddBrickPage";
-
+import InventoryPickColourPage from "./pages/InventoryPickColourPage";
 const App: React.FC = () => {
   return (
     <div className="app-shell">
@@ -98,6 +98,10 @@ const App: React.FC = () => {
           <Route path="/my-sets" element={<MySetsPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/inventory/add" element={<InventoryAddCategoriesPage />} />
+          <Route
+            path="/inventory/add/bricks/part/:partNum"
+            element={<InventoryPickColourPage />}
+          />
           <Route path="/buildability" element={<BuildabilityOverviewPage />} />
           <Route path="/inventory/add/bricks" element={<InventoryAddBrickPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
