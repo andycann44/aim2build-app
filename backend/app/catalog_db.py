@@ -53,41 +53,92 @@ def _apply_color_to_img_url(url: Optional[str], color_id: int) -> Optional[str]:
 
 def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
     """
-    Return canonical parts for a set from the SQLite catalog.
+    Return parts for a set from the SQLite catalog.
 
-    Uses the pre-aggregated inventory_parts_summary table (spares excluded)
-    and joins onto parts to get part_img_url from the master catalog.
+    IMPORTANT CONTRACT (used by buildability):
+      each row must include: part_num, color_id, quantity (int)
 
-    This is our single source of truth for images per part_num.
+    Image source of truth:
+      element_images(part_num, color_id, img_url)
     """
     set_id = _normalise_set_id(set_num)
     if not set_id:
         return []
 
+    def _table_exists(con: sqlite3.Connection, name: str) -> bool:
+        row = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+            (name,),
+        ).fetchone()
+        return row is not None
+
     with db() as con:
-        cur = con.execute(
-            """
-            SELECT
-                s.part_num,
-                s.color_id,
-                s.quantity,
-                p.part_img_url
-            FROM inventory_parts_summary AS s
-            LEFT JOIN parts AS p
-              ON p.part_num = s.part_num
-            WHERE s.set_num = ?
-            ORDER BY s.part_num, s.color_id
-            """,
-            (set_id,),
-        )
-        rows = cur.fetchall()
+        # Prefer instruction-derived requirements if present
+        if False and _table_exists(con, "instruction_set_requirements"):
+            cur = con.execute(
+                """
+                SELECT
+                    r.part_num,
+                    r.color_id,
+                    r.qty AS quantity,
+                    ei.img_url AS img_url
+                FROM instruction_set_requirements AS r
+                LEFT JOIN element_images AS ei
+                  ON ei.part_num = r.part_num AND ei.color_id = r.color_id
+                WHERE r.set_num = ?
+                ORDER BY r.part_num, r.color_id
+                """,
+                (set_id,),
+            )
+            rows = cur.fetchall()
+
+        # Otherwise fall back to set_parts
+        elif _table_exists(con, "set_parts"):
+            cur = con.execute(
+                """
+                SELECT
+                    sp.part_num,
+                    sp.color_id,
+                    sp.qty_per_set AS quantity,
+                    ei.img_url AS img_url
+                FROM set_parts AS sp
+                LEFT JOIN element_images AS ei
+                  ON ei.part_num = sp.part_num AND ei.color_id = sp.color_id
+                WHERE sp.set_num = ?
+                ORDER BY sp.part_num, sp.color_id
+                """,
+                (set_id,),
+            )
+            rows = cur.fetchall()
+
+        else:
+            # Last resort: inventory_parts_summary, but keep the same contract
+            cur = con.execute(
+                """
+                SELECT
+                    s.part_num,
+                    s.color_id,
+                    s.quantity AS quantity,
+                    ei.img_url AS img_url
+                FROM inventory_parts_summary AS s
+                LEFT JOIN element_images AS ei
+                  ON ei.part_num = s.part_num AND ei.color_id = s.color_id
+                WHERE s.set_num = ?
+                ORDER BY s.part_num, s.color_id
+                """,
+                (set_id,),
+            )
+            rows = cur.fetchall()
 
     return [
         {
             "part_num": row["part_num"],
-            "color_id": row["color_id"],
-            "quantity": row["quantity"],
-            "part_img_url": _apply_color_to_img_url(row["part_img_url"], int(row["color_id"]))
+            "color_id": int(row["color_id"]),
+            "quantity": int(row["quantity"] or 0),
+            # keep legacy key too (some callers still expect it)
+            "part_img_url": row["img_url"],
+            # preferred key
+            "img_url": row["img_url"],
         }
         for row in rows
     ]

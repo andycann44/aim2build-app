@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import PartsTile from "../components/PartsTile";
+import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import SortMenu, { SortMode } from "../components/SortMenu";
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
@@ -26,28 +26,32 @@ const InventoryPage: React.FC = () => {
   const loadParts = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await fetch(`${API}/api/inventory/parts_with_images`, {
         headers: {
           ...authHeaders(),
         },
       });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data: InventoryPart[] = await res.json();
 
-      // Merge duplicates: same part_num + color_id
+      // De-dupe: same part_num + color_id (DO NOT sum — backend should be the truth)
       const mergedMap = new Map<string, InventoryPart>();
       for (const p of data) {
         const key = `${p.part_num}-${p.color_id}`;
         const existing = mergedMap.get(key);
-        if (existing) {
-          existing.qty_total =
-            (existing.qty_total ?? 0) + (p.qty_total ?? 0);
+
+        if (!existing) {
+          mergedMap.set(key, { ...p });
+        } else {
+          // keep image if existing is missing it
           if (!existing.part_img_url && p.part_img_url) {
             existing.part_img_url = p.part_img_url;
           }
-        } else {
-          mergedMap.set(key, { ...p });
+          // keep qty_total as-is (no summing)
         }
       }
 
@@ -55,10 +59,7 @@ const InventoryPage: React.FC = () => {
       setParts(mergedParts);
 
       const unique = mergedParts.length;
-      const total = mergedParts.reduce(
-        (sum, p) => sum + (p.qty_total ?? 0),
-        0
-      );
+      const total = mergedParts.reduce((sum, p) => sum + (Number(p.qty ?? p.qty_total) || 0), 0);
       setStats({ unique, total });
     } catch (err: any) {
       console.error("Failed to load inventory parts", err);
@@ -70,19 +71,20 @@ const InventoryPage: React.FC = () => {
 
   const clearInventory = async () => {
     if (!window.confirm("Clear ALL inventory parts?")) return;
+
     try {
-      const res = await fetch(
-        `${API}/api/inventory/clear?confirm=YES`,
-        {
-          method: "DELETE",
-          headers: {
-            ...authHeaders(),
-          },
-        }
-      );
+      const res = await fetch(`${API}/api/inventory/clear-canonical`, {
+        method: "POST",
+        headers: {
+          ...authHeaders(),
+          Accept: "application/json",
+        },
+      });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setParts([]);
-      setStats({ unique: 0, total: 0 });
+
+      // safest: reload from backend truth
+      await loadParts();
     } catch (err) {
       console.error("Failed to clear inventory", err);
       alert("Failed to clear inventory, see console for details.");
@@ -202,65 +204,63 @@ const InventoryPage: React.FC = () => {
             position: "relative",
             zIndex: 1,
             display: "flex",
-            flexWrap: "wrap",
+            justifyContent: "space-between",
             gap: "0.5rem",
+            flexWrap: "wrap",
             alignItems: "center",
           }}
         >
-          <div
-            style={{
-              borderRadius: "999px",
-              background: "rgba(15,23,42,0.8)",
-              padding: "0.25rem 0.85rem",
-              fontSize: "0.8rem",
-              border: "1px solid rgba(148,163,184,0.5)",
-            }}
-          >
-            {stats.unique.toLocaleString()} unique parts ·{" "}
-            {stats.total.toLocaleString()} pieces
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+            <div
+              style={{
+                borderRadius: "999px",
+                background: "rgba(15,23,42,0.8)",
+                padding: "0.25rem 0.85rem",
+                fontSize: "0.8rem",
+                border: "1px solid rgba(148,163,184,0.5)",
+              }}
+            >
+              {stats.unique.toLocaleString()} unique parts ·{" "}
+              {stats.total.toLocaleString()} pieces
+            </div>
+
+            <SortMenu sortMode={sortMode} onChange={setSortMode} />
+
+            <button
+              type="button"
+              onClick={loadParts}
+              style={{
+                borderRadius: "6px",
+                padding: "0.25rem 0.75rem",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+                background: "rgba(15,23,42,0.35)",
+                color: "#e5e7eb",
+                border: "1px solid rgba(148,163,184,0.35)",
+              }}
+            >
+              Refresh
+            </button>
           </div>
 
-          <SortMenu sortMode={sortMode} onChange={setSortMode} />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+            <button
+              type="button"
+              className="a2b-hero-button a2b-cta-dark"
+              onClick={() => navigate("/inventory/add")}
+              title="Add loose bricks to your inventory (no sets required)."
+            >
+              + Add bricks
+            </button>
 
-          <button
-            type="button"
-            onClick={loadParts}
-            style={{
-              borderRadius: "6px",
-              padding: "0.25rem 0.75rem",
-              fontSize: "0.8rem",
-              cursor: "pointer",
-              background: "rgba(15,23,42,0.35)",
-              color: "#e5e7eb",
-              border: "1px solid rgba(148,163,184,0.35)",
-            }}
-          >
-            Refresh
-          </button>
-
-          <button
-            type="button"
-            className="a2b-hero-button"
-            onClick={() => navigate("/inventory/add")}
-          >
-            + Add bricks
-          </button>
-
-          <button
-            type="button"
-            onClick={clearInventory}
-            style={{
-              borderRadius: "6px",
-              padding: "0.25rem 0.75rem",
-              fontSize: "0.8rem",
-              cursor: "pointer",
-              background: "rgba(220,38,38,0.16)",
-              color: "#fecdd3",
-              border: "1px solid rgba(248,113,113,0.4)",
-            }}
-          >
-            Clear Inventory
-          </button>
+            <button
+              type="button"
+              onClick={clearInventory}
+              className="a2b-btn-glass-danger"
+            >
+              Clear Inventory
+            </button>
+          </div>
         </div>
       </div>
 
@@ -289,12 +289,18 @@ const InventoryPage: React.FC = () => {
               alignItems: "flex-start",
             }}
           >
-            {sortedParts.map((p) => (
-              <PartsTile
-                key={`${p.part_num}-${p.color_id}`}
-                part={p}
-              />
-            ))}
+            {sortedParts.map((p) => {
+              const qty = Number(p.qty_total ?? 0);
+              return (
+                <BuildabilityPartsTile
+                  key={`${p.part_num}-${p.color_id}`}
+                  part={p}
+                  need={qty}
+                  have={qty}
+                  mode="inventory"
+                />
+              );
+            })}
           </div>
         )}
       </div>

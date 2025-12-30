@@ -1,99 +1,70 @@
 // frontend/src/pages/InventoryAddCategoriesPage.tsx
-import { authHeaders } from "../utils/auth";
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import InventoryCategoryTile, {
   InventoryCategory,
 } from "../components/InventoryCategoryTile";
+import { authHeaders } from "../utils/auth";
 
 const API = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+
+type PartCategory = {
+  part_cat_id: number;
+  name: string;
+  parent_id: number | null;
+  sample_img_url?: string | null;
+};
 
 const InventoryAddCategoriesPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const passthrough = location.search || "";
+  const qs = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const [categories, setCategories] = useState<InventoryCategory[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [busy, setBusy] = React.useState(false);
-  const [msg, setMsg] = React.useState<string>("");
+  const placeholderImg =
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
-  async function addCanonicalTest() {
-    setBusy(true);
-    setMsg("");
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const url = new URL(`${API}/api/catalog/part-categories/top`);
+        const res = await fetch(url.toString(), {
+          headers: {
+            ...authHeaders(),
+          },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as PartCategory[];
 
-    try {
-      const res = await fetch(`${API}/api/inventory/add-canonical`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders(),
-        },
-        body: JSON.stringify({ part_num: "3005", color_id: 1, qty: 1 }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setMsg(`Error ${res.status}: ${JSON.stringify(data)}`);
-        return;
+        const tiles: InventoryCategory[] = data.map((row) => ({
+          key: String(row.part_cat_id),
+          label: row.name,
+          sampleImgUrl: row.sample_img_url || placeholderImg,
+          onClick: () => {
+            const params = new URLSearchParams(location.search);
+            params.delete("parent_id");
+            params.set("category_id", String(row.part_cat_id));
+            navigate(`/inventory/add/bricks?${params.toString()}`);
+          },
+        }));
+        setCategories(tiles);
+      } catch (err: any) {
+        console.error(err);
+        setError(err?.message ?? "Failed to load categories.");
+        setCategories([]);
+      } finally {
+        setLoading(false);
       }
-
-      setMsg(`OK: 3005/1 qty now = ${data.qty ?? "?"}`);
-    } catch (e: any) {
-      setMsg(`Fetch failed: ${String(e?.message || e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const categories: InventoryCategory[] = [
-    {
-      key: "bricks",
-      label: "Bricks",
-      description: "Standard bricks (1x1, 2x4, etc.)",
-      sampleImgUrl: "https://cdn.rebrickable.com/media/parts/ldraw/21/3001.png",
-      onClick: () => navigate(`/inventory/add/bricks?category_id=11${passthrough ? `&${passthrough.replace(/^\?/, "")}` : ""}`),
-    },
-    {
-      key: "plates",
-      label: "Plates",
-      description: "Thin plates and base pieces.",
-      sampleImgUrl: "https://cdn.rebrickable.com/media/parts/ldraw/21/3020.png",
-      onClick: () => navigate(`/inventory/add/bricks?category_id=14${passthrough ? `&${passthrough.replace(/^\?/, "")}` : ""}`),
-    },
-    {
-      key: "tiles",
-      label: "Tiles & Slopes",
-      description: "Smooth tiles and slopes.",
-      sampleImgUrl: "https://cdn.rebrickable.com/media/parts/ldraw/1/3068b.png",
-      onClick: () => navigate(`/inventory/add/bricks?category_id=19${passthrough ? `&${passthrough.replace(/^\?/, "")}` : ""}`),
-    },
-    {
-      key: "baseplates",
-      label: "Baseplates",
-      description: "Big flat baseplates.",
-      sampleImgUrl: "https://cdn.rebrickable.com/media/sets/ldraw/3811.png",
-      onClick: () => navigate(`/inventory/add/bricks?category_id=1${passthrough ? `&${passthrough.replace(/^\?/, "")}` : ""}`),
-    },
-    {
-      key: "minifig",
-      label: "Minifig & Accessories",
-      description: "Heads, torsos, hats, tools, etc.",
-      sampleImgUrl:
-        "https://cdn.rebrickable.com/media/parts/ldraw/24/3626cpr0096.png",
-      onClick: () => navigate(`/inventory/add/bricks?category_ids=13,27${passthrough ? `&${passthrough.replace(/^\?/, "")}` : ""}`),
-    },
-    {
-      key: "other",
-      label: "Other / Everything",
-      description: "Anything that doesn’t fit above.",
-      sampleImgUrl: "https://cdn.rebrickable.com/media/parts/ldraw/21/3005.png",
-      onClick: () => navigate(`/inventory/add/bricks?category_id=22${passthrough ? `&${passthrough.replace(/^\?/, "")}` : ""}`),
-    },
-  ];
+    };
+    void load();
+  }, [location.search, navigate]);
 
   return (
     <div className="a2b-page a2b-page-inventory-add-categories">
-      {/* HERO BAR stays almost exactly as you had it */}
       <div
         className="search-hero"
         style={{
@@ -164,41 +135,9 @@ const InventoryAddCategoriesPage: React.FC = () => {
             quantities.
           </p>
 
-          {/* Step 1: tiny dev proof button */}
-          <div
-            style={{
-              marginTop: "0.9rem",
-              display: "flex",
-              gap: "0.75rem",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              onClick={addCanonicalTest}
-              disabled={busy}
-              style={{
-                borderRadius: 12,
-                padding: "0.55rem 0.9rem",
-                border: "1px solid rgba(255,255,255,0.35)",
-                background: "rgba(0,0,0,0.25)",
-                color: "#fff",
-                cursor: busy ? "default" : "pointer",
-                fontWeight: 700,
-              }}
-              title="DEV: Adds 1x part 3005, color 1 via /api/inventory/add-canonical"
-            >
-              {busy ? "Adding…" : "DEV: Add 1x 3005 (color 1)"}
-            </button>
-
-            <span style={{ fontSize: "0.9rem", opacity: 0.95 }}>
-              {msg}
-            </span>
-          </div>
         </div>
       </div>
 
-      {/* category tiles that look like parts tiles */}
       <div
         style={{
           marginRight: "2.5rem",
@@ -206,10 +145,14 @@ const InventoryAddCategoriesPage: React.FC = () => {
           paddingBottom: "2.5rem",
         }}
       >
+        {error && (
+          <p style={{ color: "#dc2626", marginBottom: "1rem" }}>{error}</p>
+        )}
+        {loading && <p style={{ marginBottom: "1rem" }}>Loading categories…</p>}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
             gap: "1.6rem",
           }}
         >

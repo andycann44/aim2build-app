@@ -5,7 +5,7 @@ export type InventoryCategory = {
   key: string;
   label: string;
   description?: string;
-  sampleImgUrl: string;
+  sampleImgUrl?: string | null;
   onClick: () => void;
 };
 
@@ -76,19 +76,23 @@ const InventoryCategoryTile: React.FC<{ category: InventoryCategory }> = ({
     >
       <div style={innerStyle}>
         <div style={imgBox}>
-          <img
-            src={category.sampleImgUrl}
-            alt={category.label}
-            style={{
-              maxWidth: "100%",
-              maxHeight: 120,
-              objectFit: "contain",
-              display: "block",
-            }}
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
+          {category.sampleImgUrl ? (
+            <img
+              src={category.sampleImgUrl}
+              alt={category.label}
+              style={{
+                maxWidth: "100%",
+                maxHeight: 120,
+                objectFit: "contain",
+                display: "block",
+              }}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : (
+            <span style={{ color: "#9ca3af", fontSize: "0.85rem" }}>No image</span>
+          )}
         </div>
 
         <div style={labelPill}>{category.label}</div>

@@ -1,6 +1,6 @@
 import { API_BASE } from "../api/client";
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
@@ -41,6 +41,7 @@ const BuildabilityDetailsInner: React.FC = () => {
   // match App.tsx: path="/buildability/:setNum"
   const { setNum } = useParams<{ setNum: string }>();
   const setId = setNum;
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -262,18 +263,22 @@ const BuildabilityDetailsInner: React.FC = () => {
                 : "—"}
             </span>
             {missingPiecesTotal > 0 && (
-              <span
-                className="hero-pill hero-pill--sort"
-                style={{
-                  background: "rgba(220,38,38,0.22)",
-                  borderColor: "rgba(252,165,165,0.75)",
-                  color: "#fef2f2",
-                  fontWeight: 700,
-                }}
-              >
-                Missing pieces: {missingPiecesTotal.toLocaleString()}
-              </span>
-            )}
+            <span
+              className="hero-pill hero-pill--sort"
+              style={{
+                background: "rgba(220,38,38,0.22)",
+                borderColor: "rgba(252,165,165,0.75)",
+                color: "#fef2f2",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                if (setId) navigate(`/buildability/${encodeURIComponent(setId)}/missing`);
+              }}
+            >
+              Missing pieces: {missingPiecesTotal.toLocaleString()}
+            </span>
+          )}
           </div>
         </div>
       </div>

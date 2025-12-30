@@ -7,6 +7,7 @@ import MySetsPage from "./pages/MySetsPage";
 import WishlistPage from "./pages/WishlistPage";
 import SettingsPage from "./pages/SettingsPage";
 import BuildabilityDetailsPage from "./pages/BuildabilityDetailsPage";
+import MissingPartsPage from "./pages/MissingPartsPage";
 import HomePage from "./pages/HomePage";
 import AccountPage from "./pages/AccountPage";
 import InventoryAddCategoriesPage from "./pages/InventoryAddCategoriesPage";
@@ -105,6 +106,10 @@ const App: React.FC = () => {
           <Route
             path="/buildability/:setNum"
             element={<BuildabilityDetailsPage />}
+          />
+          <Route
+            path="/buildability/:setNum/missing"
+            element={<MissingPartsPage />}
           />
         </Routes>
 

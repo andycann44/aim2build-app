@@ -144,9 +144,16 @@ export interface SetSummary {
 export interface InventoryPart {
   part_num: string;
   color_id: number;
-  qty_total: number;
-  // canonical field used across app + backend
+
+  // ✅ canonical fields (match backend)
+  qty: number;
+  color_name?: string | null;
+  img_url?: string | null;
+
+  // ✅ legacy fields (keep optional during migration)
+  qty_total?: number;
   part_img_url?: string | null;
+
   // optional flag from /api/parts/search
   image_exists?: boolean;
 }
@@ -156,6 +163,33 @@ export interface BuildabilityResult {
   coverage: number;
   total_needed: number;
   total_have: number;
+}
+
+export async function getPouredSets(): Promise<string[]> {
+  const data = await json<any[]>(`/api/inventory/sets`);
+  if (!Array.isArray(data)) return [];
+  // tolerate either ["21330-1", ...] or [{set_num:"21330-1"}]
+  return data
+    .map((row) =>
+      typeof row === "string"
+        ? row
+        : typeof row?.set_num === "string"
+        ? row.set_num
+        : null
+    )
+    .filter(Boolean) as string[];
+}
+
+export async function pourSet(set_num: string): Promise<void> {
+  await json(`/api/inventory/pour-set?set=${encodeURIComponent(set_num)}`, {
+    method: "POST",
+  });
+}
+
+export async function unpourSet(set_num: string): Promise<void> {
+  await json(`/api/inventory/unpour-set?set=${encodeURIComponent(set_num)}`, {
+    method: "POST",
+  });
 }
 
 export async function searchParts(
@@ -183,11 +217,18 @@ export async function searchParts(
     // For raw catalog browsing we don't know a specific colour yet;
     // use 0 so the tile can show "Colour —".
     color_id: typeof colorId === "number" ? colorId : 0,
+
+    // canonical
+    qty: 1,
+    img_url: row?.part_img_url ?? null,
+
+    // legacy (optional, safe during migration)
     qty_total: 1,
     part_img_url: row?.part_img_url ?? null,
+
     image_exists:
       row?.image_exists === 1 ||
-      row?.image_exists === true, // be tolerant of int/bool
+      row?.image_exists === true,
   }));
 }
 
@@ -199,7 +240,7 @@ export async function addInventoryPart(
   const payload = {
     part_num,
     color_id,
-    qty_total: qty,
+    qty,
   };
 
   const res = await fetch(`${API_BASE}/api/inventory/add`, {

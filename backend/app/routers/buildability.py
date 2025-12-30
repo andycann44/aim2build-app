@@ -20,7 +20,7 @@ def _load_inventory_json(user_id: int) -> List[dict]:
       {
         "part_num": "3001",
         "color_id": 5,
-        "qty_total": 6,
+        "qty": 6,
         "part_img_url": "..."
       }
     """
@@ -33,7 +33,7 @@ def _load_inventory_json(user_id: int) -> List[dict]:
 
 def _inventory_map(rows: Optional[List[dict]] = None) -> Dict[Tuple[str, int], int]:
     """
-    Build a {(part_num, color_id): qty_total} map from inventory rows.
+    Build a {(part_num, color_id): qty} map from inventory rows.
     """
     if rows is None:
         rows = []
@@ -44,8 +44,8 @@ def _inventory_map(rows: Optional[List[dict]] = None) -> Dict[Tuple[str, int], i
         color = int(r.get("color_id", 0))
         qty = int(
             r.get(
-                "qty_total",
-                r.get("qty", r.get("quantity", 0)),
+                "qty",
+                r.get("qty_total", r.get("quantity", 0)),
             )
         )
         m[(part, color)] = qty
@@ -63,32 +63,6 @@ def _normalize_set_id(raw: str) -> str:
         return f"{s}-1"
     return s
 
-
-def _related_part_nums(part_num: str, con) -> Set[str]:
-    """
-    For a given part_num, return a set of related part_nums including itself,
-    using the part_relationships table.
-
-    We treat parent/child as interchangeable for buildability coverage.
-    """
-    family: Set[str] = {part_num}
-
-    # Direct parent/child links in either direction
-    cur = con.execute(
-        """
-        SELECT parent_part_num, child_part_num
-        FROM part_relationships
-        WHERE parent_part_num = ? OR child_part_num = ?
-        """,
-        (part_num, part_num),
-    )
-    for row in cur.fetchall():
-        parent = str(row["parent_part_num"])
-        child = str(row["child_part_num"])
-        family.add(parent)
-        family.add(child)
-
-    return family
 
 
 # -----------------------
@@ -127,10 +101,6 @@ def compare_buildability(
           { "part_num": "...", "color_id": 5, "need": 2, "have": 1, "short": 1 }
         ]
       }
-
-    Parent/child part variants (from part_relationships) are treated as one
-    family: if you own a related variant in the same colour, it counts towards
-    coverage.
     """
     raw = set_num or set or id
     if not raw:
@@ -157,21 +127,15 @@ def compare_buildability(
     total_have = 0
     missing_parts: List[Dict[str, int]] = []
 
-    with db() as con:
-        for row in parts:
+    for row in parts:
             part_num = str(row["part_num"])
             color_id = int(row["color_id"])
             need = int(row["quantity"])
 
             if need <= 0:
                 continue
-
-            # Sum inventory across this part + its parent/child variants
-            family_nums = _related_part_nums(part_num, con)
-            have = 0
-            for fam in family_nums:
-                have += int(inv_map.get((fam, color_id), 0))
-
+            # Strict match only (part_num, color_id)
+            have = int(inv_map.get((part_num, color_id), 0))
             total_needed += need
             # cap have at need for coverage calculation
             total_have += min(have, need)
@@ -186,6 +150,33 @@ def compare_buildability(
                         "short": need - have,
                     }
                 )
+
+    # Enrich missing_parts with strict catalog images (element_images exact match)
+    if missing_parts:
+        unique_keys = {(m["part_num"], int(m["color_id"])) for m in missing_parts}
+        clauses = []
+        params = []
+        for pn, cid in unique_keys:
+            clauses.append("(part_num = ? AND color_id = ?)")
+            params.extend([pn, cid])
+
+        if clauses:
+            with db() as con:
+                query = (
+                    "SELECT part_num, color_id, img_url "
+                    "FROM element_images "
+                    f"WHERE {' OR '.join(clauses)}"
+                )
+                cur = con.execute(query, params)
+                img_map = {
+                    (str(row["part_num"]), int(row["color_id"])): row["img_url"]
+                    for row in cur.fetchall()
+                    if row["img_url"]
+                }
+            for m in missing_parts:
+                key = (m["part_num"], int(m["color_id"]))
+                if key in img_map:
+                    m["part_img_url"] = img_map[key]
 
     coverage = float(total_have / total_needed) if total_needed > 0 else 0.0
     display_total = get_set_num_parts(set_id)
@@ -264,12 +255,7 @@ def batch_compare_buildability(
 
                 if need <= 0:
                     continue
-
-                family_nums = _related_part_nums(part_num, con)
-                have = 0
-                for fam in family_nums:
-                    have += int(inv_map.get((fam, color_id), 0))
-
+                have = int(inv_map.get((part_num, color_id), 0))
                 total_needed += need
                 total_have += min(have, need)
 

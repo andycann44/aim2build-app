@@ -1,91 +1,64 @@
 /// <reference types="vite/client" />
-import { API_BASE } from "../api/client";
 import React, { useCallback, useEffect, useState } from "react";
 import SetTile from "../components/SetTile";
 import {
+  API_BASE,
   getMySets,
   SetSummary,
   getBuildability,
   BuildabilityResult,
-  // future: reuse common settings if lifted to context
+  getPouredSets,
+  pourSet,
+  unpourSet,
 } from "../api/client";
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
 
-// Use server if env not set
 const API = API_BASE;
 
 type BuildabilityResultWithDisplay = BuildabilityResult & {
   display_total?: number | null;
 };
 
-async function addSetToInventory(setNum: string) {
-  const res = await fetch(
-    `${API}/api/inventory/add?set=${encodeURIComponent(setNum)}`,
-    {
-      method: "POST",
-      headers: {
-        ...authHeaders(),
-      },
-    }
-  );
-
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(
-      msg
-        ? `Error adding to inventory: ${res.status} \u2013 ${msg}`
-        : `Error adding to inventory: ${res.status}`
-    );
-  }
-}
-
 const MySetsPage: React.FC = () => {
   const [sets, setSets] = useState<SetSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // which sets are currently "in inventory" (for the green pill)
-  const [addedInventory, setAddedInventory] = useState<Set<string>>(
-    () => new Set()
-  );
+
+  // Green pill = poured sets from backend
+  const [pouredSets, setPouredSets] = useState<Set<string>>(() => new Set());
+
   const [effectiveParts, setEffectiveParts] = useState<Record<string, number>>(
     {}
   );
-  const [removeAffectsInventory, setRemoveAffectsInventory] = useState<boolean>(() => {
+
+  const refreshPouredSets = useCallback(async () => {
     try {
-      const stored = localStorage.getItem("removeAffectsInventory");
-      if (stored === null) return true;
-      return stored === "true";
-    } catch {
-      return true;
+      const poured = await getPouredSets();
+      setPouredSets(new Set(poured));
+    } catch (err) {
+      console.warn("Failed to refresh poured sets", err);
     }
-  });
+  }, []);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // 1) load my sets
-      const data = await getMySets();
+      // 1) load my sets + poured sets
+      const [data, poured] = await Promise.all([getMySets(), getPouredSets()]);
       setSets(data);
+      setPouredSets(new Set(poured));
 
-      // 2) for each set, ask buildability/compare if it's fully covered
-      const inInv = new Set<string>();
+      // 2) compute "parts needed" for display only
       const partsMap: Record<string, number> = {};
-
       await Promise.all(
         data.map(async (s) => {
           try {
             const cmp = (await getBuildability(
               s.set_num
             )) as BuildabilityResultWithDisplay;
-
-            const cov =
-              typeof cmp.coverage === "number" ? cmp.coverage : 0;
-            if (cov >= 0.999) {
-              inInv.add(s.set_num);
-            }
 
             const totalNeeded =
               typeof cmp.total_needed === "number"
@@ -95,6 +68,7 @@ const MySetsPage: React.FC = () => {
                 : typeof s.num_parts === "number"
                 ? s.num_parts
                 : 0;
+
             partsMap[s.set_num] = totalNeeded;
           } catch (err) {
             console.warn(
@@ -106,7 +80,6 @@ const MySetsPage: React.FC = () => {
         })
       );
 
-      setAddedInventory(inInv);
       setEffectiveParts(partsMap);
     } catch (err: any) {
       console.error(err);
@@ -120,36 +93,18 @@ const MySetsPage: React.FC = () => {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("removeAffectsInventory", String(removeAffectsInventory));
-    } catch {
-      // ignore
-    }
-  }, [removeAffectsInventory]);
-
   const handleAddInventory = useCallback(
     async (setNum: string) => {
-      // if we already think it's in inventory, don't double-pour
-      if (addedInventory.has(setNum)) {
-        return;
-      }
-
       try {
-        await addSetToInventory(setNum);
+        await pourSet(setNum);
+        await refreshPouredSets();
 
-        // mark as in inventory locally so pill goes green
-        setAddedInventory((prev) => {
-          const next = new Set(prev);
-          next.add(setNum);
-          return next;
-        });
       } catch (err: any) {
         console.error(err);
         alert(err?.message ?? "Failed to add to inventory");
       }
     },
-    [addedInventory]
+    [refreshPouredSets]
   );
 
   const handleRemoveMySetWithToggle = useCallback(
@@ -169,67 +124,36 @@ const MySetsPage: React.FC = () => {
           const msg = await res.text().catch(() => "");
           alert(
             msg
-              ? `Error removing set: ${res.status} \u2013 ${msg}`
+              ? `Error removing set: ${res.status} – ${msg}`
               : `Error removing set: ${res.status}`
           );
           return;
         }
 
-        // 2) Optionally adjust inventory
-        if (removeAffectsInventory && inInventory) {
-          const invRes = await fetch(
-            `${API}/api/inventory/remove_set?set=${encodeURIComponent(setNum)}`,
-            {
-              method: "POST",
-              headers: {
-                ...authHeaders(),
-              },
-            }
-          );
-          if (!invRes.ok) {
-            console.warn("inventory remove_set failed", invRes.status);
-          }
+        // 2) If poured, unpour it
+        if (inInventory) {
+          await unpourSet(setNum);
         }
 
-        // 3) Refresh local view
+        // 3) Refresh
         await load();
       } catch (err) {
         console.error(err);
         alert("Failed to remove set, please try again.");
       }
     },
-    [load, removeAffectsInventory]
-  );
-
-  const handleRemoveFromInventory = useCallback(
-    async (setNum: string) => {
-      try {
-        const res = await fetch(
-          `${API}/api/inventory/remove_set?set=${encodeURIComponent(setNum)}`,
-          {
-            method: "POST",
-            headers: {
-              ...authHeaders(),
-            },
-          }
-        );
-        if (!res.ok) {
-          const msg = await res.text().catch(() => "");
-          alert(
-            msg
-              ? `Error removing from inventory: ${res.status} \u2013 ${msg}`
-              : `Error removing from inventory: ${res.status}`
-          );
-          return;
-        }
-        await load();
-      } catch (err) {
-        console.error(err);
-        alert("Failed to remove parts from inventory. Please try again.");
-      }
-    },
     [load]
   );
+
+  const handleRemoveFromInventory = useCallback(async (setNum: string) => {
+    try {
+      await unpourSet(setNum);
+      await refreshPouredSets();
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message ?? "Failed to remove from inventory");
+    }
+  }, [refreshPouredSets]);
 
   return (
     <div className="page page-mysets">
@@ -301,10 +225,10 @@ const MySetsPage: React.FC = () => {
             fontSize: "1rem",
           }}
         >
-          Click &quot;Add to Inventory&quot; to pour all parts from a set
-          into your collection. Removing a set will try to take those
-          bricks back out again.
+          Click &quot;Add to Inventory&quot; to pour all buildable parts
+          (non-spares) from a set into your collection.
         </p>
+
       </div>
 
       {/* BODY */}
@@ -314,15 +238,15 @@ const MySetsPage: React.FC = () => {
 
         {!loading && !error && sets.length === 0 && (
           <p className="search-empty">
-            You haven&apos;t added any sets yet. Use the Search page and
-            click &quot;+ My Sets&quot; on a tile to see it here.
+            You haven&apos;t added any sets yet. Use the Search page and click
+            &quot;+ My Sets&quot; on a tile to see it here.
           </p>
         )}
 
         {sets.length > 0 && (
           <div className="tile-grid">
             {sets.map((s) => {
-              const inInv = addedInventory.has(s.set_num);
+              const inInv = pouredSets.has(s.set_num);
               const numPartsOverride = effectiveParts[s.set_num];
               const setWithOverride = {
                 ...s,
