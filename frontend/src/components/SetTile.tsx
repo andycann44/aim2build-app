@@ -1,5 +1,7 @@
 import React from "react";
 import { SetSummary } from "../api/client";
+import { API_BASE } from "../api/client";
+import { authHeaders } from "../utils/auth";
 
 type TileSet = Pick<
   SetSummary,
@@ -65,10 +67,30 @@ const SetTile: React.FC<SetTileProps> = ({
     if (onAddWishlist) onAddWishlist(set_num);
   };
 
-  const handleAddInventory = () => {
-    if (onAddInventory) onAddInventory(set_num);
-  };
+  const handleAddInventory = async () => {
+  if (!set_num) return;
 
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/inventory/pour-set?set=${encodeURIComponent(set_num)}`,
+      {
+        method: "POST",
+        headers: authHeaders(),
+      }
+    );
+
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || `Failed to add set (${res.status})`);
+    }
+
+    // notify parent so UI refreshes state
+    if (onAddInventory) onAddInventory(set_num);
+  } catch (e: any) {
+    console.error(e);
+    alert(e?.message || "Failed to add set to inventory");
+  }
+};
   const handleRemoveFromInventory = () => {
     if (onRemoveFromInventory) onRemoveFromInventory(set_num);
   };

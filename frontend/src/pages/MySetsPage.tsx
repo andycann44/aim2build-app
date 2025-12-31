@@ -64,10 +64,10 @@ const MySetsPage: React.FC = () => {
               typeof cmp.total_needed === "number"
                 ? cmp.total_needed
                 : typeof cmp.display_total === "number"
-                ? cmp.display_total
-                : typeof s.num_parts === "number"
-                ? s.num_parts
-                : 0;
+                  ? cmp.display_total
+                  : typeof s.num_parts === "number"
+                    ? s.num_parts
+                    : 0;
 
             partsMap[s.set_num] = totalNeeded;
           } catch (err) {
@@ -263,7 +263,13 @@ const MySetsPage: React.FC = () => {
                     in_inventory: inInv,
                   }}
                   inMySets={true}
-                  onAddInventory={inInv ? undefined : handleAddInventory}
+                  onAddInventory={
+                    inInv
+                      ? undefined
+                      : (setNum) => {
+                        handleAddInventory(setNum);
+                      }
+                  }
                   onRemoveFromInventory={(setNum) =>
                     handleRemoveFromInventory(setNum)
                   }

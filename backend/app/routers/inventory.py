@@ -13,6 +13,7 @@ router = APIRouter()
 # DB ensure (matches your aim2build_app.db schema)
 # -----------------------
 
+
 def _ensure_user_inventory_tables(con) -> None:
     """
     USER DB (aim2build_app.db) is source of truth for inventory.
@@ -80,6 +81,7 @@ def _ensure_user_inventory_tables(con) -> None:
 # Catalog spine helpers (READ ONLY)
 # -----------------------
 
+
 def _normalise_set_id(set_num: str) -> str:
     s = (set_num or "").strip()
     if not s:
@@ -139,6 +141,7 @@ def _get_catalog_recipe_parts(set_num: str) -> List[Dict[str, Any]]:
 # -----------------------
 # Inventory read helpers
 # -----------------------
+
 
 def _load_db_parts(user_id: int) -> List[dict]:
     """
@@ -214,6 +217,7 @@ def load_inventory_parts(user_id: int) -> List[dict]:
 # Models
 # -----------------------
 
+
 class InventoryPart(BaseModel):
     part_num: str
     color_id: int
@@ -236,6 +240,7 @@ class DecCanonicalPayload(BaseModel):
 # -----------------------
 # Read endpoints
 # -----------------------
+
 
 @router.get("/parts", response_model=List[InventoryPart])
 def get_parts(current_user: User = Depends(get_current_user)):
@@ -317,6 +322,7 @@ def list_canonical_inventory_parts(current_user: User = Depends(get_current_user
 # Pour / Unpour endpoints (SET TOGGLE SPINE)
 # -----------------------
 
+
 @router.post("/pour-set")
 def pour_set(
     set: str = Query(..., description="LEGO set number, e.g. 75405 or 75405-1"),
@@ -336,7 +342,9 @@ def pour_set(
 
     recipe = _get_catalog_recipe_parts(set_id)
     if not recipe:
-        raise HTTPException(status_code=404, detail=f"set not found in catalog: {set_id}")
+        raise HTTPException(
+            status_code=404, detail=f"set not found in catalog: {set_id}"
+        )
 
     with user_db() as con:
         _ensure_user_inventory_tables(con)
@@ -447,7 +455,13 @@ def unpour_set(
                 (current_user.id, set_id),
             )
             con.commit()
-            return {"ok": True, "set_num": set_id, "already_unpoured": True, "lines": 0, "total_qty": 0}
+            return {
+                "ok": True,
+                "set_num": set_id,
+                "already_unpoured": True,
+                "lines": 0,
+                "total_qty": 0,
+            }
 
         removed_lines = 0
         total_qty = 0
@@ -530,8 +544,11 @@ def unpour_set(
 # Canonical-only mutation endpoints (parts)
 # -----------------------
 
+
 @router.post("/add-canonical")
-def add_canonical_part(payload: AddCanonicalPayload, current_user: User = Depends(get_current_user)):
+def add_canonical_part(
+    payload: AddCanonicalPayload, current_user: User = Depends(get_current_user)
+):
     part_num = (payload.part_num or "").strip()
     if not part_num:
         raise HTTPException(status_code=400, detail="part_num required")
@@ -561,7 +578,9 @@ def add_canonical_part(payload: AddCanonicalPayload, current_user: User = Depend
         row = cur.fetchone()
 
     if row is None:
-        raise HTTPException(status_code=500, detail="insert succeeded but row not found")
+        raise HTTPException(
+            status_code=500, detail="insert succeeded but row not found"
+        )
 
     if hasattr(row, "keys"):
         return dict(row)
@@ -610,7 +629,9 @@ def set_canonical(payload: dict, current_user: User = Depends(get_current_user))
 
 
 @router.post("/decrement-canonical")
-def decrement_canonical_part(payload: DecCanonicalPayload, current_user: User = Depends(get_current_user)):
+def decrement_canonical_part(
+    payload: DecCanonicalPayload, current_user: User = Depends(get_current_user)
+):
     part_num = (payload.part_num or "").strip()
     if not part_num:
         raise HTTPException(status_code=400, detail="part_num required")
@@ -635,27 +656,47 @@ def decrement_canonical_part(payload: DecCanonicalPayload, current_user: User = 
                 "part_num": part_num,
                 "color_id": int(payload.color_id),
                 "qty": 0,
+                "floor": 0,
                 "changed": False,
             }
 
         current_qty = int(row["qty"]) if hasattr(row, "keys") else int(row[0])
-        new_qty = current_qty - int(payload.delta)
 
+        delta = int(payload.delta)
+        color_id = int(payload.color_id)
+
+        # Floor = total qty that came from poured sets (receipt lines)
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(qty), 0)
+            FROM user_set_pour_lines
+            WHERE user_id = ? AND part_num = ? AND color_id = ?
+            """,
+            (current_user.id, part_num, color_id),
+        )
+        floor = int(cur.fetchone()[0] or 0)
+
+        requested = current_qty - delta
+        new_qty = max(requested, floor)  # ✅ allow down to floor, never below
+        changed = (new_qty != current_qty)
+
+        # If floor is 0 and qty hits 0 -> safe delete
         if new_qty <= 0:
             cur.execute(
                 """
                 DELETE FROM user_inventory_parts
                 WHERE user_id = ? AND part_num = ? AND color_id = ?
                 """,
-                (current_user.id, part_num, int(payload.color_id)),
+                (current_user.id, part_num, color_id),
             )
             con.commit()
             return {
                 "user_id": current_user.id,
                 "part_num": part_num,
-                "color_id": int(payload.color_id),
+                "color_id": color_id,
                 "qty": 0,
-                "changed": True,
+                "floor": floor,
+                "changed": changed,
             }
 
         cur.execute(
@@ -664,19 +705,19 @@ def decrement_canonical_part(payload: DecCanonicalPayload, current_user: User = 
             SET qty = ?
             WHERE user_id = ? AND part_num = ? AND color_id = ?
             """,
-            (new_qty, current_user.id, part_num, int(payload.color_id)),
+            (new_qty, current_user.id, part_num, color_id),
         )
         con.commit()
 
-    return {
-        "user_id": current_user.id,
-        "part_num": part_num,
-        "color_id": int(payload.color_id),
-        "qty": new_qty,
-        "changed": True,
-    }
-
-
+        return {
+            "user_id": current_user.id,
+            "part_num": part_num,
+            "color_id": color_id,
+            "qty": new_qty,
+            "floor": floor,
+            "changed": changed,
+        }
+        
 @router.post("/clear-canonical")
 def clear_canonical(current_user: User = Depends(get_current_user)):
     """
@@ -685,8 +726,14 @@ def clear_canonical(current_user: User = Depends(get_current_user)):
     """
     with user_db() as con:
         _ensure_user_inventory_tables(con)
-        con.execute("DELETE FROM user_inventory_parts WHERE user_id=?", (current_user.id,))
-        con.execute("DELETE FROM user_inventory_sets WHERE user_id=?", (current_user.id,))
-        con.execute("DELETE FROM user_set_pour_lines WHERE user_id=?", (current_user.id,))
+        con.execute(
+            "DELETE FROM user_inventory_parts WHERE user_id=?", (current_user.id,)
+        )
+        con.execute(
+            "DELETE FROM user_inventory_sets WHERE user_id=?", (current_user.id,)
+        )
+        con.execute(
+            "DELETE FROM user_set_pour_lines WHERE user_id=?", (current_user.id,)
+        )
         con.commit()
     return {"ok": True}
