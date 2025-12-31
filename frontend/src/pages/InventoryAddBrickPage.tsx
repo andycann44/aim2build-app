@@ -91,7 +91,17 @@ async function postDecCanonical(part_num: string, color_id: number, qty: number)
         : `Error decrementing part: ${res.status}`
     );
   }
-  return res.json().catch(() => null);
+    const data = await res.json().catch(() => null);
+
+  if (data && data.blocked) {
+    const msg =
+      typeof data.message === "string" && data.message.trim()
+        ? data.message
+        : "Locked by poured set. Unpour to remove.";
+    throw new Error(msg);
+  }
+
+  return data;
 }
 
 /**
