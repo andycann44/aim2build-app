@@ -234,7 +234,8 @@ class AddCanonicalPayload(BaseModel):
 class DecCanonicalPayload(BaseModel):
     part_num: str
     color_id: int
-    delta: int = Field(1, gt=0)
+    delta: Optional[int] = None
+    qty: Optional[int] = None
 
 
 # -----------------------
@@ -587,11 +588,13 @@ def add_canonical_part(
     return {"user_id": row[0], "part_num": row[1], "color_id": row[2], "qty": row[3]}
 
 
+from fastapi import HTTPException
+
 @router.post("/set-canonical")
 def set_canonical(payload: dict, current_user: User = Depends(get_current_user)):
     """
     Set exact qty for (part_num, color_id).
-    qty=0 removes the row.
+    qty=0 removes the row *only if* this part/color is not protected by poured-set floor.
     """
     part_num = str(payload.get("part_num") or "").strip()
     if not part_num:
@@ -609,9 +612,50 @@ def set_canonical(payload: dict, current_user: User = Depends(get_current_user))
     with user_db() as con:
         _ensure_user_inventory_tables(con)
         cur = con.cursor()
+
+        # Floor from poured sets (sum of receipt lines)
+        cur.execute(
+            """
+            SELECT COALESCE(SUM(qty), 0)
+            FROM user_set_pour_lines
+            WHERE user_id = ? AND part_num = ? AND color_id = ?
+            """,
+            (current_user.id, part_num, color_id),
+        )
+        floor = int(cur.fetchone()[0] or 0)
+
+        if qty < floor:
+            cur.execute(
+                """
+                SELECT set_num
+                FROM user_set_pour_lines
+                WHERE user_id=? AND part_num=? AND color_id=? AND qty > 0
+                ORDER BY set_num
+                """,
+                (current_user.id, part_num, color_id),
+            )
+            sets = [r["set_num"] if hasattr(r, "keys") else r[0] for r in cur.fetchall()]
+
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "qty_below_poured_floor",
+                    "message": "This part is protected by poured set(s). Unpour the set(s) first, or increase qty.",
+                    "part_num": part_num,
+                    "color_id": color_id,
+                    "requested_qty": qty,
+                    "floor_qty": floor,
+                    "poured_sets": sets,
+                },
+            )
+
+        # qty is valid vs floor
         if qty == 0:
             cur.execute(
-                "DELETE FROM user_inventory_parts WHERE user_id=? AND part_num=? AND color_id=?",
+                """
+                DELETE FROM user_inventory_parts
+                WHERE user_id=? AND part_num=? AND color_id=?
+                """,
                 (current_user.id, part_num, color_id),
             )
         else:
@@ -623,9 +667,10 @@ def set_canonical(payload: dict, current_user: User = Depends(get_current_user))
                 """,
                 (current_user.id, part_num, color_id, qty),
             )
+
         con.commit()
 
-    return {"ok": True, "part_num": part_num, "color_id": color_id, "qty": qty}
+    return {"ok": True, "part_num": part_num, "color_id": color_id, "qty": qty, "floor": floor}
 
 
 @router.post("/decrement-canonical")
@@ -636,51 +681,77 @@ def decrement_canonical_part(
     if not part_num:
         raise HTTPException(status_code=400, detail="part_num required")
 
+    color_id = int(payload.color_id)
+
+    # Accept both frontend shapes:
+    # - some pages send { delta }
+    # - some pages send { qty } meaning "delta"
+    raw = payload.delta if payload.delta is not None else payload.qty
+    try:
+        delta = int(raw if raw is not None else 1)
+    except Exception:
+        raise HTTPException(status_code=400, detail="delta/qty must be an int")
+
+    if delta <= 0:
+        raise HTTPException(status_code=400, detail="delta/qty must be > 0")
+
     with user_db() as con:
         _ensure_user_inventory_tables(con)
         cur = con.cursor()
 
+        # current qty (0 if missing)
         cur.execute(
             """
             SELECT qty
             FROM user_inventory_parts
             WHERE user_id = ? AND part_num = ? AND color_id = ?
             """,
-            (current_user.id, part_num, int(payload.color_id)),
+            (current_user.id, part_num, color_id),
         )
         row = cur.fetchone()
+        current_qty = int(row["qty"]) if (row is not None and hasattr(row, "keys")) else int(row[0]) if row else 0
 
-        if row is None:
+        if current_qty <= 0:
             return {
+                "ok": True,
                 "user_id": current_user.id,
                 "part_num": part_num,
-                "color_id": int(payload.color_id),
+                "color_id": color_id,
                 "qty": 0,
-                "floor": 0,
                 "changed": False,
             }
 
-        current_qty = int(row["qty"]) if hasattr(row, "keys") else int(row[0])
-
-        delta = int(payload.delta)
-        color_id = int(payload.color_id)
-
-        # Floor = total qty that came from poured sets (receipt lines)
+        # floor = qty locked-in by poured sets (sum of receipt lines)
         cur.execute(
             """
-            SELECT COALESCE(SUM(qty), 0)
+            SELECT COALESCE(SUM(qty), 0) AS floor
             FROM user_set_pour_lines
             WHERE user_id = ? AND part_num = ? AND color_id = ?
             """,
             (current_user.id, part_num, color_id),
         )
-        floor = int(cur.fetchone()[0] or 0)
+        floor_row = cur.fetchone()
+        floor = int(floor_row["floor"]) if (floor_row is not None and hasattr(floor_row, "keys")) else int(floor_row[0] if floor_row else 0)
 
         requested = current_qty - delta
-        new_qty = max(requested, floor)  # ✅ allow down to floor, never below
-        changed = (new_qty != current_qty)
 
-        # If floor is 0 and qty hits 0 -> safe delete
+        # If trying to go below floor, block with a clear message
+        if requested < floor:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "blocked": True,
+                    "part_num": part_num,
+                    "color_id": color_id,
+                    "qty": current_qty,
+                    "floor": floor,
+                    "message": "This part is locked by poured set(s). Unpour the set (Remove from Inventory on My Sets) to go below this amount.",
+                },
+            )
+
+        new_qty = requested
+        changed = new_qty != current_qty
+
         if new_qty <= 0:
             cur.execute(
                 """
@@ -689,31 +760,24 @@ def decrement_canonical_part(
                 """,
                 (current_user.id, part_num, color_id),
             )
-            con.commit()
-            return {
-                "user_id": current_user.id,
-                "part_num": part_num,
-                "color_id": color_id,
-                "qty": 0,
-                "floor": floor,
-                "changed": changed,
-            }
+        else:
+            cur.execute(
+                """
+                UPDATE user_inventory_parts
+                SET qty = ?
+                WHERE user_id = ? AND part_num = ? AND color_id = ?
+                """,
+                (new_qty, current_user.id, part_num, color_id),
+            )
 
-        cur.execute(
-            """
-            UPDATE user_inventory_parts
-            SET qty = ?
-            WHERE user_id = ? AND part_num = ? AND color_id = ?
-            """,
-            (new_qty, current_user.id, part_num, color_id),
-        )
         con.commit()
 
         return {
+            "ok": True,
             "user_id": current_user.id,
             "part_num": part_num,
             "color_id": color_id,
-            "qty": new_qty,
+            "qty": max(new_qty, 0),
             "floor": floor,
             "changed": changed,
         }
