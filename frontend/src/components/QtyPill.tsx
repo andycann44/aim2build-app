@@ -57,7 +57,14 @@ export default function QtyPill(props: QtyPillProps) {
     >
       <button
         type="button"
-        onClick={decDisabled ? undefined : props.onDec}
+        onClick={
+          decDisabled
+            ? undefined
+            : (e) => {
+                e.stopPropagation();
+                props.onDec && props.onDec();
+              }
+        }
         disabled={decDisabled}
         style={decDisabled ? btnDisabledStyle : btnStyle}
         aria-label="Decrease"
@@ -79,7 +86,14 @@ export default function QtyPill(props: QtyPillProps) {
 
       <button
         type="button"
-        onClick={incDisabled ? undefined : props.onInc}
+        onClick={
+          incDisabled
+            ? undefined
+            : (e) => {
+                e.stopPropagation();
+                props.onInc && props.onInc();
+              }
+        }
         disabled={incDisabled}
         style={incDisabled ? btnDisabledStyle : btnStyle}
         aria-label="Increase"

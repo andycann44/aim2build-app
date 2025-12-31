@@ -29,6 +29,29 @@ const BRICK_SIZES: { label: string; part_num: string }[] = [
 
 const key = (part: string, color: number) => `${part}::${color}`;
 
+const extractLockedSets = (err: unknown): string[] => {
+  const candidates =
+    (err as any)?.locked_sets ??
+    (err as any)?.lockedSets ??
+    (err as any)?.set_nums ??
+    (err as any)?.poured_sets;
+  const sets: string[] = Array.isArray(candidates)
+    ? candidates.map((s) => String(s)).filter(Boolean)
+    : [];
+
+  const msg = (err as any)?.message || "";
+  const found = [...msg.matchAll(/(\d{4,6}-\d)\b/g), ...msg.matchAll(/(\d{4,6})\b/g)].map(
+    (m) => m[1]
+  );
+
+  const all = [...sets, ...found];
+  const dedup = Array.from(new Set(all.map((s) => s.trim()).filter(Boolean)));
+  return dedup;
+};
+
+const formatLockMessage = (sets: string[]) =>
+  sets.length ? `Remove from My Sets: ${sets.join(", ")}` : "Remove the set from My Sets to go lower.";
+
 async function fetchElementsByPart(partNum: string) {
   // NOTE: we only use this to detect single-colour parts.
   const res = await fetch(
@@ -83,22 +106,31 @@ async function postDecCanonical(part_num: string, color_id: number, qty: number)
     },
     body: JSON.stringify({ part_num, color_id, qty }),
   });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(
-      msg
-        ? `Error decrementing part: ${res.status} – ${msg}`
-        : `Error decrementing part: ${res.status}`
-    );
+  const text = await res.text().catch(() => "");
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
   }
-    const data = await res.json().catch(() => null);
 
-  if (data && data.blocked) {
+  const lockedCandidates = (data?.locked_sets ??
+    data?.lockedSets ??
+    data?.set_nums ??
+    data?.poured_sets) as any;
+  const sets = Array.isArray(lockedCandidates) ? lockedCandidates.map((s) => String(s)) : [];
+
+  if (!res.ok || (data && data.blocked)) {
     const msg =
-      typeof data.message === "string" && data.message.trim()
-        ? data.message
-        : "Locked by poured set. Unpour to remove.";
-    throw new Error(msg);
+      data?.detail?.message ||
+      data?.message ||
+      text ||
+      `Error decrementing part: ${res.status}`;
+    const err: any = new Error(
+      msg ? `Error decrementing part: ${res.status} – ${msg}` : `Error decrementing part: ${res.status}`
+    );
+    if (sets.length) err.locked_sets = sets;
+    throw err;
   }
 
   return data;
@@ -153,6 +185,7 @@ const InventoryAddBrickInner: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [owned, setOwned] = useState<Record<string, number>>({});
+  const [tileNotice, setTileNotice] = useState<Record<string, string>>({});
 
   const orderParts = useCallback((parts: PartSummary[]) => {
     const withImg = parts.filter((p) => !!(p.part_img_url ?? "").toString().trim());
@@ -253,6 +286,11 @@ const InventoryAddBrickInner: React.FC = () => {
       const prev = owned[k] ?? 0;
       const optimistic = Math.max(prev + delta, 0);
       setOwned((m) => ({ ...m, [k]: optimistic }));
+      setTileNotice((prev) => {
+        const next = { ...prev };
+        delete next[k];
+        return next;
+      });
 
       try {
         if (delta > 0) {
@@ -276,7 +314,19 @@ const InventoryAddBrickInner: React.FC = () => {
         }
       } catch (err: any) {
         setOwned((m) => ({ ...m, [k]: prev }));
-        setError(err?.message || "Failed to update inventory.");
+        const msg = err?.message || "Failed to update inventory.";
+        const lockedSets = extractLockedSets(err);
+        const isLock =
+          typeof msg === "string" && msg.toLowerCase().includes("locked") || lockedSets.length > 0;
+        if (isLock) {
+          const text = formatLockMessage(lockedSets);
+          setTileNotice((prev) => ({
+            ...prev,
+            [k]: text,
+          }));
+        } else {
+          setError(msg);
+        }
       }
     },
     [owned]
@@ -416,36 +466,67 @@ const InventoryAddBrickInner: React.FC = () => {
           const colorId = hasSingleColour ? (p.default_color_id as number) : -1;
           const ownedQty = hasSingleColour ? owned[key(p.part_num, colorId)] ?? 0 : 0;
 
-          const onClickTile = () => {
-            void openPickColour(p.part_num);
-          };
+          const onClickTile = hasSingleColour
+            ? undefined
+            : () => {
+                void openPickColour(p.part_num);
+              };
+
+          const tileKey = key(p.part_num, colorId);
+          const notice = tileNotice[tileKey];
 
           return (
             <div
               key={p.part_num}
-              onClick={onClickTile}
               style={{
-                cursor: "pointer",
-                transform: selectedPart === p.part_num ? "translateY(-3px)" : "translateY(0)",
-                transition: "transform 120ms ease",
+                position: "relative",
+                overflow: "visible",
+                borderRadius: 24,
               }}
-              title={p.part_name || p.part_num}
             >
-              <BuildabilityPartsTile
-                part={{
-                  part_num: p.part_num,
-                  color_id: colorId, // real colour if single-colour; otherwise -1 (unknown)
-                  part_img_url: (p.default_img_url ?? p.part_img_url ?? null) as any,
+              <div
+                onClick={onClickTile}
+                style={{
+                  cursor: hasSingleColour ? "default" : "pointer",
+                  transform: selectedPart === p.part_num ? "translateY(-3px)" : "translateY(0)",
+                  transition: "transform 120ms ease",
+                  height: "100%",
                 }}
-                need={0}
-                have={ownedQty}
-                mode="inventory"
-                editableQty={hasSingleColour}
-                onChangeQty={hasSingleColour ? (delta) => changeQty(p.part_num, colorId, delta) : undefined}
-                showBottomLine={false}
-                showInfoButton={true}
-                infoText={p.default_color_name || p.part_name || p.part_num}
-              />
+                title={p.part_name || p.part_num}
+              >
+                <BuildabilityPartsTile
+                  part={{
+                    part_num: p.part_num,
+                    color_id: colorId, // real colour if single-colour; otherwise -1 (unknown)
+                    part_img_url: (p.default_img_url ?? p.part_img_url ?? null) as any,
+                  }}
+                  need={0}
+                  have={ownedQty}
+                  mode="inventory"
+                  editableQty={hasSingleColour}
+                  onChangeQty={
+                    hasSingleColour ? (delta) => changeQty(p.part_num, colorId, delta) : undefined
+                  }
+                  showBottomLine={false}
+                  showInfoButton={true}
+                  infoText={p.default_color_name || p.part_name || p.part_num}
+                />
+              </div>
+              {notice && (
+                <div className="a2b-lockOverlay">
+                  <div className="a2b-lockTitleRow">
+                    <span aria-hidden="true">🔒</span>
+                    <span>Locked</span>
+                    <span className="a2b-lockSpark" aria-hidden="true"></span>
+                  </div>
+                  <div className="a2b-marquee">
+                    <div className="a2b-marqueeTrack">
+                      <span>{notice}</span>
+                      <span>{notice}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

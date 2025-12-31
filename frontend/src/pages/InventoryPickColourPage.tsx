@@ -26,6 +26,29 @@ type InventoryRow = {
 const API = API_BASE;
 const key = (p: string, c: number) => `${p}::${c}`;
 
+const extractLockedSets = (err: unknown): string[] => {
+  const candidates =
+    (err as any)?.locked_sets ??
+    (err as any)?.lockedSets ??
+    (err as any)?.set_nums ??
+    (err as any)?.poured_sets;
+  const sets: string[] = Array.isArray(candidates)
+    ? candidates.map((s) => String(s)).filter(Boolean)
+    : [];
+
+  const msg = (err as any)?.message || "";
+  const found = [...msg.matchAll(/(\d{4,6}-\d)\b/g), ...msg.matchAll(/(\d{4,6})\b/g)].map(
+    (m) => m[1]
+  );
+
+  const all = [...sets, ...found];
+  const dedup = Array.from(new Set(all.map((s) => s.trim()).filter(Boolean)));
+  return dedup;
+};
+
+const formatLockMessage = (sets: string[]) =>
+  sets.length ? `Remove from My Sets: ${sets.join(", ")}` : "Remove the set from My Sets to go lower.";
+
 function useQuery() {
   const { search } = useLocation();
   return useMemo(() => new URLSearchParams(search), [search]);
@@ -68,9 +91,14 @@ async function postDecCanonical(part_num: string, color_id: number, qty: number)
   let data: any = null;
   try { data = text ? JSON.parse(text) : null; } catch { }
 
-  if (!res.ok) {
+  const lockedCandidates = (data?.locked_sets ?? data?.lockedSets ?? data?.set_nums ?? data?.poured_sets) as any;
+  const sets = Array.isArray(lockedCandidates) ? lockedCandidates.map((s) => String(s)) : [];
+
+  if (!res.ok || (data && data.blocked)) {
     const msg = data?.detail?.message || data?.message || text || `Decrement failed (${res.status})`;
-    throw new Error(msg);
+    const err: any = new Error(msg);
+    if (sets.length) err.locked_sets = sets;
+    throw err;
   }
   return data;
 }
@@ -90,6 +118,7 @@ const InventoryPickColourInner: React.FC = () => {
   const [owned, setOwned] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [tileNotice, setTileNotice] = useState<Record<string, string>>({});
 
   const loadInventory = useCallback(async () => {
     try {
@@ -141,6 +170,11 @@ const InventoryPickColourInner: React.FC = () => {
       const prev = owned[k] ?? 0;
       const optimistic = Math.max(prev + delta, 0);
       setOwned((m) => ({ ...m, [k]: optimistic }));
+      setTileNotice((prev) => {
+        const next = { ...prev };
+        delete next[k];
+        return next;
+      });
 
       try {
         if (delta > 0) {
@@ -164,7 +198,19 @@ const InventoryPickColourInner: React.FC = () => {
         }
       } catch (e: any) {
         setOwned((m) => ({ ...m, [k]: prev }));
-        setError(e?.message ?? "Failed to update inventory.");
+        const msg = e?.message ?? "Locked by poured set floor.";
+        const lockedSets = extractLockedSets(e);
+        const isLock =
+          typeof msg === "string" && msg.toLowerCase().includes("locked") || lockedSets.length > 0;
+        if (isLock) {
+          const text = formatLockMessage(lockedSets);
+          setTileNotice((prev) => ({
+            ...prev,
+            [k]: text,
+          }));
+        } else {
+          setError(msg);
+        }
       }
     },
     [owned]
@@ -265,24 +311,48 @@ const InventoryPickColourInner: React.FC = () => {
           const pn = String(e.part_num);
           const cid = Number(e.color_id);
           const have = owned[key(pn, cid)] ?? 0;
+          const notice = tileNotice[key(pn, cid)];
 
           return (
-            <BuildabilityPartsTile
+            <div
               key={`${pn}-${cid}`}
-              part={{
-                part_num: pn,
-                color_id: cid,
-                part_img_url: e.part_img_url ?? e.img_url ?? null,
+              style={{
+                position: "relative",
+                overflow: "visible",
+                borderRadius: 24,
               }}
-              mode="inventory"
-              have={have}
-              need={0}
-              editableQty={true}
-              onChangeQty={(delta) => changeQty(pn, cid, delta)}
-              showBottomLine={false}
-              showInfoButton={true}
-              infoText={e.color_name || `${pn} / ${cid}`}
-            />
+            >
+              <BuildabilityPartsTile
+                part={{
+                  part_num: pn,
+                  color_id: cid,
+                  part_img_url: e.part_img_url ?? e.img_url ?? null,
+                }}
+                mode="inventory"
+                have={have}
+                need={0}
+                editableQty={true}
+                onChangeQty={(delta) => changeQty(pn, cid, delta)}
+                showBottomLine={false}
+                showInfoButton={true}
+                infoText={e.color_name || `${pn} / ${cid}`}
+              />
+              {notice && (
+                <div className="a2b-lockOverlay">
+                  <div className="a2b-lockTitleRow">
+                    <span aria-hidden="true">🔒</span>
+                    <span>Locked</span>
+                    <span className="a2b-lockSpark" aria-hidden="true"></span>
+                  </div>
+                  <div className="a2b-marquee">
+                    <div className="a2b-marqueeTrack">
+                      <span>{notice}</span>
+                      <span>{notice}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>

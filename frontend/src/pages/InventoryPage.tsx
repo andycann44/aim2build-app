@@ -255,6 +255,14 @@ const InventoryPage: React.FC = () => {
 
             <button
               type="button"
+              className="a2b-hero-button a2b-cta-green"
+              onClick={() => navigate("/inventory/edit")}
+            >
+              Edit inventory
+            </button>
+
+            <button
+              type="button"
               onClick={clearInventory}
               className="a2b-btn-glass-danger"
             >
