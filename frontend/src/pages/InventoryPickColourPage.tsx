@@ -5,6 +5,8 @@ import RequireAuth from "../components/RequireAuth";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import { API_BASE } from "../api/client";
 import { authHeaders } from "../utils/auth";
+import NoticeBanner from "../components/NoticeBanner";
+
 
 type ElementRow = {
   part_num: string;
@@ -62,8 +64,15 @@ async function postDecCanonical(part_num: string, color_id: number, qty: number)
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ part_num, color_id, qty }),
   });
-  if (!res.ok) throw new Error(`Decrement failed (${res.status})`);
-  return await res.json().catch(() => null);
+  const text = await res.text().catch(() => "");
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { }
+
+  if (!res.ok) {
+    const msg = data?.detail?.message || data?.message || text || `Decrement failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return data;
 }
 
 const InventoryPickColourInner: React.FC = () => {
@@ -235,7 +244,12 @@ const InventoryPickColourInner: React.FC = () => {
       </div>
 
       {error && (
-        <div style={{ padding: "0.75rem 1rem", color: "#b91c1c" }}>{error}</div>
+        <NoticeBanner
+          kind="warn"
+          title="Inventory locked"
+          message={error}
+          onClose={() => setError("")}
+        />
       )}
       {loading && <div style={{ padding: "0.75rem 1rem" }}>Loading…</div>}
 
