@@ -126,9 +126,12 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: mergedHeaders,
   });
+  if (res.status === 401) {
+    throw new Error("401 Unauthorized");
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${res.statusText} - ${text}`);
+    throw new Error(text || `${path} failed`);
   }
   return res.json() as Promise<T>;
 }
@@ -252,10 +255,13 @@ export async function addInventoryPart(
     body: JSON.stringify(payload),
   });
 
+  if (res.status === 401) {
+    throw new Error("401 Unauthorized");
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(
-      `Failed to add inventory part (${res.status}): ${text || res.statusText}`
+      text || "addInventoryPart failed"
     );
   }
 

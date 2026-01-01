@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route, NavLink } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import SearchPage from "./pages/SearchPage";
 import BuildabilityOverviewPage from "./pages/BuildabilityOverviewPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -110,6 +110,8 @@ const App: React.FC = () => {
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/login" element={<AccountPage />} />
+          <Route path="/Login" element={<Navigate to="/login" replace />} />
           <Route
             path="/buildability/:setNum"
             element={<BuildabilityDetailsPage />}
