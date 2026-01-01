@@ -14,6 +14,7 @@ import InventoryAddCategoriesPage from "./pages/InventoryAddCategoriesPage";
 import InventoryAddBrickPage from "./pages/InventoryAddBrickPage";
 import InventoryPickColourPage from "./pages/InventoryPickColourPage";
 import InventoryEditPage from "./pages/InventoryEditPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 const App: React.FC = () => {
   return (
@@ -112,6 +113,7 @@ const App: React.FC = () => {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/login" element={<AccountPage />} />
           <Route path="/Login" element={<Navigate to="/login" replace />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/buildability/:setNum"
             element={<BuildabilityDetailsPage />}
