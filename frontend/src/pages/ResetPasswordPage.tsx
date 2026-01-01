@@ -69,12 +69,17 @@ const ResetPasswordPage: React.FC = () => {
   };
 
   return (
-    <div className="page page-reset-password" style={{ display: "flex", justifyContent: "center" }}>
+    <div className="page page-reset-password">
       <div
-        className="auth-panel card"
+        className="search-hero"
         style={{
           width: "100%",
-          maxWidth: 560,
+          maxWidth: "100%",
+          boxSizing: "border-box",
+          marginTop: "1.5rem",
+          marginRight: "2.5rem",
+          marginBottom: "1.5rem",
+          marginLeft: 0,
           borderRadius: "18px",
           padding: "1.75rem 1.5rem 1.5rem",
           background:
@@ -83,7 +88,6 @@ const ResetPasswordPage: React.FC = () => {
           color: "#fff",
           position: "relative",
           overflow: "hidden",
-          marginTop: "2rem",
         }}
       >
         <div
@@ -111,88 +115,154 @@ const ResetPasswordPage: React.FC = () => {
         </div>
 
         <div style={{ position: "relative", zIndex: 1 }}>
-          <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>Choose a new password</h2>
-          <p style={{ marginBottom: "1rem", maxWidth: "520px", opacity: 0.9 }}>
-            Enter a new password for your Aim2Build account.
+          <h1
+            style={{
+              fontSize: "1.9rem",
+              fontWeight: 800,
+              letterSpacing: "0.03em",
+              marginBottom: "0.4rem",
+              textShadow: "0 2px 6px rgba(0,0,0,0.45)",
+            }}
+          >
+            Reset password
+          </h1>
+          <p
+            style={{
+              margin: "0.5rem 0 0.75rem",
+              maxWidth: "520px",
+              fontSize: "0.9rem",
+              lineHeight: 1.45,
+              opacity: 0.9,
+            }}
+          >
+            Choose a new password for your Aim2Build account.
           </p>
+        </div>
+      </div>
 
-          <form onSubmit={submit}>
-            <div className="form-field" style={{ marginBottom: "0.85rem" }}>
-              <label htmlFor="new-password">New password</label>
-              <input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter a new password"
+      <div style={{ maxWidth: "720px", margin: "0 auto 2rem", width: "100%" }}>
+        <div
+          className="auth-panel card"
+          style={{
+            width: "100%",
+            borderRadius: "18px",
+            padding: "1.75rem 1.5rem 1.5rem",
+            background:
+              "linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%)",
+            boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
+            color: "#fff",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: "0 0 auto 0",
+              height: "10px",
+              display: "flex",
+              gap: "2px",
+              padding: "0 8px",
+            }}
+          >
+            {["#dc2626", "#f97316", "#fbbf24", "#22c55e", "#0ea5e9", "#6366f1"].map((c, i) => (
+              <div
+                key={i}
                 style={{
-                  width: "100%",
-                  padding: "0.9rem 1rem",
-                  borderRadius: "999px",
-                  border: "2px solid rgba(255,255,255,0.9)",
-                  backgroundColor: "rgba(15,23,42,0.9)",
-                  color: "#f9fafb",
-                  fontSize: "1rem",
-                  boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
-                  outline: "none",
+                  flex: 1,
+                  borderRadius: "99px",
+                  background: c,
+                  opacity: 0.9,
                 }}
               />
-            </div>
+            ))}
+          </div>
 
-            <div className="form-field" style={{ marginBottom: "0.85rem" }}>
-              <label htmlFor="confirm-password">Confirm password</label>
-              <input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Repeat your new password"
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>Choose a new password</h2>
+            <p style={{ marginBottom: "1rem", maxWidth: "520px", opacity: 0.9 }}>
+              Enter a new password for your Aim2Build account.
+            </p>
+
+            <form onSubmit={submit}>
+              <div className="form-field" style={{ marginBottom: "0.85rem" }}>
+                <label htmlFor="new-password">New password</label>
+                <input
+                  id="new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter a new password"
+                  style={{
+                    width: "100%",
+                    padding: "0.9rem 1rem",
+                    borderRadius: "999px",
+                    border: "2px solid rgba(255,255,255,0.9)",
+                    backgroundColor: "rgba(15,23,42,0.9)",
+                    color: "#f9fafb",
+                    fontSize: "1rem",
+                    boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              <div className="form-field" style={{ marginBottom: "0.85rem" }}>
+                <label htmlFor="confirm-password">Confirm password</label>
+                <input
+                  id="confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  placeholder="Repeat your new password"
+                  style={{
+                    width: "100%",
+                    padding: "0.9rem 1rem",
+                    borderRadius: "999px",
+                    border: "2px solid rgba(255,255,255,0.9)",
+                    backgroundColor: "rgba(15,23,42,0.9)",
+                    color: "#f9fafb",
+                    fontSize: "1rem",
+                    boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              {error && (
+                <p style={{ color: "#fecdd3", marginTop: "0.25rem", fontWeight: 600 }}>{error}</p>
+              )}
+              {info && (
+                <p style={{ color: "#bbf7d0", marginTop: "0.4rem", fontWeight: 600 }}>{info}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
                 style={{
+                  marginTop: "1rem",
                   width: "100%",
-                  padding: "0.9rem 1rem",
+                  padding: "0.95rem 1rem",
                   borderRadius: "999px",
-                  border: "2px solid rgba(255,255,255,0.9)",
-                  backgroundColor: "rgba(15,23,42,0.9)",
-                  color: "#f9fafb",
-                  fontSize: "1rem",
-                  boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
-                  outline: "none",
+                  border: "2px solid rgba(255,255,255,0.95)",
+                  fontWeight: 800,
+                  fontSize: "0.95rem",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  cursor: loading ? "default" : "pointer",
+                  background: "linear-gradient(135deg,#f97316,#facc15,#22c55e)",
+                  color: "#111827",
+                  boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
+                  opacity: loading ? 0.85 : 1,
                 }}
-              />
-            </div>
-
-            {error && (
-              <p style={{ color: "#fecdd3", marginTop: "0.25rem", fontWeight: 600 }}>{error}</p>
-            )}
-            {info && (
-              <p style={{ color: "#bbf7d0", marginTop: "0.4rem", fontWeight: 600 }}>{info}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                marginTop: "1rem",
-                width: "100%",
-                padding: "0.95rem 1rem",
-                borderRadius: "999px",
-                border: "2px solid rgba(255,255,255,0.95)",
-                fontWeight: 800,
-                fontSize: "0.95rem",
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-                cursor: loading ? "default" : "pointer",
-                background: "linear-gradient(135deg,#f97316,#facc15,#22c55e)",
-                color: "#111827",
-                boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
-                opacity: loading ? 0.85 : 1,
-              }}
-            >
-              {loading ? "Resetting…" : "Reset password"}
-            </button>
-          </form>
+              >
+                {loading ? "Resetting…" : "Reset password"}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
