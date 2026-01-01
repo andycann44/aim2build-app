@@ -14,6 +14,8 @@ import InventoryAddCategoriesPage from "./pages/InventoryAddCategoriesPage";
 import InventoryAddBrickPage from "./pages/InventoryAddBrickPage";
 import InventoryPickColourPage from "./pages/InventoryPickColourPage";
 import InventoryEditPage from "./pages/InventoryEditPage";
+import { Navigate } from "react-router-dom";
+
 
 const App: React.FC = () => {
   return (
@@ -110,6 +112,8 @@ const App: React.FC = () => {
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/login" element={<AccountPage />} />
+          <Route path="/Login" element={<Navigate to="/login" replace />} />
           <Route
             path="/buildability/:setNum"
             element={<BuildabilityDetailsPage />}

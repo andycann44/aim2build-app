@@ -1,7 +1,42 @@
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import AuthPanel from "../components/AuthPanel";
+import { getToken, clearToken } from "../utils/auth";
+
 
 const AccountPage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const next = useMemo(() => {
+    const p = new URLSearchParams(location.search);
+    const raw = p.get("next") || "";
+    // basic safety: only allow internal paths
+    if (raw.startsWith("/")) return raw;
+    return "/search";
+  }, [location.search]);
+
+  const [authed, setAuthed] = useState<boolean>(() => !!getToken());
+
+  // If user is already logged in and lands on /login?next=..., bounce immediately.
+  useEffect(() => {
+    if (authed) {
+      navigate(next, { replace: true });
+    }
+  }, [authed, next, navigate]);
+
+  const onAuthed = useCallback(() => {
+    setAuthed(true);
+    navigate(next, { replace: true });
+  }, [next, navigate]);
+
+  const onLogout = useCallback(() => {
+    clearToken();
+    setAuthed(false);
+    // stay on account page; user can login again
+    navigate("/login", { replace: true });
+  }, [navigate]);
+
   return (
     <div className="page page-account">
       {/* HERO – match search/mysets style with studs strip */}
@@ -72,15 +107,53 @@ const AccountPage: React.FC = () => {
               opacity: 0.9,
             }}
           >
-            Sign in or create an account to save your sets, wishlist and
-            inventory on this device.
+            Sign in to add sets to My Sets / Wishlist and manage your inventory
+            on this device.
           </p>
         </div>
       </div>
 
-      {/* Auth card aligned with other pages */}
+      {/* Body */}
       <div style={{ maxWidth: "720px", margin: "0 auto 2rem", width: "100%" }}>
-        <AuthPanel />
+        {!authed ? (
+          <AuthPanel onAuthed={onAuthed} />
+        ) : (
+          <div
+            className="card"
+            style={{
+              borderRadius: "18px",
+              padding: "1.25rem 1.25rem 1rem",
+              background: "rgba(15,23,42,0.9)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              boxShadow: "0 18px 40px rgba(0,0,0,0.25)",
+              color: "#fff",
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: "1.1rem" }}>
+              You’re logged in
+            </div>
+            <div style={{ opacity: 0.85, marginTop: "0.35rem" }}>
+              Redirecting…
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={onLogout}
+                style={{
+                  marginTop: "0.9rem",
+                  padding: "0.65rem 1rem",
+                  borderRadius: "999px",
+                  border: "2px solid rgba(255,255,255,0.85)",
+                  fontWeight: 800,
+                  background: "rgba(0,0,0,0.15)",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Log out
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
