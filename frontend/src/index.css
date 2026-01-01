@@ -257,6 +257,153 @@ body.aim2-root {
     0 14px 26px rgba(0, 0, 0, 0.28);
 }
 
+/* ===========================
+   Aim2Build: FINAL LOCK OVERLAY
+   - Animated rainbow border ONLY around overlay box
+   - Soft pulse + glow
+   - Marquee scrolling text
+   - No layout impact (absolute overlay)
+   =========================== */
+
+@keyframes a2bOverlaySpin {
+  0% { --a2bSpin: 0turn; }
+  100% { --a2bSpin: 1turn; }
+}
+
+@keyframes a2bOverlayPulse {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow:
+      0 10px 22px rgba(0,0,0,0.18),
+      0 0 0 0 rgba(255,193,7,0.00);
+  }
+  50% {
+    transform: translateY(-1px);
+    box-shadow:
+      0 14px 30px rgba(0,0,0,0.26),
+      0 0 0 3px rgba(255,193,7,0.18);
+  }
+}
+
+@keyframes a2bSpark {
+  0%   { transform: scale(0.90); opacity: 0.35; }
+  50%  { transform: scale(1.18); opacity: 0.90; }
+  100% { transform: scale(0.90); opacity: 0.35; }
+}
+
+/* marquee */
+@keyframes a2bMarquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Overlay container (place inside a position:relative tile wrapper) */
+.a2b-lockOverlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 6;
+  pointer-events: none;
+
+  border-radius: 16px;
+  padding: 10px 12px;
+  overflow: hidden;
+
+  /* “glass” base */
+  background: rgba(255, 244, 214, 0.92);
+  border: 1px solid rgba(255, 193, 7, 0.40);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  animation: a2bOverlayPulse 1.9s ease-in-out infinite;
+}
+
+/* Animated rainbow border ring around the overlay */
+.a2b-lockOverlay::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 18px;
+  background: conic-gradient(
+    from var(--a2bSpin),
+    #ff3b30,
+    #ff9500,
+    #ffcc00,
+    #34c759,
+    #32ade6,
+    #007aff,
+    #af52de,
+    #ff3b30
+  );
+  animation: a2bOverlaySpin 2.4s linear infinite;
+  z-index: 0;
+}
+
+/* Cut-out center so ::before becomes a border ring */
+.a2b-lockOverlay::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 14px;
+  background: rgba(255, 244, 214, 0.92);
+  z-index: 0;
+}
+
+/* Ensure overlay content sits above the ring */
+.a2b-lockOverlay > * {
+  position: relative;
+  z-index: 1;
+}
+
+.a2b-lockTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  font-size: 14px;
+  color: rgba(25, 25, 25, 0.92);
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.a2b-lockSpark {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 149, 0, 0.95);
+  box-shadow: 0 0 0 4px rgba(255, 149, 0, 0.22);
+  animation: a2bSpark 0.9s ease-in-out infinite;
+}
+
+/* Marquee container: fades edges */
+.a2b-marquee {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+}
+
+/* Track repeats text twice in JSX to create seamless scroll */
+.a2b-marqueeTrack {
+  display: inline-flex;
+  gap: 28px;
+  padding-right: 28px;
+  animation: a2bMarquee 7.5s linear infinite;
+  color: rgba(25, 25, 25, 0.72);
+  font-weight: 650;
+  font-size: 13px;
+}
+
+/* Reduced motion: disable all animations */
+@media (prefers-reduced-motion: reduce) {
+  .a2b-lockOverlay { animation: none; }
+  .a2b-lockOverlay::before { animation: none; }
+  .a2b-marqueeTrack { animation: none; }
+  .a2b-lockSpark { animation: none; }
+}
+
 /* Sidebar footer */
 .app-sidebar-footer {
   margin-top: auto;
