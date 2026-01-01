@@ -4,10 +4,6 @@ import { API_BASE } from "../api/client";
 
 const API = API_BASE;
 
-type AuthPanelProps = {
-  onAuthed?: () => void;
-};
-
 type AuthResult = {
   ok: boolean;
   token?: string;
@@ -80,7 +76,7 @@ function isValidEmail(email: string): boolean {
   return /\S+@\S+\.\S+/.test(email);
 }
 
-const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
+const AuthPanel: React.FC = () => {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -112,42 +108,11 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
     resetForm();
   };
 
-  const handleForgotPassword = async () => {
+  const handleForgotPassword = () => {
     setError(null);
-    setInfo(null);
-
-    if (!isValidEmail(email)) {
-      setError("Enter your email above first, then click Reset password.");
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API}/api/auth/forgot-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      if (res.ok) {
-        // Standard “don’t confirm account existence” wording
-        setInfo("If an account exists for that email, a reset link has been sent.");
-        return;
-      }
-
-      // Endpoint not wired yet — be friendly.
-      if (res.status === 404) {
-        setInfo("Password reset isn’t wired up yet. (Backend endpoint missing.)");
-        return;
-      }
-
-      const data = await res.json().catch(() => null);
-      const detail =
-        (data && (data.detail || data.message)) ||
-        "Could not start password reset. Please try again.";
-      setError(detail);
-    } catch {
-      setInfo("Password reset isn’t available right now. Please try again later.");
-    }
+    setInfo(
+      "Password reset isn’t wired up yet. For now, use your test account details or contact support once email reset is added."
+    );
   };
 
   const switchToLogin = () => {
@@ -202,7 +167,6 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
       }
 
       setIsLoggedIn(true);
-      onAuthed?.();
       return;
     }
 
@@ -228,7 +192,6 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
       saveToken(login.token);
     }
     setIsLoggedIn(true);
-    onAuthed?.();
     setInfo("Welcome! Your account has been created.");
   };
 
@@ -276,19 +239,14 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
       </div>
 
       <div style={{ position: "relative", zIndex: 1 }}>
-        <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>
-          {isLoggedIn ? "You’re signed in" : title}
-        </h2>
+        <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>{isLoggedIn ? "You’re signed in" : title}</h2>
         <p style={{ marginBottom: "1rem", maxWidth: "520px", opacity: 0.9 }}>
-          Use the same account on any device to keep your sets, wishlist and
-          inventory in sync.
+          Use the same account on any device to keep your sets, wishlist and inventory in sync.
         </p>
 
         {isLoggedIn ? (
           <div>
-            <p style={{ marginBottom: "0.75rem", fontWeight: 600 }}>
-              You’re logged in.
-            </p>
+            <p style={{ marginBottom: "0.75rem", fontWeight: 600 }}>You’re logged in.</p>
             <button
               type="button"
               onClick={handleLogout}
@@ -345,16 +303,10 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={
-                    mode === "login"
-                      ? "Enter your password"
-                      : "Choose a password"
-                  }
+                  placeholder={mode === "login" ? "Enter your password" : "Choose a password"}
                   style={{
                     width: "100%",
                     padding: "0.9rem 1rem",
@@ -421,11 +373,7 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
               {error && (
                 <p
                   className="error-message"
-                  style={{
-                    color: "#fecdd3",
-                    marginTop: "0.25rem",
-                    fontWeight: 600,
-                  }}
+                  style={{ color: "#fecdd3", marginTop: "0.25rem", fontWeight: 600 }}
                 >
                   {error}
                 </p>
@@ -493,7 +441,7 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
                   cursor: "pointer",
                 }}
               >
-                Reset password
+                Forgot password?
               </button>
 
               {mode === "login" ? (

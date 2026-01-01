@@ -8,9 +8,6 @@ from pydantic import BaseModel, EmailStr
 
 from app.db import db
 
-# -----------------------------
-# Auth config (dev defaults)
-# -----------------------------
 SECRET_KEY = "dev-secret-change-me"  # TODO: move to environment
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day
@@ -19,12 +16,20 @@ router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
-# -----------------------------
-# Models
-# -----------------------------
 class User(BaseModel):
     id: int
     email: EmailStr
+
+def hash_password(password: str) -> str:
+    # Simple SHA256 hash for dev; truncate super-long passwords just in case
+    raw = password or ""
+    if len(raw) > 256:
+        raw = raw[:256]
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    return hash_password(password) == password_hash
 
 
 class RegisterRequest(BaseModel):
@@ -43,28 +48,6 @@ class TokenResponse(BaseModel):
     user_id: int
 
 
-class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
-
-
-# -----------------------------
-# Password helpers (dev)
-# -----------------------------
-def hash_password(password: str) -> str:
-    # Simple SHA256 hash for dev; truncate super-long passwords just in case
-    raw = password or ""
-    if len(raw) > 256:
-        raw = raw[:256]
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
-def verify_password(password: str, password_hash: str) -> bool:
-    return hash_password(password) == password_hash
-
-
-# -----------------------------
-# Current user dependency
-# -----------------------------
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -79,7 +62,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
             raise credentials_exception
         user_id = int(user_id_raw)
     except Exception:
-        # includes expired token, bad signature, etc.
         raise credentials_exception
 
     with db() as con:
@@ -95,16 +77,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     return User(id=row["id"], email=row["email"])
 
 
-# -----------------------------
-# Routes
-# -----------------------------
 @router.post("/register")
 def register(payload: RegisterRequest):
     email = payload.email.lower().strip()
     raw_password = payload.password or ""
     if len(raw_password) > 72:
         raw_password = raw_password[:72]
-    password_hash = hash_password(raw_password)
+    password_hash = hash_password(payload.password)
 
     with db() as con:
         cur = con.execute("SELECT id FROM users WHERE email = ?", (email,))
@@ -139,7 +118,7 @@ def login(payload: LoginRequest):
     user_id = row["id"]
     password_hash = row["password_hash"]
 
-    if not verify_password(payload.password, password_hash):
+    if not verify_password(payload.password, row["password_hash"]):
         raise HTTPException(status_code=400, detail="Invalid email or password.")
 
     payload_claims = {
@@ -149,21 +128,3 @@ def login(payload: LoginRequest):
     token = jwt.encode(payload_claims, SECRET_KEY, algorithm=ALGORITHM)
 
     return TokenResponse(access_token=token, user_id=user_id)
-
-
-@router.get("/me")
-def me(current_user: User = Depends(get_current_user)):
-    return {"ok": True, "user": current_user}
-
-
-@router.post("/forgot-password")
-def forgot_password(req: ForgotPasswordRequest):
-    """
-    Password reset (phase 1).
-    Always returns 200 to avoid account enumeration.
-    Phase 2 will generate token + send email.
-    """
-    return {
-        "ok": True,
-        "message": "If an account exists for that email, a reset link has been sent.",
-    }

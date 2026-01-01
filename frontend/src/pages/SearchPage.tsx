@@ -12,8 +12,9 @@ import {
 } from "../api/client";
 import { useLocation, useNavigate } from "react-router-dom";
 import SetTile from "../components/SetTile";
-import { authHeaders, clearToken } from "../utils/auth";
+import { authHeaders } from "../utils/auth";
 
+// Use server if env not set
 const API = API_BASE;
 
 const SearchPage: React.FC = () => {
@@ -24,38 +25,32 @@ const SearchPage: React.FC = () => {
   const [lastQuery, setLastQuery] = useState("");
   const [mySetIds, setMySetIds] = useState<Set<string>>(new Set());
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
-
   const navigate = useNavigate();
   const location = useLocation();
 
   const nextUrl = `${location.pathname.toLowerCase()}${location.search}`;
-  const goLogin = useCallback(
-    () => navigate(`/login?next=${encodeURIComponent(nextUrl)}`),
-    [navigate, nextUrl]
-  );
+  const goLogin = useCallback(() => {
+    navigate(`/login?next=${encodeURIComponent(nextUrl)}`);
+  }, [navigate, nextUrl]);
 
-  const hasAuth = useCallback(() => {
+  const hasAuth = () => {
     const h = authHeaders();
     return !!h.Authorization;
-  }, []);
+  };
 
-  const is401 = useCallback((err: any) => {
+  // Robust 401 detector (covers Error("401 Unauthorized"), Response-ish, and thrown strings)
+  const is401 = (err: any) => {
     const msg = String(err?.message ?? err ?? "");
-    return msg.includes("401") || msg.toLowerCase().includes("unauthorized");
-  }, []);
+    const status = (err && (err.status || err.statusCode)) ?? null;
+    return status === 401 || msg.includes("401") || msg.toLowerCase().includes("unauthorized");
+  };
 
-  // Load existing My Sets / Wishlist once on mount (ONLY if logged in)
+  // Load existing My Sets / Wishlist once on mount (don’t spam 401 if logged out)
   useEffect(() => {
     let cancelled = false;
 
     const loadMembership = async () => {
-      if (!hasAuth()) {
-        // not logged in => do not spam protected endpoints
-        setMySetIds(new Set());
-        setWishlistIds(new Set());
-        return;
-      }
-
+      if (!hasAuth()) return; // <- IMPORTANT: avoid 401 spam when logged out
       try {
         const [mySets, wishlist] = await Promise.all([getMySets(), getWishlist()]);
         if (cancelled) return;
@@ -63,17 +58,8 @@ const SearchPage: React.FC = () => {
         setMySetIds(new Set((mySets || []).map((s: SetSummary) => s.set_num)));
         setWishlistIds(new Set((wishlist || []).map((s: SetSummary) => s.set_num)));
       } catch (err) {
-        // If token is expired/invalid, stop the spam and reset local auth state
-        if (is401(err)) {
-          clearToken();
-          if (!cancelled) {
-            setMySetIds(new Set());
-            setWishlistIds(new Set());
-          }
-          return;
-        }
+        if (is401(err)) return; // silently ignore auth failures here
         console.error("Failed to load existing My Sets / Wishlist", err);
-        // Don't block search if this fails.
       }
     };
 
@@ -81,7 +67,8 @@ const SearchPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [hasAuth, is401]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 🔄 TRUE TOGGLE: add if missing, remove (and clean inventory) if present
   const handleToggleMySets = useCallback(
@@ -97,16 +84,13 @@ const SearchPage: React.FC = () => {
         if (alreadyIn) {
           await removeMySet(setNum);
 
+          // Mirror My Sets page behaviour – also remove its inventory
           const res = await fetch(
             `${API}/api/inventory/remove_set?set=${encodeURIComponent(setNum)}`,
-            {
-              method: "POST",
-              headers: authHeaders(),
-            }
+            { method: "POST", headers: authHeaders() }
           );
 
           if (res.status === 401) {
-            clearToken();
             goLogin();
             return;
           }
@@ -122,7 +106,6 @@ const SearchPage: React.FC = () => {
           });
         } else {
           await addMySet(setNum);
-
           setMySetIds((prev) => {
             const next = new Set(prev);
             next.add(setNum);
@@ -131,7 +114,6 @@ const SearchPage: React.FC = () => {
         }
       } catch (err) {
         if (is401(err)) {
-          clearToken();
           goLogin();
           return;
         }
@@ -139,7 +121,7 @@ const SearchPage: React.FC = () => {
         setError("Could not update My Sets. Please try again.");
       }
     },
-    [mySetIds, hasAuth, goLogin, is401]
+    [API, goLogin, mySetIds]
   );
 
   const handleToggleWishlist = useCallback(
@@ -159,23 +141,18 @@ const SearchPage: React.FC = () => {
           });
         } else {
           await addWishlist(setNum);
-          setWishlistIds((prev) => {
-            const n = new Set(prev);
-            n.add(setNum);
-            return n;
-          });
+          setWishlistIds((prev) => new Set(prev).add(setNum));
         }
       } catch (err) {
         if (is401(err)) {
-          clearToken();
           goLogin();
           return;
         }
         console.error(err);
-        setError("Could not update Wishlist. Please try again.");
+        setError("Could not update wishlist. Please try again.");
       }
     },
-    [wishlistIds, hasAuth, goLogin, is401]
+    [goLogin, wishlistIds]
   );
 
   const hasResults = results.length > 0;
@@ -276,8 +253,8 @@ const SearchPage: React.FC = () => {
             Find your next LEGO build
           </h1>
           <p className="text-xs md:text-sm opacity-80 mt-3">
-            Try something like <strong>Home Alone</strong>, <strong>Star Wars</strong>, or a set number like{" "}
-            <strong>21330</strong>.
+            Try something like <strong>Home Alone</strong>, <strong>Star Wars</strong>, or a set
+            number like <strong>21330</strong>.
           </p>
 
           <form
@@ -372,8 +349,8 @@ const SearchPage: React.FC = () => {
 
           {!loading && !results.length && !error && !lastQuery && (
             <p className="search-empty">
-              Start with a word like <strong>home</strong>, <strong>star</strong>, or a set number like{" "}
-              <strong>21330</strong>.
+              Start with a word like <strong>home</strong>, <strong>star</strong>, or a set number
+              like <strong>21330</strong>.
             </p>
           )}
         </div>

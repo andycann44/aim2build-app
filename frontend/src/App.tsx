@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route, NavLink } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import SearchPage from "./pages/SearchPage";
 import BuildabilityOverviewPage from "./pages/BuildabilityOverviewPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -14,8 +14,6 @@ import InventoryAddCategoriesPage from "./pages/InventoryAddCategoriesPage";
 import InventoryAddBrickPage from "./pages/InventoryAddBrickPage";
 import InventoryPickColourPage from "./pages/InventoryPickColourPage";
 import InventoryEditPage from "./pages/InventoryEditPage";
-import { Navigate } from "react-router-dom";
-
 
 const App: React.FC = () => {
   return (
