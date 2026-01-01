@@ -22,6 +22,10 @@ const InventoryPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("default");
   const [stats, setStats] = useState({ unique: 0, total: 0 });
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showClearError, setShowClearError] = useState(false);
+  const [clearErrorText, setClearErrorText] = useState("");
+  const [isClearing, setIsClearing] = useState(false);
 
   const loadParts = useCallback(async () => {
     setLoading(true);
@@ -70,8 +74,11 @@ const InventoryPage: React.FC = () => {
   }, []);
 
   const clearInventory = async () => {
-    if (!window.confirm("Clear ALL inventory parts?")) return;
+    setShowClearConfirm(true);
+  };
 
+  const runClear = async () => {
+    setIsClearing(true);
     try {
       const res = await fetch(`${API}/api/inventory/clear-canonical`, {
         method: "POST",
@@ -85,11 +92,31 @@ const InventoryPage: React.FC = () => {
 
       // safest: reload from backend truth
       await loadParts();
+      setShowClearConfirm(false);
     } catch (err) {
       console.error("Failed to clear inventory", err);
-      alert("Failed to clear inventory, see console for details.");
+      let msg = "Failed to clear inventory.";
+      if (err instanceof Error && err.message) {
+        msg = err.message;
+      } else if (typeof err === "string" && err.trim()) {
+        msg = err;
+      } else if ((err as any)?.detail) {
+        const d = (err as any).detail;
+        if (typeof d === "string" && d.trim()) {
+          msg = d;
+        } else if (typeof d?.message === "string" && d.message.trim()) {
+          msg = d.message;
+        }
+      }
+      setClearErrorText(msg);
+      setShowClearConfirm(false);
+      setShowClearError(true);
+    } finally {
+      setIsClearing(false);
     }
   };
+
+  const closeError = () => setShowClearError(false);
 
   const sortedParts = useMemo(() => {
     const byPartThenColor = (a: InventoryPart, b: InventoryPart) => {
@@ -125,8 +152,19 @@ const InventoryPage: React.FC = () => {
     loadParts();
   }, [loadParts]);
 
+  const handleKeyDownModal = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === "Escape") {
+        if (isClearing) return;
+        if (showClearConfirm) setShowClearConfirm(false);
+        if (showClearError) setShowClearError(false);
+      }
+    },
+    [isClearing, showClearConfirm, showClearError]
+  );
+
   return (
-    <div className="page page-inventory">
+    <div className="page page-inventory" onKeyDown={handleKeyDownModal} tabIndex={-1}>
       <div
         className="inventory-hero"
         style={{
@@ -276,6 +314,145 @@ const InventoryPage: React.FC = () => {
         <p style={{ color: "red", maxWidth: "960px", margin: "0 auto" }}>
           {error}
         </p>
+      )}
+
+      {/* Confirm modal */}
+      {showClearConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (isClearing) return;
+            setShowClearConfirm(false);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "92vw",
+              maxWidth: 480,
+              background: "#fff",
+              color: "#0f172a",
+              borderRadius: 16,
+              boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+              padding: "1.25rem 1.25rem 1rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <span aria-hidden="true" style={{ fontSize: "1.4rem" }}>
+                ⚠️
+              </span>
+              <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>Clear Inventory?</h2>
+            </div>
+            <p style={{ marginTop: "0.75rem", marginBottom: "1rem", lineHeight: 1.45 }}>
+              This will remove ALL inventory parts for your account. This cannot be undone.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.6rem" }}>
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(false)}
+                disabled={isClearing}
+                style={{
+                  borderRadius: 12,
+                  padding: "0.5rem 0.95rem",
+                  border: "1px solid rgba(15,23,42,0.15)",
+                  background: "#f8fafc",
+                  cursor: isClearing ? "default" : "pointer",
+                  opacity: isClearing ? 0.7 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void runClear()}
+                disabled={isClearing}
+                style={{
+                  borderRadius: 12,
+                  padding: "0.5rem 1rem",
+                  border: "1px solid rgba(220,38,38,0.4)",
+                  background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                  color: "#fff",
+                  fontWeight: 800,
+                  cursor: isClearing ? "default" : "pointer",
+                  boxShadow: "0 12px 28px rgba(220,38,38,0.25)",
+                  opacity: isClearing ? 0.8 : 1,
+                }}
+              >
+                {isClearing ? "Clearing…" : "Clear Inventory"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error modal */}
+      {showClearError && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          onClick={() => setShowClearError(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "92vw",
+              maxWidth: 420,
+              background: "#fff",
+              color: "#0f172a",
+              borderRadius: 16,
+              boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+              padding: "1.1rem 1.2rem 1rem",
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, display: "flex", gap: 8 }}>
+              <span aria-hidden="true">⚠️</span>
+              <span>Could not clear inventory</span>
+            </h2>
+            <p style={{ marginTop: "0.75rem", marginBottom: "1rem", lineHeight: 1.45 }}>
+              {clearErrorText || "Failed to clear inventory."}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={closeError}
+                style={{
+                  borderRadius: 12,
+                  padding: "0.5rem 0.9rem",
+                  border: "1px solid rgba(15,23,42,0.15)",
+                  background: "#f8fafc",
+                  cursor: "pointer",
+                }}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* GRID: 4–5 tiles wide on desktop */}
