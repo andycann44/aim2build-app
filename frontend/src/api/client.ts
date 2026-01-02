@@ -9,7 +9,7 @@ export type AuthResult = {
 // --- API base + runtime override ---
 
 // Default: local backend
-const ENV_API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+const ENV_API_BASE = import.meta.env.VITE_API_BASE || "";
 
 const OVERRIDE_KEY = "aim2build_api_override";
 

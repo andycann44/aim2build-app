@@ -2,7 +2,7 @@ import type { SetSummary, InventoryPart } from "./api/client";
 
 // Local-first: override with VITE_API_BASE when needed
 const API =
-  (import.meta as any)?.env?.VITE_API_BASE || "http://127.0.0.1:8000";
+  (import.meta as any)?.env?.VITE_API_BASE || "";
 
 function getToken(): string | null {
   try {

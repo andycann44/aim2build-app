@@ -6,7 +6,7 @@ import InventoryCategoryTile, {
 } from "../components/InventoryCategoryTile";
 import { authHeaders } from "../utils/auth";
 
-const API = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+const API = import.meta.env.VITE_API_BASE || "";
 
 type PartCategory = {
   part_cat_id: number;

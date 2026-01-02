@@ -30,7 +30,7 @@ function isValidEmail(email: string): boolean {
 }
 
 async function loginRequest(email: string, password: string): Promise<AuthResult> {
-  const res = await fetch(`${API}/api/auth/login`, {
+  const res = await fetch(`/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -56,7 +56,7 @@ async function loginRequest(email: string, password: string): Promise<AuthResult
 }
 
 async function registerRequest(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch(`${API}/api/auth/register`, {
+  const res = await fetch(`/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -78,7 +78,7 @@ async function registerRequest(email: string, password: string): Promise<{ ok: b
 }
 
 async function forgotPasswordRequest(email: string): Promise<ForgotResult> {
-  const res = await fetch(`${API}/api/auth/forgot-password`, {
+  const res = await fetch(`/api/auth/forgot-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email }),
