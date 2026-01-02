@@ -1,0 +1,12 @@
+#!/bin/bash
+: "${HISTTIMEFORMAT:=}"
+set -euo pipefail
+[ -f ./a2p_bash_compat.sh ] && source ./a2p_bash_compat.sh
+[ -f /tmp/a2p_env.sh ] && source /tmp/a2p_env.sh
+
+bash scripts/a2b_guard_locked_rules.sh
+
+# optional: quick sanity checks (fast)
+if [ -d frontend ]; then
+  (cd frontend && npm -s run -q build >/dev/null) || { echo "Frontend build failed." >&2; exit 1; }
+fi

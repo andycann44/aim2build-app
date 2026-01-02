@@ -1,0 +1,93 @@
+@baseUrl = http://35.178.138.33:8000
+@email = andy+test001@aim2build.co.uk
+@password = Test1234!
+
+### Health (no auth)
+GET {{baseUrl}}/api/health
+
+### Register test user
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+# THIS IS JSON
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Login (get token)
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+# THIS IS JSON
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Capture token from login response
+@token = {{login.response.body.access_token}}
+
+### Authenticated health check
+GET {{baseUrl}}/api/health
+Authorization: Bearer {{token}}
+
+### Get My Sets (should be empty first time)
+GET {{baseUrl}}/api/mysets
+Authorization: Bearer {{token}}
+
+### Add a set to My Sets
+POST {{baseUrl}}/api/mysets/add?set=75405-1
+Authorization: Bearer {{token}}
+
+### Get My Sets again (should now include 75405-1)
+GET {{baseUrl}}/api/mysets
+Authorization: Bearer {{token}}
+
+### Remove that set from My Sets
+DELETE {{baseUrl}}/api/mysets/remove?set=75405-1
+Authorization: Bearer {{token}}
+
+### Get My Sets after removal
+GET {{baseUrl}}/api/mysets
+Authorization: Bearer {{token}}
+
+### Get Wishlist (should be empty first time)
+GET {{baseUrl}}/api/wishlist
+Authorization: Bearer {{token}}
+
+### Add a set to Wishlist
+POST {{baseUrl}}/api/wishlist/add?set=21330-1
+Authorization: Bearer {{token}}
+
+### Get Wishlist again
+GET {{baseUrl}}/api/wishlist
+Authorization: Bearer {{token}}
+
+### Remove that set from Wishlist
+DELETE {{baseUrl}}/api/wishlist/remove?set=21330-1
+Authorization: Bearer {{token}}
+
+### Get Wishlist after removal
+GET {{baseUrl}}/api/wishlist
+Authorization: Bearer {{token}}
+
+### Search for sets
+GET {{baseUrl}}/api/search?q=home
+Authorization: Bearer {{token}}
+
+### Inventory parts (raw)
+GET {{baseUrl}}/api/inventory/parts
+Authorization: Bearer {{token}}
+
+### Inventory parts with images (used by UI tiles)
+GET {{baseUrl}}/api/inventory/parts_with_images
+Authorization: Bearer {{token}}
+
+### Buildability compare example
+GET {{baseUrl}}/api/buildability/compare?set=21330-1
+Authorization: Bearer {{token}}
+
+
+

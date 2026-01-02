@@ -1,0 +1,41 @@
+%% ERD for lego_core_v2.db
+erDiagram
+  COLORS {
+    INTEGER id PK
+    TEXT name
+    TEXT rgb
+  }
+
+  PARTS {
+    TEXT part_num PK
+    TEXT name
+    INTEGER part_cat_id
+    TEXT part_img_url
+  }
+
+  SET_PARTS {
+    TEXT set_num PK
+    TEXT part_num PK
+    INTEGER color_id PK
+    INTEGER qty_per_set
+    TEXT part_img_url
+  }
+
+  SETS {
+    TEXT set_num PK
+    TEXT name
+    INTEGER year
+    INTEGER theme_id
+    INTEGER num_parts
+    TEXT set_img_url
+  }
+
+  THEMES {
+    INTEGER id PK
+    INTEGER parent_id
+    TEXT name
+  }
+
+  COLORS ||--o{ SET_PARTS : fk
+  PARTS ||--o{ SET_PARTS : fk
+  SETS ||--o{ SET_PARTS : fk

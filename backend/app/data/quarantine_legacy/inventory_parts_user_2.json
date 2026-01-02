@@ -1,0 +1,657 @@
+[
+  {
+    "color_id": 9999,
+    "part_num": "10115308",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "105162pr0001",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "110100pr0001",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "11477",
+    "qty_total": 2
+  },
+  {
+    "color_id": 72,
+    "part_num": "11477",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "15535",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "15573",
+    "qty_total": 4
+  },
+  {
+    "color_id": 4,
+    "part_num": "15573",
+    "qty_total": 2
+  },
+  {
+    "color_id": 15,
+    "part_num": "15573",
+    "qty_total": 3
+  },
+  {
+    "color_id": 0,
+    "part_num": "15712",
+    "qty_total": 4
+  },
+  {
+    "color_id": 4,
+    "part_num": "15712",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "1745",
+    "qty_total": 6
+  },
+  {
+    "color_id": 0,
+    "part_num": "1748",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "1748",
+    "qty_total": 1
+  },
+  {
+    "color_id": 14,
+    "part_num": "17485",
+    "qty_total": 2
+  },
+  {
+    "color_id": 47,
+    "part_num": "18986",
+    "qty_total": 4
+  },
+  {
+    "color_id": 72,
+    "part_num": "20482",
+    "qty_total": 3
+  },
+  {
+    "color_id": 4,
+    "part_num": "23443",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "24299",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "24307",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "2431",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "25269",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "25269",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "27263",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "28802",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "28974",
+    "qty_total": 3
+  },
+  {
+    "color_id": 0,
+    "part_num": "29119",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "29120",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "30029",
+    "qty_total": 4
+  },
+  {
+    "color_id": 4,
+    "part_num": "3003",
+    "qty_total": 3
+  },
+  {
+    "color_id": 4,
+    "part_num": "3005",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "3021",
+    "qty_total": 1
+  },
+  {
+    "color_id": 4,
+    "part_num": "3022",
+    "qty_total": 8
+  },
+  {
+    "color_id": 4,
+    "part_num": "3023",
+    "qty_total": 5
+  },
+  {
+    "color_id": 14,
+    "part_num": "3023",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "3023pr0011",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "3024",
+    "qty_total": 6
+  },
+  {
+    "color_id": 72,
+    "part_num": "3024",
+    "qty_total": 6
+  },
+  {
+    "color_id": 4,
+    "part_num": "3044c",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "3070b",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "3070b",
+    "qty_total": 2
+  },
+  {
+    "color_id": 15,
+    "part_num": "3070b",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "3070bpr9897",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "3171",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "3176",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "3176",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "32064a",
+    "qty_total": 3
+  },
+  {
+    "color_id": 71,
+    "part_num": "32123b",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "32828",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "3386",
+    "qty_total": 4
+  },
+  {
+    "color_id": 4,
+    "part_num": "3386",
+    "qty_total": 4
+  },
+  {
+    "color_id": 4,
+    "part_num": "3388",
+    "qty_total": 1
+  },
+  {
+    "color_id": 4,
+    "part_num": "3389",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "33909",
+    "qty_total": 2
+  },
+  {
+    "color_id": 484,
+    "part_num": "33909",
+    "qty_total": 1
+  },
+  {
+    "color_id": 4,
+    "part_num": "3484",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "35480",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "35480",
+    "qty_total": 3
+  },
+  {
+    "color_id": 71,
+    "part_num": "35480",
+    "qty_total": 6
+  },
+  {
+    "color_id": 72,
+    "part_num": "3666",
+    "qty_total": 2
+  },
+  {
+    "color_id": 72,
+    "part_num": "36840",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "36841",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "36841",
+    "qty_total": 6
+  },
+  {
+    "color_id": 0,
+    "part_num": "3705",
+    "qty_total": 1
+  },
+  {
+    "color_id": 4,
+    "part_num": "3705",
+    "qty_total": 3
+  },
+  {
+    "color_id": 0,
+    "part_num": "3710",
+    "qty_total": 1
+  },
+  {
+    "color_id": 15,
+    "part_num": "3710",
+    "qty_total": 12
+  },
+  {
+    "color_id": 19,
+    "part_num": "3749",
+    "qty_total": 8
+  },
+  {
+    "color_id": 4,
+    "part_num": "3821",
+    "qty_total": 5
+  },
+  {
+    "color_id": 4,
+    "part_num": "3822",
+    "qty_total": 3
+  },
+  {
+    "color_id": 4,
+    "part_num": "3937",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "3938",
+    "qty_total": 6
+  },
+  {
+    "color_id": 179,
+    "part_num": "4006",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "4032a",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "41769",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "41770",
+    "qty_total": 1
+  },
+  {
+    "color_id": 4,
+    "part_num": "4460b",
+    "qty_total": 4
+  },
+  {
+    "color_id": 4,
+    "part_num": "44861",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "4740pr0027",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "48336",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "4865b",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "49668",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "5091",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "5092",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "5093",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "5093",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "5095",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "5095",
+    "qty_total": 2
+  },
+  {
+    "color_id": 1103,
+    "part_num": "53118pr0003",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "54200",
+    "qty_total": 6
+  },
+  {
+    "color_id": 4,
+    "part_num": "54200pr0018",
+    "qty_total": 1
+  },
+  {
+    "color_id": 4,
+    "part_num": "54200pr0019",
+    "qty_total": 1
+  },
+  {
+    "color_id": 4,
+    "part_num": "54200pr0020",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "6141",
+    "qty_total": 2
+  },
+  {
+    "color_id": 71,
+    "part_num": "6141",
+    "qty_total": 3
+  },
+  {
+    "color_id": 4,
+    "part_num": "6231",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "62810",
+    "qty_total": 2
+  },
+  {
+    "color_id": 15,
+    "part_num": "65249",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "65426",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "65429",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "65509",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "6632",
+    "qty_total": 12
+  },
+  {
+    "color_id": 4,
+    "part_num": "6801pr0001",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "6806",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "6813",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "6929pr0001",
+    "qty_total": 1
+  },
+  {
+    "color_id": 4,
+    "part_num": "6930pr0001",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "70681",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "7126",
+    "qty_total": 2
+  },
+  {
+    "color_id": 19,
+    "part_num": "71752",
+    "qty_total": 1
+  },
+  {
+    "color_id": 72,
+    "part_num": "73230",
+    "qty_total": 1
+  },
+  {
+    "color_id": 0,
+    "part_num": "73825",
+    "qty_total": 1
+  },
+  {
+    "color_id": 4,
+    "part_num": "75c07",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "77844",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "79756pr0001",
+    "qty_total": 2
+  },
+  {
+    "color_id": 4,
+    "part_num": "80179",
+    "qty_total": 2
+  },
+  {
+    "color_id": 14,
+    "part_num": "85861",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "85943",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "85984",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "86996",
+    "qty_total": 3
+  },
+  {
+    "color_id": 484,
+    "part_num": "86996",
+    "qty_total": 2
+  },
+  {
+    "color_id": 72,
+    "part_num": "89678",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "93273",
+    "qty_total": 2
+  },
+  {
+    "color_id": 14,
+    "part_num": "98138",
+    "qty_total": 2
+  },
+  {
+    "color_id": 0,
+    "part_num": "99207",
+    "qty_total": 6
+  },
+  {
+    "color_id": 0,
+    "part_num": "99563",
+    "qty_total": 10
+  },
+  {
+    "color_id": 0,
+    "part_num": "99780",
+    "qty_total": 5
+  },
+  {
+    "color_id": 4,
+    "part_num": "99780",
+    "qty_total": 2
+  },
+  {
+    "color_id": 14,
+    "part_num": "99780",
+    "qty_total": 3
+  },
+  {
+    "color_id": 71,
+    "part_num": "99780",
+    "qty_total": 4
+  },
+  {
+    "color_id": 0,
+    "part_num": "99781",
+    "qty_total": 6
+  }
+]
