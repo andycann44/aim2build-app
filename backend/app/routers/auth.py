@@ -7,6 +7,7 @@ import jwt
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, EmailStr
+from app.emailer import send_reset_email
 
 from app.db import db
 
@@ -186,6 +187,7 @@ def login(payload: LoginRequest):
 # Password reset (minimal v1)
 # ----------------------------
 
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
@@ -200,13 +202,9 @@ def forgot_password(req: ForgotPasswordRequest):
     """
     Password reset request.
     Always returns 200 to avoid account enumeration.
-
-    In dev, you can set AIM2BUILD_DEV_RETURN_RESET_TOKEN=1 to return a token
-    so you can test without email.
     """
     email = (req.email or "").lower().strip()
 
-    # Always return OK (even if user doesn't exist)
     safe_response = {
         "ok": True,
         "message": "If an account exists for that email, a reset link has been sent.",
@@ -233,10 +231,20 @@ def forgot_password(req: ForgotPasswordRequest):
         )
         con.commit()
 
+    base = os.getenv("AIM2BUILD_PUBLIC_BASE_URL", "").rstrip("/")
+    reset_url = (
+        f"{base}/reset-password?token={raw_token}"
+        if base
+        else f"/reset-password?token={raw_token}"
+    )
+
+    try:
+        send_reset_email(email, reset_url)
+        print(f"[email] password reset sent to {email}")
+    except Exception as e:
+        print(f"[email] password reset FAILED to {email}: {e}")
+
     if DEV_RETURN_RESET_TOKEN:
-        base = os.getenv("AIM2BUILD_PUBLIC_BASE_URL", "").rstrip("/")
-        reset_path = f"/reset-password?token={raw_token}"
-        reset_url = f"{base}{reset_path}" if base else reset_path
         return {
             **safe_response,
             "reset_token": raw_token,
@@ -245,7 +253,6 @@ def forgot_password(req: ForgotPasswordRequest):
         }
 
     return safe_response
-
 
 @router.post("/reset-password")
 def reset_password(req: ResetPasswordRequest):
@@ -259,7 +266,9 @@ def reset_password(req: ResetPasswordRequest):
         raise HTTPException(status_code=400, detail="Reset token is required.")
 
     if len(new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+        raise HTTPException(
+            status_code=400, detail="Password must be at least 8 characters."
+        )
 
     if len(new_password) > 72:
         new_password = new_password[:72]
@@ -280,12 +289,16 @@ def reset_password(req: ResetPasswordRequest):
         row = cur.fetchone()
 
         if not row:
-            raise HTTPException(status_code=400, detail="Reset token is invalid or expired.")
+            raise HTTPException(
+                status_code=400, detail="Reset token is invalid or expired."
+            )
 
         expires_at = row["expires_at"]
         # ISO compare is safe if stored in ISO format (we do)
         if expires_at <= now_iso:
-            raise HTTPException(status_code=400, detail="Reset token is invalid or expired.")
+            raise HTTPException(
+                status_code=400, detail="Reset token is invalid or expired."
+            )
 
         user_id = int(row["user_id"])
         new_hash = hash_password(new_password)
