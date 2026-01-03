@@ -76,7 +76,7 @@ const res = await fetch(`${API}/api/auth/register`, {
 }
 
 async function forgotPasswordRequest(email: string): Promise<ForgotResult> {
-const res = await fetch(`${API}/api/auth/forgot_password`, {
+const res = await fetch(`${API}/api/auth/forgot-password`, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ email }),
