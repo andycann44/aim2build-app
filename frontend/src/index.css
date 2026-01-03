@@ -404,6 +404,18 @@ body.aim2-root {
   .a2b-lockSpark { animation: none; }
 }
 
+.home-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .home-feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* Sidebar footer */
 .app-sidebar-footer {
   margin-top: auto;

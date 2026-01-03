@@ -1,12 +1,56 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import SetTile from "../components/SetTile";
+import { SetSummary, searchSets } from "../api/client";
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const [featured, setFeatured] = useState<SetSummary[]>([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(false);
+
+  const placeholders = useMemo(() => Array.from({ length: 8 }), []);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoadingFeatured(true);
+      try {
+        const setNums = [
+          "21330-1",
+          "42141-1",
+          "10302-1",
+          "10327-1",
+          "42143-1",
+          "10294-1",
+          "10321-1",
+          "75375-1",
+        ];
+
+        const results: SetSummary[] = [];
+        for (const sn of setNums) {
+          try {
+            const res = await searchSets(sn);
+            const match =
+              res.find((s) => s.set_num === sn) || res.find((s) => s.set_num.startsWith(sn));
+            if (match) {
+              results.push(match);
+            }
+          } catch {
+            // ignore individual failures
+          }
+        }
+
+        setFeatured(results.slice(0, 8));
+      } finally {
+        setLoadingFeatured(false);
+      }
+    };
+
+    void load();
+  }, []);
 
   return (
     <div className="page page-home">
-      {/* HERO HEADER – same style family as Search/My Sets */}
+      {/* HERO HEADER */}
       <div
         className="home-hero"
         style={{
@@ -140,6 +184,76 @@ const HomePage: React.FC = () => {
               View buildability
             </button>
           </div>
+
+          <div style={{ marginTop: "0.6rem", color: "#e5e7eb", opacity: 0.9 }}>
+            Need help?{" "}
+            <a
+              href="mailto:support@aim2build.co.uk"
+              style={{ color: "#c7d2fe", textDecoration: "underline" }}
+            >
+              support@aim2build.co.uk
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Featured sets */}
+      <div
+        style={{
+          marginTop: "0.5rem",
+          marginRight: "2.5rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <h2
+          style={{
+            margin: "0 0 0.65rem",
+            fontSize: "1.1rem",
+            fontWeight: 800,
+            color: "#0f172a",
+          }}
+        >
+          Featured sets
+        </h2>
+        <div
+          className="home-feature-grid"
+        >
+          {loadingFeatured
+            ? placeholders.map((_, idx) => (
+                <div
+                  key={`skeleton-${idx}`}
+                  style={{
+                    borderRadius: 28,
+                    padding: 2,
+                    background:
+                      "linear-gradient(135deg,#f97316,#facc15,#22c55e,#38bdf8,#6366f1)",
+                    boxShadow: "0 18px 40px rgba(15,23,42,0.45)",
+                    minHeight: 360,
+                    opacity: 0.6,
+                  }}
+                >
+                  <div
+                    style={{
+                      borderRadius: 26,
+                      background: "#f3f4f6",
+                      padding: "1.1rem",
+                      height: "100%",
+                    }}
+                  />
+                </div>
+              ))
+            : featured.map((s) => (
+                <SetTile
+                  key={s.set_num}
+                  set={{
+                    set_num: s.set_num,
+                    name: s.name,
+                    year: s.year,
+                    num_parts: s.num_parts,
+                    img_url: s.img_url ?? null,
+                  }}
+                />
+              ))}
         </div>
       </div>
 
@@ -223,4 +337,3 @@ const HomePage: React.FC = () => {
 };
 
 export default HomePage;
-
