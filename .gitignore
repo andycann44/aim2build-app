@@ -48,3 +48,7 @@ backend/app/data/*.db-*
 # PDFs / scratch data
 instruction_pdfs/
 *.csv
+
+# local-only (never commit)
+frontend/.env.local
+backend/.env
