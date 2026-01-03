@@ -30,12 +30,11 @@ function isValidEmail(email: string): boolean {
 }
 
 async function loginRequest(email: string, password: string): Promise<AuthResult> {
-  const res = await fetch(`/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-
+const res = await fetch(`${API}/api/auth/login`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, password }),
+});
   if (res.ok) {
     const data = await res.json().catch(() => null);
     const token: string | undefined = data?.access_token || data?.token;
@@ -56,12 +55,11 @@ async function loginRequest(email: string, password: string): Promise<AuthResult
 }
 
 async function registerRequest(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch(`/api/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-
+const res = await fetch(`${API}/api/auth/register`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, password }),
+});
   if (res.ok) return { ok: true };
 
   let data: any = null;
@@ -78,12 +76,11 @@ async function registerRequest(email: string, password: string): Promise<{ ok: b
 }
 
 async function forgotPasswordRequest(email: string): Promise<ForgotResult> {
-  const res = await fetch(`/api/auth/forgot-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-
+const res = await fetch(`${API}/api/auth/forgot_password`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email }),
+});
   let data: any = null;
   try {
     data = await res.json();
