@@ -55,6 +55,18 @@ def _norm_q(s: str) -> str:
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
+def _base_set_num(s: str) -> Optional[str]:
+    """
+    Return the numeric base of a set number.
+    Examples:
+      "21330-1" -> "21330"
+      "21330"   -> "21330"
+    """
+    if not s:
+        return None
+    m = re.match(r"^(\d{3,6})(?:-\d+)?$", s.strip())
+    return m.group(1) if m else None
+
 
 def _looks_like_set_num(s: str) -> bool:
     s = (s or "").strip()
@@ -155,6 +167,12 @@ def _no_figures_clause() -> str:
 # If a query reduces to only these, we fall back to a default list.
 _STOP_WORDS: Set[str] = {"brick", "bricks", "lego", "set", "sets", "building", "build", "kit", "kits"}
 
+_GENERIC_THEME_WORDS: Set[str] = {
+    "home", "house", "room", "family", "school", "kitchen", "bathroom", "bedroom",
+    "city", "space", "classic", "creator", "technic", "friends", "police", "fire",
+    "train", "trains", "star",
+}
+
 
 def _strip_stopwords(q_norm: str) -> str:
     toks = [t for t in (q_norm or "").split() if t and t not in _STOP_WORDS]
@@ -242,6 +260,10 @@ def _extract_theme_from_tokens(
 
             # guard: do not treat generic stopwords as themes
             if phrase in _STOP_WORDS:
+                continue
+
+            # guard: single generic words must NOT trigger theme mode
+            if n == 1 and phrase in _GENERIC_THEME_WORDS:
                 continue
 
             tid_exact = _theme_id_by_exact_name(con, phrase)
@@ -424,6 +446,35 @@ def search_paged(
     q_raw_full = (q or "").strip()
     if not q_raw_full:
         return {"results": [], "page": page, "page_size": page_size, "total": 0, "has_more": False}
+
+    # ---------- NUMERIC SET SEARCH (no theme interference) ----------
+    base = _base_set_num(q_raw_full)
+    if base:
+        con = _db()
+        cur = con.cursor()
+
+        # Pick the highest suffix (-3 > -2 > -1) for the same base
+        sql = """
+            SELECT
+                s.set_num, s.name, s.year, s.num_parts, s.set_img_url
+            FROM sets s
+            WHERE s.set_num LIKE ? || '-%'
+            ORDER BY
+                CAST(substr(s.set_num, instr(s.set_num,'-')+1) AS INTEGER) DESC
+            LIMIT 1
+        """
+        row = cur.execute(sql, (base,)).fetchone()
+        con.close()
+
+        if row:
+            result = [_row_to_set(row)]
+            return {
+                "results": result,
+                "page": 1,
+                "page_size": 1,
+                "total": 1,
+                "has_more": False,
+            }
 
     # True pagination: exact search only (fuzzy slices a precomputed candidate list).
     if fuzzy:
