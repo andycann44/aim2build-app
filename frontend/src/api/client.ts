@@ -7,12 +7,10 @@ export type AuthResult = {
 };
 
 // --- API base ---
-// Single source of truth: set VITE_API_BASE in frontend .env files.
-// Fallback is local FastAPI.
-export const API_BASE: string =
-  (import.meta.env.VITE_API_BASE as string) || "http://127.0.0.1:8000";
-  console.log("API_BASE =", API_BASE);
-  
+// LOCKED: Deployed builds must always use same-origin (/api/*).
+// Local dev can override with VITE_API_BASE, but ONLY if explicitly set.
+const envBase = ((import.meta as any).env?.VITE_API_BASE as string | undefined) ?? "";
+export const API_BASE: string = envBase.trim() ? envBase.trim() : "";
 
 export interface SetSummary {
   set_num: string;
@@ -85,7 +83,7 @@ export async function register(email: string, password: string): Promise<AuthRes
   let data: any = null;
   try {
     data = await res.json();
-  } catch {}
+  } catch { }
 
   if (res.status === 422) {
     return { ok: false, error: "Please enter a valid email address." };
@@ -112,7 +110,7 @@ export async function login(email: string, password: string): Promise<AuthResult
   let data: any = null;
   try {
     data = await res.json();
-  } catch {}
+  } catch { }
 
   if (res.status === 422) {
     return { ok: false, error: "Please check your email and password." };
@@ -131,8 +129,8 @@ export async function getPouredSets(): Promise<string[]> {
       typeof row === "string"
         ? row
         : typeof row?.set_num === "string"
-        ? row.set_num
-        : null
+          ? row.set_num
+          : null
     )
     .filter(Boolean) as string[];
 }
@@ -177,6 +175,44 @@ export async function searchParts(
 
     image_exists: row?.image_exists === 1 || row?.image_exists === true,
   }));
+}
+export type SearchPagedResponse = {
+  results: SetSummary[];
+  page: number;
+  page_size: number;
+  total: number;
+  has_more: boolean;
+};
+
+export async function searchSetsPaged(
+  q: string,
+  page: number,
+  pageSize: number,
+  fuzzy = false,
+  sort: "recent" | "popular" = "recent"
+): Promise<SearchPagedResponse> {
+  const term = q.trim();
+  if (!term) {
+    return { results: [], page: 1, page_size: pageSize, total: 0, has_more: false };
+  }
+
+  const params = new URLSearchParams();
+  params.set("q", term);
+  params.set("page", String(page));
+  params.set("page_size", String(pageSize));
+  params.set("sort", sort);
+  if (fuzzy) params.set("fuzzy", "true");
+
+  const res = await fetch(`${API_BASE}/api/search/paged?${params.toString()}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Search paged failed: ${res.status} ${body}`.trim());
+  }
+
+  return (await res.json()) as SearchPagedResponse;
 }
 
 export async function addInventoryPart(

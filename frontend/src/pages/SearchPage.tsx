@@ -1,7 +1,7 @@
 import { API_BASE } from "../api/client";
 import React, { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  searchSets,
+  searchSetsPaged,
   addMySet,
   addWishlist,
   removeMySet,
@@ -17,14 +17,27 @@ import { authHeaders } from "../utils/auth";
 // Use server if env not set
 const API = API_BASE;
 
+const PAGE_SIZE = 60;
+
 const SearchPage: React.FC = () => {
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<SetSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastQuery, setLastQuery] = useState("");
+
+  // paging
+  const [pageNum, setPageNum] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+
+  // membership
   const [mySetIds, setMySetIds] = useState<Set<string>>(new Set());
   const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+
+  // sorting (wired through API)
+  const [sort, setSort] = useState<"recent" | "popular">("recent");
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -50,7 +63,7 @@ const SearchPage: React.FC = () => {
     let cancelled = false;
 
     const loadMembership = async () => {
-      if (!hasAuth()) return; // <- IMPORTANT: avoid 401 spam when logged out
+      if (!hasAuth()) return; // avoid 401 spam when logged out
       try {
         const [mySets, wishlist] = await Promise.all([getMySets(), getWishlist()]);
         if (cancelled) return;
@@ -121,7 +134,7 @@ const SearchPage: React.FC = () => {
         setError("Could not update My Sets. Please try again.");
       }
     },
-    [API, goLogin, mySetIds]
+    [goLogin, mySetIds]
   );
 
   const handleToggleWishlist = useCallback(
@@ -162,38 +175,57 @@ const SearchPage: React.FC = () => {
     if (error) return error;
     if (!lastQuery && !hasResults) return "Type a keyword or set number to get started.";
     if (!hasResults) return `No sets found for “${lastQuery}”. Try another word or a set number.`;
-    return `Showing ${results.length} set${results.length === 1 ? "" : "s"} for “${lastQuery}”.`;
-  }, [loading, error, lastQuery, hasResults, results.length]);
+    return `Showing ${results.length} of ${total} set${total === 1 ? "" : "s"} (page ${pageNum}) for “${lastQuery}”.`;
+  }, [loading, error, lastQuery, hasResults, results.length, total, pageNum]);
 
-  const performSearch = useCallback(async (query: string) => {
-    const trimmed = query.trim();
-    if (!trimmed) {
-      setError("Please type something to search for.");
-      setResults([]);
-      setLastQuery("");
-      return;
-    }
+  const performSearch = useCallback(
+    async (query: string, pageToLoad: number = 1) => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        setError("Please type something to search for.");
+        setResults([]);
+        setLastQuery("");
+        setPageNum(1);
+        setTotal(0);
+        setHasMore(false);
+        return;
+      }
 
-    setLoading(true);
-    setError(null);
+      setLoading(true);
+      setError(null);
 
-    try {
-      const data = await searchSets(trimmed);
-      setResults(data ?? []);
-      setLastQuery(trimmed);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Search failed. Please try again.");
-      setResults([]);
-      setLastQuery(trimmed);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      try {
+        const resp = await searchSetsPaged(trimmed, pageToLoad, PAGE_SIZE, false, sort);
+
+        setResults(resp.results ?? []);
+        setLastQuery(trimmed);
+        setPageNum(resp.page ?? pageToLoad);
+        setTotal(resp.total ?? 0);
+        setHasMore(!!resp.has_more);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Search failed. Please try again.");
+        setResults([]);
+        setLastQuery(trimmed);
+        setPageNum(1);
+        setTotal(0);
+        setHasMore(false);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [sort]
+  );
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void performSearch(term);
+    void performSearch(term, 1);
   };
+
+  // If sort changes and we already have results, re-run page 1
+  useEffect(() => {
+    if (lastQuery) void performSearch(lastQuery, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort]);
 
   return (
     <div className="page page-search">
@@ -276,7 +308,7 @@ const SearchPage: React.FC = () => {
                 autoFocus
                 className="search-input"
                 style={{
-                  width: "100%",
+                  width: "calc(100% - 1cm)",
                   padding: "0.9rem 1rem",
                   borderRadius: "999px",
                   border: "2px solid rgba(255,255,255,0.9)",
@@ -288,6 +320,33 @@ const SearchPage: React.FC = () => {
                 }}
               />
             </div>
+
+            <div
+              style={{
+                flex: "0 0 160px",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as "recent" | "popular")}
+                style={{
+                  width: "100%",
+                  padding: "0.85rem 1rem",
+                  borderRadius: "999px",
+                  border: "2px solid rgba(255,255,255,0.95)",
+                  background: "rgba(15,23,42,0.9)",
+                  color: "#f9fafb",
+                  fontWeight: 800,
+                }}
+              >
+                <option value="recent">Newest</option>
+                <option value="popular">Popular (big sets)</option>
+              </select>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -354,6 +413,57 @@ const SearchPage: React.FC = () => {
             </p>
           )}
         </div>
+
+        {lastQuery && total > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: "0.75rem",
+              padding: "1.25rem 0 2rem",
+            }}
+          >
+            <button
+              type="button"
+              disabled={loading || pageNum <= 1}
+              onClick={() => void performSearch(lastQuery, pageNum - 1)}
+              className="search-button"
+              style={{
+                padding: "0.75rem 1.25rem",
+                borderRadius: "999px",
+                border: "2px solid rgba(255,255,255,0.2)",
+                fontWeight: 800,
+                fontSize: "0.9rem",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                cursor: loading || pageNum <= 1 ? "default" : "pointer",
+                opacity: loading || pageNum <= 1 ? 0.6 : 1,
+              }}
+            >
+              Prev
+            </button>
+
+            <button
+              type="button"
+              disabled={loading || !hasMore}
+              onClick={() => void performSearch(lastQuery, pageNum + 1)}
+              className="search-button"
+              style={{
+                padding: "0.75rem 1.25rem",
+                borderRadius: "999px",
+                border: "2px solid rgba(255,255,255,0.2)",
+                fontWeight: 800,
+                fontSize: "0.9rem",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                cursor: loading || !hasMore ? "default" : "pointer",
+                opacity: loading || !hasMore ? 0.6 : 1,
+              }}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

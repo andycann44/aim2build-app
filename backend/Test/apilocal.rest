@@ -1,62 +1,36 @@
-@baseUrl = http://127.0.0.1:8000
-@email = andy+localtest001@example.com
-@password = Password123!
+@base = http://127.0.0.1:8000
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMTAxIiwiZXhwIjoxNzY2OTU1MjAxfQ.FKHFRqaRR2r_G2U1ReV1W3I2QowK2vTgKTuXOr9Ak2s
 
-### Docs
-GET {{baseUrl}}/docs
+### Health
+GET {{base}}/api/health
+    
+### Who am I? (verifies token + user_id)
+GET {{base}}/api/auth/me
+Authorization: Bearer {{token}} 
 
-### Optional health
-GET {{baseUrl}}/api/health
+### Inventory parts (with images)
+GET {{base}}/api/inventory/parts_with_images
+Authorization: Bearer {{token}}
 
-### Search sets
-GET {{baseUrl}}/api/search?q=home
+### Clear inventory (canonical DB clear)
+POST {{base}}/api/inventory/clear-canonical
+Authorization: Bearer {{token}}
 
+### Pour a set into inventory (THIS is the correct “set pour” contract)
+POST {{base}}/api/inventory/add?set=10220-1
+Authorization: Bearer {{token}}
 
-### Register (local test account)
-POST {{baseUrl}}/api/auth/register
+### Check parts again
+GET {{base}}/api/inventory/parts_with_images
+Authorization: Bearer {{token}}
+
+### Remove a poured set from inventory (decrement)
+POST {{base}}/api/inventory/remove_set?set=10220-1
+Authorization: Bearer {{token}}
+
+### WRONG ON PURPOSE (shows why you got 422)
+POST {{base}}/api/inventory/add-canonical?set=10220-1
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{
-  "email": "{{email}}",
-  "password": "{{password}}"
-}
-
-
-### Login (get token from response)
-POST {{baseUrl}}/api/auth/login
-Content-Type: application/json
-
-{
-  "email": "{{email}}",
-  "password": "{{password}}"
-}
-
-### After running the Login request above:
-###  - Copy "access_token" from the JSON response
-###  - Paste it into the @token variable below
-
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2IiwiZXhwIjoxNzY0ODQwMDM5fQ.fET3ZkwAsYdKMOR19zNpyapA6N4ekLvTS2m-hHRbavA
-
-### Get My Sets (requires auth)
-GET {{baseUrl}}/api/mysets
-Authorization: Bearer {{token}}
-
-
-### Get Wishlist (requires auth)
-GET {{baseUrl}}/api/wishlist
-Authorization: Bearer {{token}}
-
-
-### Buildability compare for a set
-GET {{baseUrl}}/api/buildability/compare?set=21330-1
-Authorization: Bearer {{token}}
-
-
-### Inventory parts with images
-GET {{baseUrl}}/api/inventory/parts_with_images
-Authorization: Bearer {{token}}
-
-
-### Catalog: get parts for a set
-GET {{baseUrl}}/api/catalog/parts?set=21330-1
-Authorization: Bearer {{token}}
+{"part_num":"3001","color_id":0,"qty":1}
