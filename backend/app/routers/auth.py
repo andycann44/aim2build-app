@@ -11,7 +11,7 @@ from app.emailer import send_reset_email
 
 from app.db import db
 
-SECRET_KEY = "dev-secret-change-me"  # TODO: move to environment
+SECRET_KEY = os.getenv("AIM2BUILD_SECRET_KEY", "dev-secret-change-me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day
 
@@ -175,9 +175,9 @@ def login(payload: LoginRequest):
         raise HTTPException(status_code=400, detail="Invalid email or password.")
 
     payload_claims = {
-        "sub": str(user_id),
-        "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-    }
+    "sub": str(user_id),
+    "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+}
     token = jwt.encode(payload_claims, SECRET_KEY, algorithm=ALGORITHM)
 
     return TokenResponse(access_token=token, user_id=user_id)
@@ -196,6 +196,9 @@ class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
 
+@router.get("/me", response_model=User)
+async def me(current_user: User = Depends(get_current_user)) -> User:
+    return current_user
 
 @router.post("/forgot-password")
 def forgot_password(req: ForgotPasswordRequest):
