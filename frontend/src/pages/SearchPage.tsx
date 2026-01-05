@@ -14,9 +14,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import SetTile from "../components/SetTile";
 import { authHeaders } from "../utils/auth";
 
-// Use server if env not set
 const API = API_BASE;
-
 const PAGE_SIZE = 60;
 
 const SearchPage: React.FC = () => {
@@ -58,6 +56,36 @@ const SearchPage: React.FC = () => {
     return status === 401 || msg.includes("401") || msg.toLowerCase().includes("unauthorized");
   };
 
+  // Best-effort inventory clean-up on My Sets removal.
+  // Tries supported endpoints; ignores 404s.
+  const tryRemoveSetFromInventory = useCallback(async (setNum: string) => {
+    const candidates = [
+      `/api/inventory/unpour-set?set=${encodeURIComponent(setNum)}`,
+      `/api/inventory/unpour_set?set=${encodeURIComponent(setNum)}`,
+      `/api/inventory/remove_set?set=${encodeURIComponent(setNum)}`,
+    ];
+
+    for (const path of candidates) {
+      try {
+        const res = await fetch(`${API}${path}`, {
+          method: "POST",
+          headers: authHeaders(),
+        });
+
+        if (res.status === 401) throw new Error("401 Unauthorized");
+        if (res.status === 404) continue; // endpoint not present, try next
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new Error(`Inventory cleanup failed: ${res.status} ${body}`.trim());
+        }
+        return; // success
+      } catch (err) {
+        // If network failure, treat as fatal to bubble up. 401 handled above.
+        throw err;
+      }
+    }
+  }, []);
+
   // Load existing My Sets / Wishlist once on mount (don’t spam 401 if logged out)
   useEffect(() => {
     let cancelled = false;
@@ -94,24 +122,24 @@ const SearchPage: React.FC = () => {
       const alreadyIn = mySetIds.has(setNum);
 
       try {
+        setError(null);
+
         if (alreadyIn) {
+          // 1) remove from My Sets
           await removeMySet(setNum);
 
-          // Mirror My Sets page behaviour – also remove its inventory
-          const res = await fetch(
-            `${API}/api/inventory/remove_set?set=${encodeURIComponent(setNum)}`,
-            { method: "POST", headers: authHeaders() }
-          );
-
-          if (res.status === 401) {
-            goLogin();
-            return;
-          }
-          if (!res.ok) {
-            const body = await res.text().catch(() => "");
-            throw new Error(`remove_set failed: ${res.status} ${body}`.trim());
+          // 2) best-effort: also remove/unpour from inventory (only if endpoint exists)
+          try {
+            await tryRemoveSetFromInventory(setNum);
+          } catch (e) {
+            if (is401(e)) {
+              goLogin();
+              return;
+            }
+            console.warn("Inventory cleanup failed (non-fatal):", e);
           }
 
+          // 3) update local state
           setMySetIds((prev) => {
             const next = new Set(prev);
             next.delete(setNum);
@@ -134,7 +162,7 @@ const SearchPage: React.FC = () => {
         setError("Could not update My Sets. Please try again.");
       }
     },
-    [goLogin, mySetIds]
+    [goLogin, mySetIds, tryRemoveSetFromInventory]
   );
 
   const handleToggleWishlist = useCallback(
@@ -145,6 +173,8 @@ const SearchPage: React.FC = () => {
       }
 
       try {
+        setError(null);
+
         if (wishlistIds.has(setNum)) {
           await removeWishlist(setNum);
           setWishlistIds((prev) => {
@@ -154,7 +184,11 @@ const SearchPage: React.FC = () => {
           });
         } else {
           await addWishlist(setNum);
-          setWishlistIds((prev) => new Set(prev).add(setNum));
+          setWishlistIds((prev) => {
+            const n = new Set(prev);
+            n.add(setNum);
+            return n;
+          });
         }
       } catch (err) {
         if (is401(err)) {
@@ -427,37 +461,28 @@ const SearchPage: React.FC = () => {
               type="button"
               disabled={loading || pageNum <= 1}
               onClick={() => void performSearch(lastQuery, pageNum - 1)}
-              className="search-button"
               style={{
-                padding: "0.75rem 1.25rem",
-                borderRadius: "999px",
-                border: "2px solid rgba(255,255,255,0.2)",
-                fontWeight: 800,
-                fontSize: "0.9rem",
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
+                padding: "0.55rem 0.95rem",
+                borderRadius: 12,
+                border: "1px solid rgba(148,163,184,0.6)",
+                background: "#0f172a",
+                color: "#e5e7eb",
                 cursor: loading || pageNum <= 1 ? "default" : "pointer",
-                opacity: loading || pageNum <= 1 ? 0.6 : 1,
               }}
             >
-              Prev
+              Previous
             </button>
-
             <button
               type="button"
               disabled={loading || !hasMore}
               onClick={() => void performSearch(lastQuery, pageNum + 1)}
-              className="search-button"
               style={{
-                padding: "0.75rem 1.25rem",
-                borderRadius: "999px",
-                border: "2px solid rgba(255,255,255,0.2)",
-                fontWeight: 800,
-                fontSize: "0.9rem",
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
+                padding: "0.55rem 0.95rem",
+                borderRadius: 12,
+                border: "1px solid rgba(148,163,184,0.6)",
+                background: "#0f172a",
+                color: "#e5e7eb",
                 cursor: loading || !hasMore ? "default" : "pointer",
-                opacity: loading || !hasMore ? 0.6 : 1,
               }}
             >
               Next
