@@ -6,7 +6,9 @@ import InventoryCategoryTile, {
 } from "../components/InventoryCategoryTile";
 import { authHeaders } from "../utils/auth";
 
-const API = import.meta.env.VITE_API_BASE || "";
+import { API_BASE } from "../api/client";
+
+const API = API_BASE;
 
 type PartCategory = {
   part_cat_id: number;

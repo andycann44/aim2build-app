@@ -1,11 +1,12 @@
 import { getToken, clearToken } from "./auth";
+import { API_BASE } from "../api/client";
 
 const KEY_ENABLED = "a2b_session_idle_enabled";
 const KEY_MINUTES = "a2b_session_idle_minutes";
 
 function getEnabled(): boolean {
   const v = localStorage.getItem(KEY_ENABLED);
-  if (v === null) return true; // default ON
+  if (v == null) return true; // default ON
   return v === "1";
 }
 
@@ -20,59 +21,64 @@ async function validateSession(): Promise<boolean> {
   if (!token) return false;
 
   try {
-    const API = import.meta.env.VITE_API_BASE || "";
-    const res = await fetch(`${API}/api/auth/me`, {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
     if (res.ok) return true;
-
-    clearToken();
-    return false;
   } catch {
-    // If API is unreachable, safest is to treat as signed-out
-    clearToken();
-    return false;
+    // ignore network errors here; treat as invalid session
   }
+
+  clearToken();
+  return false;
 }
 
 export function initSessionIdleGuard(navigateToLogin: () => void) {
   let lastActive = Date.now();
-  let wasIdle = false;
+  let fired = false;
 
-  const idleMs = () => getMinutes() * 60 * 1000;
-
-  function markActive() {
+  const bump = () => {
     lastActive = Date.now();
-    if (wasIdle) {
-      wasIdle = false;
+    fired = false;
+  };
 
-      if (!getEnabled()) return;
+  // activity signals
+  window.addEventListener("mousemove", bump, { passive: true });
+  window.addEventListener("keydown", bump);
+  window.addEventListener("scroll", bump, { passive: true });
+  window.addEventListener("click", bump);
 
-      // User came back from idle -> re-check session
-      void (async () => {
-        const ok = await validateSession();
-        if (!ok) navigateToLogin();
-      })();
-    }
-  }
-
-  // Activity events
-  const events: Array<keyof WindowEventMap> = [
-    "mousemove",
-    "mousedown",
-    "keydown",
-    "touchstart",
-    "scroll",
-    "focus",
-  ];
-
-  events.forEach((e) => window.addEventListener(e, markActive, { passive: true }));
-
-  // Check idle status every 10s
-  setInterval(() => {
+  const tick = async () => {
     if (!getEnabled()) return;
-    const now = Date.now();
-    if (now - lastActive >= idleMs()) wasIdle = true;
-  }, 10_000);
+
+    const idleMs = getMinutes() * 60 * 1000;
+    if (Date.now() - lastActive < idleMs) return;
+    if (fired) return;
+
+    fired = true;
+
+    const ok = await validateSession();
+    if (!ok) {
+      navigateToLogin();
+    } else {
+      // session still valid; keep user in but reset timer
+      bump();
+    }
+  };
+
+  // check every 15s
+  const timer = window.setInterval(() => void tick(), 15000);
+
+  return () => {
+    window.clearInterval(timer);
+    notedCleanup();
+  };
+
+  function notedCleanup() {
+    window.removeEventListener("mousemove", bump as any);
+    window.removeEventListener("keydown", bump as any);
+    window.removeEventListener("scroll", bump as any);
+    window.removeEventListener("click", bump as any);
+  }
 }

@@ -9,9 +9,20 @@ export type AuthResult = {
 
 // --- API base ---
 // LOCKED: Deployed builds must always use same-origin (/api/*).
-// Local dev can override with VITE_API_BASE, but ONLY if explicitly set.
-const envBase = ((import.meta as any).env?.VITE_API_BASE as string | undefined) ?? "";
-export const API_BASE: string = envBase.trim() ? envBase.trim() : "";
+// Local dev can override with VITE_API_BASE, but NEVER allow localhost on a real domain.
+
+const raw = ((import.meta as any).env?.VITE_API_BASE as string | undefined)?.trim() ?? "";
+const cleaned = raw.replace(/\/+$/, "");
+
+const isRealSite =
+  typeof window !== "undefined" &&
+  window.location.hostname !== "localhost" &&
+  window.location.hostname !== "127.0.0.1";
+
+const looksLikeLocal =
+  /(^|\/\/)(localhost|127\.0\.0\.1)(:|\/|$)/i.test(cleaned);
+
+export const API_BASE: string = isRealSite && looksLikeLocal ? "" : cleaned;
 
 export interface SetSummary {
   set_num: string;
