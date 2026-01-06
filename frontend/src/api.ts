@@ -8,9 +8,9 @@ function getToken(): string | null {
   try {
     // adjust these keys if your app stores token under a different name
     return (
-      localStorage.getItem("token") ||
-      localStorage.getItem("access_token") ||
-      localStorage.getItem("aim2build_token")
+      localStorage.getItem("a2b_token") ||
+      localStorage.getItem("a2b_token") ||
+      localStorage.getItem("a2b_token")
     );
   } catch {
     return null;

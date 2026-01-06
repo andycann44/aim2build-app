@@ -52,3 +52,7 @@ instruction_pdfs/
 # local-only (never commit)
 frontend/.env.local
 backend/.env
+
+# local-only vite env
+frontend/.env.local
+frontend/.env.*.local
