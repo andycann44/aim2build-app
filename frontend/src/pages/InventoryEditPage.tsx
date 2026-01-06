@@ -43,10 +43,19 @@ async function fetchInventoryWithImages(): Promise<InventoryRow[]> {
   const res = await fetch(`${API_BASE}/api/inventory/parts_with_images`, {
     headers: { ...authHeaders() },
   });
+
+  // ✅ hard redirect on expired/invalid session
+  if (res.status === 401) {
+    localStorage.removeItem("a2b_token");
+    window.location.href = "/login";
+    throw new Error("401 Unauthorized");
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(text || `Failed to load inventory (${res.status})`);
   }
+
   return res.json();
 }
 
@@ -59,6 +68,13 @@ async function postAddCanonical(part_num: string, color_id: number, qty: number)
     },
     body: JSON.stringify({ part_num, color_id, qty }),
   });
+
+  // ✅ hard redirect on expired/invalid session
+  if (res.status === 401) {
+    localStorage.removeItem("a2b_token");
+    window.location.href = "/login";
+    throw new Error("401 Unauthorized");
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -75,9 +91,15 @@ async function postDecCanonical(part_num: string, color_id: number, qty: number)
       "Content-Type": "application/json",
       ...authHeaders(),
     },
-    // NOTE: some frontends send qty, some send delta — backend now accepts either.
     body: JSON.stringify({ part_num, color_id, qty }),
   });
+
+  // ✅ hard redirect on expired/invalid session
+  if (res.status === 401) {
+    localStorage.removeItem("a2b_token");
+    window.location.href = "/login";
+    throw new Error("401 Unauthorized");
+  }
 
   const text = await res.text().catch(() => "");
   let data: any = null;
@@ -87,7 +109,8 @@ async function postDecCanonical(part_num: string, color_id: number, qty: number)
     data = null;
   }
 
-  const lockedCandidates = (data?.locked_sets ?? data?.lockedSets ?? data?.set_nums ?? data?.poured_sets) as any;
+  const lockedCandidates =
+    (data?.locked_sets ?? data?.lockedSets ?? data?.set_nums ?? data?.poured_sets) as any;
   const sets = Array.isArray(lockedCandidates) ? lockedCandidates.map((s) => String(s)) : [];
 
   if (!res.ok) {
@@ -191,8 +214,8 @@ const InventoryEditInner: React.FC = () => {
             resp && typeof resp.qty === "number"
               ? resp.qty
               : resp && typeof resp.qty_total === "number"
-              ? resp.qty_total
-              : optimistic;
+                ? resp.qty_total
+                : optimistic;
 
           setOwned((m) => ({ ...m, [k]: serverQty }));
         } else if (delta < 0) {
@@ -201,8 +224,8 @@ const InventoryEditInner: React.FC = () => {
             resp && typeof resp.qty === "number"
               ? resp.qty
               : resp && typeof resp.qty_total === "number"
-              ? resp.qty_total
-              : optimistic;
+                ? resp.qty_total
+                : optimistic;
 
           setOwned((m) => ({ ...m, [k]: serverQty }));
         }

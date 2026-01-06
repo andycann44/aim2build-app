@@ -38,6 +38,11 @@ const InventoryPage: React.FC = () => {
         },
       });
 
+      if (res.status === 401) {
+        localStorage.removeItem("a2b_token");
+        window.location.href = "/login";
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data: InventoryPart[] = await res.json();

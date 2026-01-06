@@ -1,2 +1,4 @@
 pydantic[email]
 rapidfuzz
+passlib[bcrypt]
+python-jose[cryptography]

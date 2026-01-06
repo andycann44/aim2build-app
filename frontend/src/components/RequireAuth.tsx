@@ -1,95 +1,58 @@
-import React, { useEffect, useState } from "react";
-import { API_BASE } from "../api/client";
-import { authHeaders, getToken } from "../utils/auth";
+import React from "react";
+import { getToken, clearToken } from "../utils/auth";
 import NotSignedIn from "./NotSignedIn";
+import { apiGet } from "../api/api"; // if you have a helper; if not, use fetch below
 
 type Props = {
   children: React.ReactNode;
   pageName?: string;
 };
 
-type AuthState = "checking" | "authed" | "noauth";
-
-function clearTokens() {
-  try {
-    localStorage.removeItem("token");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("aim2build_token");
-  } catch {
-    // ignore
-  }
-}
-
 const RequireAuth: React.FC<Props> = ({ children, pageName }) => {
   const token = getToken();
+  const [state, setState] = React.useState<"checking" | "ok" | "nope">(
+    token ? "checking" : "nope"
+  );
 
-  const [state, setState] = useState<AuthState>(() => {
-    return token ? "checking" : "noauth";
-  });
+  React.useEffect(() => {
+    let alive = true;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function verify() {
-      // If no token, immediately no-auth
+    async function run() {
       if (!token) {
-        setState("noauth");
+        if (alive) setState("nope");
         return;
       }
 
       try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, {
-          method: "GET",
-          headers: {
-            ...authHeaders(),
-            Accept: "application/json",
-          },
+        // Use fetch directly so we don't depend on other helpers:
+        const res = await fetch(`/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (cancelled) return;
+        if (!alive) return;
 
-        if (res.status === 401) {
-          // token exists but is invalid/expired/wrong secret -> clear + force login UI
-          clearTokens();
-          setState("noauth");
-          return;
+        if (res.ok) {
+          setState("ok");
+        } else {
+          // expired/invalid token
+          clearToken();
+          setState("nope");
         }
-
-        if (!res.ok) {
-          // for safety: don't lock user out on transient 500 etc
-          // treat as authed and let pages handle errors normally
-          setState("authed");
-          return;
-        }
-
-        setState("authed");
       } catch {
-        if (cancelled) return;
-        // network hiccup -> don't force logout, just allow through
-        setState("authed");
+        if (!alive) return;
+        // network/API down -> treat as not signed in (or keep checking if you prefer)
+        setState("nope");
       }
     }
 
-    verify();
-
+    run();
     return () => {
-      cancelled = true;
+      alive = false;
     };
   }, [token]);
 
-  if (!token) {
-    return <NotSignedIn pageName={pageName} />;
-  }
-
-  if (state === "checking") {
-    // keep it simple: you can swap this for a nicer loading state later
-    return <div style={{ padding: "1rem", color: "#94a3b8" }}>Checking sign-in…</div>;
-  }
-
-  if (state === "noauth") {
-    return <NotSignedIn pageName={pageName} />;
-  }
-
+  if (state === "nope") return <NotSignedIn pageName={pageName} />;
+  if (state === "checking") return <div style={{ padding: 16 }}>Checking session...</div>;
   return <>{children}</>;
 };
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate, useNavigate } from "react-router-dom";
 import StagingBanner from "./components/StagingBanner";
 import SearchPage from "./pages/SearchPage";
 import BuildabilityOverviewPage from "./pages/BuildabilityOverviewPage";
@@ -16,8 +16,15 @@ import InventoryAddBrickPage from "./pages/InventoryAddBrickPage";
 import InventoryPickColourPage from "./pages/InventoryPickColourPage";
 import InventoryEditPage from "./pages/InventoryEditPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import { initSessionIdleGuard } from "./utils/sessionGuard";
 
 const App: React.FC = () => {
+  const nav = useNavigate();
+
+  React.useEffect(() => {
+    initSessionIdleGuard(() => nav("/login"));
+  }, [nav]);
+
   return (
     <>
       <StagingBanner />
@@ -37,6 +44,7 @@ const App: React.FC = () => {
             >
               Home
             </NavLink>
+
             <NavLink
               to="/search"
               className={({ isActive }) =>
@@ -45,6 +53,7 @@ const App: React.FC = () => {
             >
               Search
             </NavLink>
+
             <NavLink
               to="/my-sets"
               className={({ isActive }) =>
@@ -53,6 +62,7 @@ const App: React.FC = () => {
             >
               My Sets
             </NavLink>
+
             <NavLink
               to="/inventory"
               className={({ isActive }) =>
@@ -61,6 +71,7 @@ const App: React.FC = () => {
             >
               Inventory
             </NavLink>
+
             <NavLink
               to="/buildability"
               className={({ isActive }) =>
@@ -69,6 +80,7 @@ const App: React.FC = () => {
             >
               Buildability
             </NavLink>
+
             <NavLink
               to="/wishlist"
               className={({ isActive }) =>
@@ -77,6 +89,7 @@ const App: React.FC = () => {
             >
               Wishlist
             </NavLink>
+
             <NavLink
               to="/account"
               className={({ isActive }) =>
@@ -85,6 +98,7 @@ const App: React.FC = () => {
             >
               Account
             </NavLink>
+
             <NavLink
               to="/settings"
               className={({ isActive }) =>
@@ -97,7 +111,6 @@ const App: React.FC = () => {
         </aside>
 
         <main className="main" style={{ flex: 1 }}>
-
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/search" element={<SearchPage />} />
@@ -106,17 +119,15 @@ const App: React.FC = () => {
             <Route path="/inventory/edit" element={<InventoryEditPage />} />
             <Route path="/inventory/add" element={<InventoryAddCategoriesPage />} />
             <Route
+              path="/inventory/add/bricks"
+              element={<InventoryAddBrickPage />}
+            />
+            <Route
               path="/inventory/add/bricks/part/:partNum"
               element={<InventoryPickColourPage />}
             />
+
             <Route path="/buildability" element={<BuildabilityOverviewPage />} />
-            <Route path="/inventory/add/bricks" element={<InventoryAddBrickPage />} />
-            <Route path="/wishlist" element={<WishlistPage />} />
-            <Route path="/account" element={<AccountPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/login" element={<AccountPage />} />
-            <Route path="/Login" element={<Navigate to="/login" replace />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route
               path="/buildability/:setNum"
               element={<BuildabilityDetailsPage />}
@@ -125,9 +136,15 @@ const App: React.FC = () => {
               path="/buildability/:setNum/missing"
               element={<MissingPartsPage />}
             />
+
+            <Route path="/wishlist" element={<WishlistPage />} />
+            <Route path="/account" element={<AccountPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/login" element={<AccountPage />} />
+            <Route path="/Login" element={<Navigate to="/login" replace />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
           </Routes>
 
-          {/* Small global footer */}
           <footer
             style={{
               marginTop: "1.5rem",
@@ -155,11 +172,10 @@ const App: React.FC = () => {
             </span>
             <span style={{ whiteSpace: "nowrap" }}>Built by Aim2</span>
           </footer>
-
         </main>
       </div>
     </>
- );
+  );
 };
 
-   export default App;
+export default App;

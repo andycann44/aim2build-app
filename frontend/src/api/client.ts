@@ -1,4 +1,5 @@
 import { authHeaders } from "../utils/auth";
+import { clearToken } from "../utils/auth";
 
 export type AuthResult = {
   ok: boolean;
@@ -61,7 +62,12 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
     headers: mergedHeaders,
   });
 
-  if (res.status === 401) throw new Error("401 Unauthorized");
+  if (res.status === 401) {
+    // global auth fail => drop token and force login
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new Error("401 Unauthorized");
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
