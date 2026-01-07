@@ -30,10 +30,15 @@ const App: React.FC = () => {
       <StagingBanner />
       <div className="app-shell">
         <aside className="sidebar">
-          <div className="brand">
-            <span className="brand-main">Aim2Build</span>
-            <span className="brand-sub">LEGO helper</span>
-          </div>
+          {/* MINIMAL: brand now includes logo + links home */}
+          <a href="/" className="brand" aria-label="Aim2Build home">
+            <img
+              src="/branding/a2b.png"
+              alt="Aim2Build"
+              className="brand-logo"
+            />
+          </a>
+
           <nav className="nav">
             <NavLink
               to="/"
@@ -117,7 +122,10 @@ const App: React.FC = () => {
             <Route path="/my-sets" element={<MySetsPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/inventory/edit" element={<InventoryEditPage />} />
-            <Route path="/inventory/add" element={<InventoryAddCategoriesPage />} />
+            <Route
+              path="/inventory/add"
+              element={<InventoryAddCategoriesPage />}
+            />
             <Route
               path="/inventory/add/bricks"
               element={<InventoryAddBrickPage />}

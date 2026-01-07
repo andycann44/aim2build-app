@@ -785,3 +785,26 @@ nav a {
   /* tweak this width if you want tighter/wider */
   justify-content: center;
 }
+
+.brand {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo {
+  height: 125px;
+  width: auto;
+  display: block;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.brand {
+  margin-bottom: 6px;
+}
