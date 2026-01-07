@@ -74,13 +74,15 @@ const HomePage: React.FC = () => {
         {/* top colour bar */}
         <div
           aria-hidden="true"
+          className="hero-tiles"
           style={{
             position: "absolute",
             inset: "0 0 auto 0",
-            height: "10px",
+            height: "18px",
             display: "flex",
-            gap: "2px",
+            gap: "10px",
             padding: "0 8px",
+            borderRadius: "0",
           }}
         >
           {[
@@ -93,12 +95,8 @@ const HomePage: React.FC = () => {
           ].map((c, i) => (
             <div
               key={i}
-              style={{
-                flex: 1,
-                borderRadius: "99px",
-                background: c,
-                opacity: 0.9,
-              }}
+              className="hero-tile"
+              style={{ flex: 1, "--c": c } as React.CSSProperties}
             />
           ))}
         </div>
@@ -122,7 +120,7 @@ const HomePage: React.FC = () => {
               margin: 0,
             }}
           >
-            Building in progress…
+            What can you build today?
           </h1>
           <p
             style={{
@@ -133,9 +131,7 @@ const HomePage: React.FC = () => {
               opacity: 0.95,
             }}
           >
-            We&apos;re wiring everything together so Aim2Build can track your
-            sets, parts and buildability. You can still search sets and try the
-            core features while we finish the rest.
+            Discover what LEGO sets you can build with the bricks you own.
           </p>
 
           {/* primary CTA */}

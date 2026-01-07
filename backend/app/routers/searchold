@@ -1,0 +1,442 @@
+import os
+import re
+import sqlite3
+from typing import List, Dict, Optional, Tuple, Set
+
+from fastapi import APIRouter, HTTPException, Query
+from rapidfuzz import fuzz
+
+from app.paths import DATA_DIR
+
+router = APIRouter()
+
+DB_PATH = str(DATA_DIR / "lego_catalog.db")
+
+
+def _db() -> sqlite3.Connection:
+    if not os.path.exists(DB_PATH):
+        raise HTTPException(status_code=500, detail="lego_catalog.db missing")
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    return con
+
+
+# -------------------------
+# Normalisation helpers
+# -------------------------
+
+
+def _norm_q(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = s.replace("-", " ").replace("_", " ")
+    s = re.sub(r"[^a-z0-9\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _looks_like_set_num(s: str) -> bool:
+    s = (s or "").strip()
+    if not s:
+        return False
+    if s.isdigit():
+        return True
+    return bool(re.match(r"^\d{3,6}-\d+$", s))
+
+
+def _norm_set_num(q: str) -> str:
+    s = (q or "").strip()
+    if not s:
+        return s
+    if s.isdigit():
+        return f"{s}-1"
+    return s
+
+
+# -------------------------
+# Intent helpers
+# -------------------------
+
+
+def _wants_figures(q_norm: str) -> bool:
+    tokens = set((q_norm or "").split())
+    return any(
+        t
+        in {
+            "minifig",
+            "minifigs",
+            "minifigure",
+            "minifigures",
+            "figure",
+            "figures",
+            "brickheadz",
+        }
+        for t in tokens
+    )
+
+
+def _allow_small_sets(q_norm: str) -> bool:
+    tokens = set((q_norm or "").split())
+    return any(
+        t in {"polybag", "pack", "battle", "mech", "micro", "mini", "small"}
+        for t in tokens
+    )
+
+
+# -------------------------
+# Row helpers
+# -------------------------
+
+
+def _row_to_set(row: sqlite3.Row) -> Dict:
+    return {
+        "set_num": (row["set_num"] or "").strip(),
+        "name": (row["name"] or "").strip(),
+        "year": int(row["year"]) if row["year"] is not None else None,
+        "num_parts": int(row["num_parts"] or 0),
+        "img_url": (row["set_img_url"] or "").strip(),
+    }
+
+
+def _base_where_clause(min_parts: int) -> str:
+    return f"""
+        s.name IS NOT NULL
+        AND TRIM(s.name) != ''
+        AND COALESCE(s.num_parts, 0) >= {int(min_parts)}
+        AND s.set_num LIKE '%-%'
+    """
+
+
+def _theme_noise_clause() -> str:
+    return """
+        AND (
+          t.name IS NULL OR (
+            LOWER(t.name) NOT LIKE '%gear%'
+            AND LOWER(t.name) NOT LIKE '%book%'
+            AND LOWER(t.name) NOT LIKE '%magazine%'
+            AND LOWER(t.name) NOT LIKE '%stationery%'
+            AND LOWER(t.name) NOT LIKE '%keychain%'
+            AND LOWER(t.name) NOT LIKE '%key chain%'
+            AND LOWER(t.name) NOT LIKE '%bag%'
+            AND LOWER(t.name) NOT LIKE '%backpack%'
+            AND LOWER(t.name) NOT LIKE '%watch%'
+            AND LOWER(t.name) NOT LIKE '%clock%'
+          )
+        )
+    """
+
+
+def _no_figures_clause() -> str:
+    return """
+        AND (
+          (t.name IS NULL) OR (
+            LOWER(t.name) NOT LIKE '%minifig%'
+            AND LOWER(t.name) NOT LIKE '%minifigure%'
+            AND LOWER(t.name) NOT LIKE '%collectible%'
+            AND LOWER(t.name) NOT LIKE '%brickheadz%'
+          )
+        )
+        AND LOWER(s.name) NOT LIKE '%minifig%'
+        AND LOWER(s.name) NOT LIKE '%minifigure%'
+        AND LOWER(s.name) NOT LIKE '%brickheadz%'
+    """
+
+
+# -------------------------
+# Stopwords
+# -------------------------
+
+_STOP_WORDS: Set[str] = {
+    "brick",
+    "bricks",
+    "lego",
+    "set",
+    "sets",
+    "building",
+    "build",
+    "kit",
+    "kits",
+}
+
+
+def _strip_stopwords(q_norm: str) -> str:
+    toks = [t for t in (q_norm or "").split() if t and t not in _STOP_WORDS]
+    return " ".join(toks).strip()
+
+
+# -------------------------
+# Theme helpers (DB-driven)
+# -------------------------
+
+_THEME_TOKEN_RE = re.compile(r"\b(?:theme|theme_id)\s*[:=]\s*(\d+)\b", re.IGNORECASE)
+
+
+def _parse_theme_token(q_raw: str) -> Tuple[Optional[int], str]:
+    s = (q_raw or "").strip()
+    if not s:
+        return None, s
+
+    m = _THEME_TOKEN_RE.search(s)
+    if not m:
+        return None, s
+
+    tid = int(m.group(1))
+    rest = re.sub(r"\s+", " ", (s[: m.start()] + " " + s[m.end() :])).strip()
+    return tid, rest
+
+
+def _theme_id_by_exact_name(con: sqlite3.Connection, q_norm: str) -> Optional[int]:
+    qn = (q_norm or "").strip().lower()
+    if not qn:
+        return None
+    row = con.execute(
+        "SELECT theme_id FROM themes WHERE trim(lower(name)) = ? LIMIT 1",
+        (qn,),
+    ).fetchone()
+    return int(row["theme_id"]) if row else None
+
+
+def _theme_ids_by_prefix(con: sqlite3.Connection, q_norm: str, limit: int = 50) -> List[int]:
+    qn = (q_norm or "").strip().lower()
+    if not qn:
+        return []
+    rows = con.execute(
+        """
+        SELECT theme_id
+        FROM themes
+        WHERE trim(lower(name)) LIKE ? || '%'
+        ORDER BY length(name) ASC
+        LIMIT ?
+        """,
+        (qn, int(limit)),
+    ).fetchall()
+    return [int(r["theme_id"]) for r in rows]
+
+
+def _expand_theme_descendants(con: sqlite3.Connection, roots: List[int]) -> List[int]:
+    roots_i = [int(x) for x in (roots or []) if int(x) > 0]
+    if not roots_i:
+        return []
+
+    placeholders = ",".join(["?"] * len(roots_i))
+    rows = con.execute(
+        f"""
+        WITH RECURSIVE kids(theme_id) AS (
+            SELECT theme_id FROM themes WHERE theme_id IN ({placeholders})
+            UNION ALL
+            SELECT t.theme_id FROM themes t JOIN kids k ON t.parent_id = k.theme_id
+        )
+        SELECT DISTINCT theme_id FROM kids
+        """,
+        tuple(roots_i),
+    ).fetchall()
+
+    return sorted({int(r["theme_id"]) for r in rows})
+
+
+def _theme_filter_from_query(con: sqlite3.Connection, q_raw: str) -> Tuple[List[int], str, bool]:
+    """
+    Returns: (theme_ids_expanded, remaining_query, theme_forced)
+
+    Rules:
+    - theme:NNN / theme_id=NNN -> explicit -> expand descendants, keep remaining text
+    - exact theme name match (case-insensitive) -> expand descendants, clear remaining text
+    - single-token prefix match -> expand descendants, clear remaining text
+    - generic words (brick, lego, sets) -> no theme mode
+
+    This is what enables:
+      - theme:610
+      - brickheadz -> theme 610
+      - technic -> theme family
+      - simpsons -> parent + children (via parent_id)
+
+    While keeping:
+      - brick -> NOT treated as a theme search
+    """
+    q_raw0 = (q_raw or "").strip()
+    if not q_raw0:
+        return [], q_raw0, False
+
+    # 1) explicit token
+    tid, rest = _parse_theme_token(q_raw0)
+    if tid is not None:
+        return _expand_theme_descendants(con, [tid]), rest, True
+
+    q_norm0 = _norm_q(q_raw0)
+
+    # 2) generic stopwords should not force theme
+    if q_norm0 in _STOP_WORDS:
+        return [], q_raw0, False
+
+    # 3) exact theme name match (supports multi-word themes)
+    exact_id = _theme_id_by_exact_name(con, q_norm0)
+    if exact_id is not None:
+        return _expand_theme_descendants(con, [exact_id]), "", True
+
+    # 4) single-token prefix theme match -> expand descendants
+    if " " not in q_norm0 and len(q_norm0) >= 3:
+        roots = _theme_ids_by_prefix(con, q_norm0)
+        if roots:
+            return _expand_theme_descendants(con, roots), "", True
+
+    return [], q_raw0, False
+
+
+def _in_clause_ints(col: str, values: List[int]) -> Tuple[str, List[int]]:
+    if not values:
+        return "", []
+    placeholders = ",".join(["?"] * len(values))
+    return f" AND {col} IN ({placeholders}) ", [int(v) for v in values]
+
+
+# -------------------------
+# Search logic
+# -------------------------
+
+
+def _do_search(q: str, limit: int = 60) -> List[Dict]:
+    q_raw_full = (q or "").strip()
+    if not q_raw_full:
+        return []
+
+    con = _db()
+    try:
+        cur = con.cursor()
+
+        theme_ids, q_rest, theme_forced = _theme_filter_from_query(con, q_raw_full)
+        theme_sql, theme_params = _in_clause_ints("s.theme_id", theme_ids)
+
+        q_norm_full = _norm_q(q_raw_full)
+        wants_figures = _wants_figures(q_norm_full)
+        allow_small = _allow_small_sets(q_norm_full)
+        looks_set = _looks_like_set_num(q_raw_full)
+
+        # Default: 50 parts minimum. Relax for set numbers or explicitly-small intent.
+        min_parts = 20 if (looks_set or allow_small) else 50
+
+        q_norm = _strip_stopwords(_norm_q(q_rest))
+
+        # Pure theme mode (no remaining text)
+        if theme_ids and not q_norm:
+            sql = f"""
+                SELECT s.set_num, s.name, s.year, s.num_parts, s.set_img_url
+                FROM sets s
+                LEFT JOIN themes t ON t.theme_id = s.theme_id
+                WHERE ({_base_where_clause(min_parts)})
+                {_theme_noise_clause()}
+                {" " if (wants_figures or theme_forced) else _no_figures_clause()}
+                overwhelming_theme_guard
+                {theme_sql}
+                ORDER BY s.year DESC
+                LIMIT ?
+            """
+            # NOTE: placeholder to avoid accidental string concatenation mistakes
+            sql = sql.replace("overwhelming_theme_guard", "")
+            cur.execute(sql, (*theme_params, int(limit)))
+            return [_row_to_set(r) for r in cur.fetchall()]
+
+        # Generic/stopword-only query: return sensible defaults
+        if (not theme_ids) and (not q_norm):
+            sql = f"""
+                SELECT s.set_num, s.name, s.year, s.num_parts, s.set_img_url
+                FROM sets s
+                LEFT JOIN themes t ON t.theme_id = s.theme_id
+                WHERE ({_base_where_clause(min_parts)})
+                {_theme_noise_clause()}
+                {_no_figures_clause()}
+                ORDER BY s.year DESC, COALESCE(s.num_parts, 0) DESC
+                LIMIT ?
+            """
+            cur.execute(sql, (int(limit),))
+            return [_row_to_set(r) for r in cur.fetchall()]
+
+        # Text search
+        like_norm = f"%{q_norm}%"
+        like_raw = f"%{q_rest.strip()}%"
+
+        set_like_1 = f"%{q_rest.strip()}%"
+        q2 = _norm_set_num(q_rest)
+        set_like_2 = f"%{q2}%" if q2 != q_rest else set_like_1
+
+        sql = f"""
+            SELECT s.set_num, s.name, s.year, s.num_parts, s.set_img_url
+            FROM sets s
+            LEFT JOIN themes t ON t.theme_id = s.theme_id
+            WHERE ({_base_where_clause(min_parts)})
+            {_theme_noise_clause()}
+            {" " if (wants_figures or theme_forced) else _no_figures_clause()}
+            {theme_sql}
+            AND (
+                s.set_num LIKE ?
+                OR s.set_num LIKE ?
+                OR s.name LIKE ?
+                OR LOWER(REPLACE(s.name, '-', ' ')) LIKE ?
+                OR (t.name IS NOT NULL AND (
+                    t.name LIKE ? COLLATE NOCASE
+                    OR LOWER(REPLACE(t.name, '-', ' ')) LIKE ?
+                ))
+            )
+            ORDER BY s.year DESC
+            LIMIT ?
+        """
+
+        cur.execute(
+            sql,
+            (
+                *theme_params,
+                set_like_1,
+                set_like_2,
+                like_raw,
+                like_norm,
+                like_raw,
+                like_norm,
+                int(limit),
+            ),
+        )
+        return [_row_to_set(r) for r in cur.fetchall()]
+    finally:
+        try:
+            con.close()
+        except Exception:
+            pass
+
+
+def fuzzy_search_sets(q: str, limit: int = 40, min_score: int = 70) -> List[Dict]:
+    # Prefilter only (fast). Reuse _do_search prefilter but with a higher cap.
+    rows = _do_search(q, limit=2500)
+    if not rows:
+        return []
+
+    q_norm = _norm_q(q)
+    scored: List[Dict] = []
+
+    for r in rows:
+        hay = _norm_q(f"{r.get('set_num','')} {r.get('name','')}")
+        score = fuzz.token_set_ratio(q_norm, hay)
+        if score >= int(min_score):
+            rr = dict(r)
+            rr["_score"] = score
+            scored.append(rr)
+
+    scored.sort(key=lambda x: x.get("_score", 0), reverse=True)
+    for r in scored:
+        r.pop("_score", None)
+    return scored[: int(limit)]
+
+
+def _search_with_fuzzy(q: str, fuzzy: bool) -> List[Dict]:
+    return fuzzy_search_sets(q) if fuzzy else _do_search(q)
+
+
+@router.get("/search")
+def search(q: str = Query(..., min_length=1), fuzzy: bool = False) -> List[Dict]:
+    return _search_with_fuzzy(q, fuzzy)
+
+
+@router.get("/search/sets")
+def search_sets(q: str = Query(..., min_length=1), fuzzy: bool = False) -> List[Dict]:
+    return _search_with_fuzzy(q, fuzzy)
+
+
+@router.get("/sets/search_sets")
+def legacy_search_sets(q: str = Query(..., min_length=1)) -> List[Dict]:
+    return _do_search(q)

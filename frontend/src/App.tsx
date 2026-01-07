@@ -29,7 +29,7 @@ const App: React.FC = () => {
     <>
       <StagingBanner />
       <div className="app-shell">
-        <aside className="sidebar">
+        <aside className="app-sidebar">
           {/* MINIMAL: brand now includes logo + links home */}
           <a href="/" className="brand" aria-label="Aim2Build home">
             <img
