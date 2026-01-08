@@ -6,6 +6,10 @@ __pycache__/
 .venv/
 venv/
 backend/venv/
+*.pyc
+
+# --- Rebrickable CSVs (never commit) ---
+backend/app/data/rebrickable/
 
 # SQLite & runtime JSON (not versioned)
 backend/app/data/*.db
@@ -13,6 +17,9 @@ backend/app/data/*.db-shm
 backend/app/data/*.db-wal
 backend/app/data/my_sets.json
 backend/app/data/wishlist.json
+backend/app/data/*.db-*
+backend/app/data/*.sqlite
+backend/app/data/*.sqlite-*
 
 # Node
 frontend/node_modules/
