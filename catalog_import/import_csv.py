@@ -499,6 +499,7 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
     path = _ensure_exists(base_dir, spec.filename)
     with open(path, newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
+
         if reader.fieldnames is None:
             raise ValueError(f"{spec.filename} has no header")
 
@@ -512,9 +513,24 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
 
         batch: List[List[Any]] = []
         inserted = 0
+
         for row in reader:
+            if spec.table == "themes":
+                pid = _to_int(_first(row, "parent_id"))
+                if pid == 501:
+                  continue
+
+            if spec.row_filter and not spec.row_filter(row):
+                  continue
+            # themes cleanup: ignore "root" rows (parent_id=501)
+            if spec.table == "themes":
+                pid = _to_int(_first(row, "parent_id"))
+                if pid == 501:
+                    continue
+
             if spec.row_filter and not spec.row_filter(row):
                 continue
+
             values: List[Any] = []
             skip_row = False
             for col in spec.columns:
@@ -523,18 +539,21 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
                     skip_row = True
                     break
                 values.append(value)
+
             if skip_row:
                 continue
+
             batch.append(values)
             if len(batch) >= 1000:
                 con.executemany(insert_sql, batch)
                 inserted += len(batch)
                 batch.clear()
+
         if batch:
             con.executemany(insert_sql, batch)
             inserted += len(batch)
-    return inserted
 
+    return inserted
 
 def _build_summary_tables(con) -> Dict[str, int]:
     summary_counts: Dict[str, int] = {}
