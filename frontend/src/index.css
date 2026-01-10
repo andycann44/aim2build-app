@@ -266,10 +266,14 @@ body.aim2-root {
 
 /* wrapper if you have one */
 .hero-tiles {
+  position: absolute;
+  inset: 0 0 auto 0;
   display: flex;
   gap: 10px;
   height: 18px;
   align-items: stretch;
+  padding: 0 8px;
+  border-radius: 0;
 }
 
 /* each little colour segment */
@@ -602,9 +606,35 @@ body.aim2-root {
   margin-top: 0.35rem;
 }
 
-/* Hero container margin; main hero styles are inline in SearchPage.tsx */
+/* Hero container: canonical Home-style hero */
 .search-hero {
-  margin-bottom: 1.2rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 1.5rem;
+  margin-right: 2.5rem;
+  margin-bottom: 1.5rem;
+  margin-left: 0;
+  border-radius: 18px;
+  padding: 1.75rem 1.5rem 1.5rem;
+  background: linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.page-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.page-hero-eyebrow {
+  font-size: 0.8rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.9;
+  margin-bottom: 0.35rem;
 }
 
 /* Narrow helper text */

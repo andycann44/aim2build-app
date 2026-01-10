@@ -15,6 +15,7 @@ import {
   BuildabilityResult,
 } from "../api/client";
 import { useNavigate } from "react-router-dom";
+import PageHero from "../components/PageHero";
 
 type BuildabilityResultWithDisplay = BuildabilityResult & {
   display_total?: number | null;
@@ -133,94 +134,11 @@ const BuildabilityPage: React.FC = () => {
 
   return (
     <div className="page page-buildability page-mysets">
-      {/* HERO HEADER – same style as your My Sets hero */}
-      <div
-        className="Buildability-hero"
-        style={{
-          width: "100%",
-          maxWidth: "100%",
-          boxSizing: "border-box",
-          marginTop: "1.5rem",
-          marginRight: "2.5rem",
-          marginBottom: "1.0rem",
-          marginLeft: 0,
-          borderRadius: "18px",
-          padding: "1.75rem 1.5rem 1.5rem",
-          background:
-            "linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%)",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "0 0 auto 0",
-            height: "10px",
-            display: "flex",
-            gap: "2px",
-            padding: "0 8px",
-          }}
-        >
-          {[
-            "#dc2626",
-            "#f97316",
-            "#fbbf24",
-            "#22c55e",
-            "#0ea5e9",
-            "#6366f1",
-          ].map((c, i) => (
-            <div
-              key={i}
-              style={{
-                flex: 1,
-                borderRadius: "99px",
-                background: c,
-                opacity: 0.9,
-              }}
-            />
-          ))}
-        </div>
-
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div
-            style={{
-              fontSize: "0.8rem",
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
-              opacity: 0.9,
-              marginBottom: "0.35rem",
-            }}
-          >
-            Buildability
-          </div>
-          <h1
-            style={{
-              fontSize: "1.9rem",
-              fontWeight: 800,
-              margin: 0,
-            }}
-          >
-            Find out how close you are to building
-          </h1>
-          <p
-            style={{
-              marginTop: "0.45rem",
-              marginBottom: 0,
-              fontSize: "0.92rem",
-              maxWidth: "560px",
-              opacity: 0.95,
-            }}
-          >
-            We&apos;ll check each set in your My Sets list against your
-            inventory and show you how many pieces you already own. Double-click
-            a tile to see a full parts breakdown.
-          </p>
-        </div>
-      </div>
+      <PageHero
+        eyebrow="Buildability"
+        title="Find out how close you are to building"
+        subtitle="We'll check each set in your My Sets list against your inventory and show you how many pieces you already own. Double-click a tile to see a full parts breakdown."
+      />
 
       {/* SEARCH BAR – similar style to Search page, but scoped to buildable sets */}
       {items.length > 0 && (

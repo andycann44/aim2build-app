@@ -6,6 +6,7 @@ import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import { API_BASE } from "../api/client";
 import { authHeaders } from "../utils/auth";
 import NoticeBanner from "../components/NoticeBanner";
+import PageHero from "../components/PageHero";
 
 
 type ElementRow = {
@@ -218,76 +219,23 @@ const InventoryPickColourInner: React.FC = () => {
 
   return (
     <div className="a2b-page a2b-page-inventory-pick-colour">
-      <div
-        className="search-hero"
-        style={{
-          width: "100%",
-          maxWidth: "100%",
-          boxSizing: "border-box",
-          marginTop: "1.5rem",
-          marginRight: "2.5rem",
-          marginBottom: "1.5rem",
-          marginLeft: 0,
-          borderRadius: "18px",
-          padding: "1.75rem 1.5rem",
-          background:
-            "linear-gradient(135deg,#0b1120,#1d4ed8,#fbbf24,#dc2626)",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "0 0 auto 0",
-            height: "10px",
-            display: "flex",
-            gap: "2px",
-            padding: "0 8px",
-          }}
-        >
-          {["#dc2626", "#f97316", "#fbbf24", "#22c55e", "#0ea5e9", "#6366f1"].map(
-            (c, i) => (
-              <div
-                key={i}
-                style={{
-                  flex: 1,
-                  borderRadius: "99px",
-                  background: c,
-                  opacity: 0.9,
-                }}
-              />
-            )
-          )}
-        </div>
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <h1 style={{ margin: 0, fontSize: "1.9rem", fontWeight: 800 }}>
-            Pick a colour
-          </h1>
-          <div style={{ opacity: 0.9, marginTop: "0.35rem", fontSize: "0.95rem" }}>
+      <PageHero
+        title="Pick a colour"
+        subtitle={
+          <span>
             Part: <strong>{partNum || "—"}</strong>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: "0.6rem",
-              flexWrap: "wrap",
-              marginTop: "0.8rem",
-            }}
+          </span>
+        }
+        left={
+          <button
+            type="button"
+            className="a2b-hero-button a2b-cta-dark"
+            onClick={() => navigate(backTo)}
           >
-            <button
-              className="a2b-hero-button a2b-cta-dark"
-              onClick={() => navigate(backTo)}
-              style={{ padding: "0.45rem 1rem", fontSize: "0.92rem" }}
-            >
-              ← Back
-            </button>
-          </div>
-        </div>
-      </div>
+            ← Back
+          </button>
+        }
+      />
 
       {error && (
         <NoticeBanner

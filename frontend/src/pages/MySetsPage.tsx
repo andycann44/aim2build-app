@@ -13,6 +13,7 @@ import {
 } from "../api/client";
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
+import PageHero from "../components/PageHero";
 
 const API = API_BASE;
 
@@ -157,79 +158,10 @@ const MySetsPage: React.FC = () => {
 
   return (
     <div className="page page-mysets">
-      {/* HERO HEADER – styling unchanged */}
-      <div
-        className="sets-hero"
-        style={{
-          width: "100%",
-          maxWidth: "100%",
-          boxSizing: "border-box",
-          marginTop: "1.5rem",
-          marginRight: "2.5rem",
-          marginBottom: "1.5rem",
-          marginLeft: "0",
-          borderRadius: "18px",
-          padding: "1.75rem 1.5rem 1.5rem",
-          background:
-            "linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%)",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "0 0 auto 0",
-            height: "10px",
-            display: "flex",
-            gap: "2px",
-            padding: "0 8px",
-          }}
-        >
-          {[
-            "#dc2626",
-            "#f97316",
-            "#fbbf24",
-            "#22c55e",
-            "#0ea5e9",
-            "#6366f1",
-          ].map((c, i) => (
-            <div
-              key={i}
-              style={{
-                flex: 1,
-                borderRadius: "99px",
-                background: c,
-                opacity: 0.9,
-              }}
-            />
-          ))}
-        </div>
-
-        <h1
-          style={{
-            fontSize: "2.1rem",
-            fontWeight: 800,
-            marginTop: "1.2rem",
-          }}
-        >
-          My Sets
-        </h1>
-        <p
-          style={{
-            opacity: 0.95,
-            marginTop: "0.5rem",
-            fontSize: "1rem",
-          }}
-        >
-          Click &quot;Add to Inventory&quot; to pour all buildable parts
-          (non-spares) from a set into your collection.
-        </p>
-
-      </div>
+      <PageHero
+        title="My Sets"
+        subtitle='Click "Add to Inventory" to pour all buildable parts (non-spares) from a set into your collection.'
+      />
 
       {/* BODY */}
       <div className="search-results">

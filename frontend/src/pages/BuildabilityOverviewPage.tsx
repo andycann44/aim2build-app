@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import BuildabilityTile, { BuildabilityItem } from "../components/BuildabilityTile";
 import { getBuildability, getMySets, getWishlist, searchSets, SetSummary } from "../api/client";
 import RequireAuth from "../components/RequireAuth";
+import PageHero from "../components/PageHero";
 
 type Mode = "mysets" | "wishlist" | "search";
 
@@ -199,131 +200,71 @@ const BuildabilityOverviewPage: React.FC = () => {
 
   return (
     <div className="page page-buildability-overview">
-      {/* HERO */}
-      <div
-        className="search-hero"
-        style={{
-          width: "100%",
-          maxWidth: "100%",
-          borderRadius: "18px",
-          padding: "1.75rem 1.5rem 1.5rem",
-          background: "linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%)",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-          color: "#fff",
-          position: "relative",
-          overflow: "visible",
-          marginTop: "1.5rem",
-          marginRight: "2.5rem",
-          marginBottom: "1.5rem",
-          marginLeft: 0,
-        }}
+      <PageHero
+        title="Buildability overview"
+        subtitle={`${heroTitle} · ${heroSubtitle}`}
+        left={<>{MODE_OPTIONS.map(modePill)}</>}
+        right={
+          <button
+            type="button"
+            className="a2b-hero-button a2b-cta-dark"
+            onClick={() => navigate("/buildability/discover")}
+          >
+            Discover builds
+          </button>
+        }
       >
-        {/* studs strip */}
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "0 0 auto 0",
-            height: "10px",
-            display: "flex",
-            gap: "2px",
-            padding: "0 8px",
-          }}
-        >
-          {["#dc2626", "#f97316", "#fbbf24", "#22c55e", "#0ea5e9", "#6366f1"].map((c, i) => (
-            <div key={i} style={{ flex: 1, borderRadius: "99px", background: c, opacity: 0.9 }} />
-          ))}
-        </div>
-
-        <div style={{ position: "relative", zIndex: 1, marginTop: "1.75rem" }}>
-          {/* mode row */}
-          <div
+        {mode === "search" && (
+          <form
+            onSubmit={handleSearch}
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "0.75rem",
+              gap: "0.7rem",
               flexWrap: "wrap",
-              marginBottom: "0.9rem",
+              alignItems: "stretch",
             }}
           >
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              {MODE_OPTIONS.map(modePill)}
-            </div>
-          </div>
-
-          {/* text block */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-            <h1 style={{ fontSize: "1.9rem", fontWeight: 800, letterSpacing: "0.03em", margin: 0 }}>
-              Buildability overview
-            </h1>
-            <p
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search set name or number…"
               style={{
-                margin: 0,
-                fontSize: "0.9rem",
-                lineHeight: 1.45,
-                opacity: 0.92,
-                maxWidth: "640px",
+                flex: "1 1 260px",
+                minWidth: "240px",
+                padding: "0.9rem 1rem",
+                borderRadius: "999px",
+                border: "2px solid rgba(255,255,255,0.9)",
+                backgroundColor: "rgba(15,23,42,0.9)",
+                color: "#f9fafb",
+                fontSize: "1rem",
+                boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
+              }}
+            />
+            <button
+              type="submit"
+              className="hero-pill"
+              style={{
+                background: "linear-gradient(135deg, #f97316, #facc15, #22c55e)",
+                color: "#0f172a",
+                border: "2px solid rgba(255,255,255,0.95)",
+                boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
+                fontWeight: 800,
+                padding: "0.85rem 1.6rem",
+                borderRadius: "999px",
+                letterSpacing: "0.05em",
               }}
             >
-              {heroTitle} · {heroSubtitle}
-            </p>
-          </div>
-
-          {/* search bar */}
-          {mode === "search" && (
-            <form
-              onSubmit={handleSearch}
-              style={{
-                marginTop: "1rem",
-                display: "flex",
-                gap: "0.7rem",
-                flexWrap: "wrap",
-                alignItems: "stretch",
-              }}
-            >
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search set name or number…"
-                style={{
-                  flex: "1 1 260px",
-                  minWidth: "240px",
-                  padding: "0.9rem 1rem",
-                  borderRadius: "999px",
-                  border: "2px solid rgba(255,255,255,0.9)",
-                  backgroundColor: "rgba(15,23,42,0.9)",
-                  color: "#f9fafb",
-                  fontSize: "1rem",
-                  boxShadow: "0 0 0 2px rgba(15,23,42,0.35)",
-                }}
-              />
-              <button
-                type="submit"
-                className="hero-pill"
-                style={{
-                  background: "linear-gradient(135deg, #f97316, #facc15, #22c55e)",
-                  color: "#0f172a",
-                  border: "2px solid rgba(255,255,255,0.95)",
-                  boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
-                  fontWeight: 800,
-                  padding: "0.85rem 1.6rem",
-                  borderRadius: "999px",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                Search
-              </button>
-              {lastQuery && (
-                <span style={{ fontSize: "0.82rem", color: "#e5e7eb", opacity: 0.85 }}>
-                  Showing results for “{lastQuery}”
-                </span>
-              )}
-            </form>
-          )}
-        </div>
-      </div>
+              Search
+            </button>
+            {lastQuery && (
+              <span style={{ fontSize: "0.82rem", color: "#e5e7eb", opacity: 0.85 }}>
+                Showing results for “{lastQuery}”
+              </span>
+            )}
+          </form>
+        )}
+      </PageHero>
 
       {/* BODY */}
       <div style={{ padding: "0 1.5rem 2.5rem" }}>

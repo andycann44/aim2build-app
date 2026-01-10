@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import RequireAuth from "../components/RequireAuth";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import NoticeBanner from "../components/NoticeBanner";
+import PageHero from "../components/PageHero";
 import { API_BASE } from "../api/client";
 import { authHeaders } from "../utils/auth";
 
@@ -248,52 +249,30 @@ const InventoryEditInner: React.FC = () => {
 
   return (
     <div className="a2b-page a2b-page-inventory-edit">
-      {/* HERO */}
-      <div
-        className="search-hero"
-        style={{
-          width: "100%",
-          maxWidth: "100%",
-          marginTop: "1.5rem",
-          marginBottom: "1rem",
-          borderRadius: "18px",
-          padding: "1.75rem 1.5rem",
-          background: "linear-gradient(135deg,#0b1120,#1d4ed8,#fbbf24,#dc2626)",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: "1.9rem", fontWeight: 800 }}>
-          Edit Inventory
-        </h1>
-        <p style={{ marginTop: "0.4rem", fontSize: "0.92rem", opacity: 0.9 }}>
-          Adjust quantities. If a part is locked by a poured set, you can’t go below the poured amount.
-        </p>
-
-        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginTop: "0.6rem" }}>
+      <PageHero
+        title="Edit Inventory"
+        subtitle="Adjust quantities. If a part is locked by a poured set, you can’t go below the poured amount."
+        left={
           <button
             type="button"
             className="a2b-hero-button a2b-cta-dark"
             onClick={() => navigate("/inventory")}
-            style={{ padding: "0.45rem 1rem", fontSize: "0.92rem" }}
           >
             ← Back to Inventory
           </button>
-
+        }
+        right={
           <button
             type="button"
             className="a2b-hero-button a2b-cta-green"
             onClick={() => void load()}
-            style={{ padding: "0.45rem 1rem", fontSize: "0.92rem" }}
             title="Refresh inventory"
           >
             Refresh
           </button>
-        </div>
-
-        <div style={{ marginTop: "1rem", maxWidth: 720 }}>
+        }
+      >
+        <div style={{ maxWidth: 720 }}>
           <input
             value={term}
             onChange={(e) => setTerm(e.target.value)}
@@ -317,7 +296,7 @@ const InventoryEditInner: React.FC = () => {
             onClose={() => setError("")}
           />
         ) : null}
-      </div>
+      </PageHero>
 
       {loading ? <div style={{ padding: "0.75rem" }}>Loading…</div> : null}
 
