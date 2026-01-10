@@ -241,7 +241,14 @@ class DecCanonicalPayload(BaseModel):
 # -----------------------
 # Read endpoints
 # -----------------------
-
+@router.get("/has_any")
+def has_any_inventory(current_user: User = Depends(get_current_user)):
+    with user_db() as con:
+        row = con.execute(
+            "SELECT 1 FROM user_inventory_parts WHERE user_id=? LIMIT 1",
+            (current_user.id,),
+        ).fetchone()
+    return {"has_any": row is not None}
 
 @router.get("/parts", response_model=List[InventoryPart])
 def get_parts(current_user: User = Depends(get_current_user)):
