@@ -6,6 +6,7 @@ import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import { API_BASE } from "../api/client";
 import { authHeaders, getToken } from "../utils/auth";
 
+/* ---------- types ---------- */
 type SetSummary = {
   set_num: string;
   name: string;
@@ -25,7 +26,7 @@ type MissingPart = {
 
 type CompareResult = {
   set_num: string;
-  coverage: number; // 0..1
+  coverage: number;
   total_needed: number;
   total_have: number;
   missing_parts: MissingPart[];
@@ -39,321 +40,155 @@ type CatalogPartRow = {
   img_url?: string | null;
 };
 
-function normSetNum(raw: string): string {
-  if (!raw) return "";
-  return raw.includes("-") ? raw : `${raw}-1`;
-}
+/* ---------- helpers ---------- */
+const FALLBACK_IMG = "/branding/missing.png";
 
-function pct(v01: number): string {
-  const v = Number.isFinite(v01) ? Math.max(0, Math.min(1, v01)) : 0;
-  return `${Math.round(v * 100)}%`;
-}
+const normSetNum = (raw: string) =>
+  raw.includes("-") ? raw : `${raw}-1`;
+
+const pct = (v: number) =>
+  `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
 
 async function fetchSetMeta(setNum: string): Promise<SetSummary | null> {
   const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(setNum)}`);
   if (!res.ok) return null;
   const list = (await res.json()) as SetSummary[];
-  const exact = Array.isArray(list) ? list.find((s) => s.set_num === setNum) : null;
-  return exact || (Array.isArray(list) ? list[0] : null) || null;
+  return list.find((s) => s.set_num === setNum) ?? list[0] ?? null;
 }
 
 async function fetchCompare(setNum: string): Promise<CompareResult> {
-  const res = await fetch(`${API_BASE}/api/buildability/compare?set=${encodeURIComponent(setNum)}`, {
-    headers: { ...authHeaders() },
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(txt || `Failed to load buildability (${res.status})`);
-  }
-  return (await res.json()) as CompareResult;
+  const res = await fetch(
+    `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(setNum)}`,
+    { headers: authHeaders() }
+  );
+  if (!res.ok) throw new Error("Buildability failed");
+  return res.json();
 }
 
 async function fetchGuestMissing(setNum: string): Promise<MissingPart[]> {
-  // Guest demo uses catalog parts list and assumes have=0
   const res = await fetch(`${API_BASE}/api/catalog/parts?set=${encodeURIComponent(setNum)}`);
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(txt || `Failed to load set parts (${res.status})`);
-  }
+  if (!res.ok) throw new Error("Catalog load failed");
+
   const rows = (await res.json()) as CatalogPartRow[];
-  return (rows || [])
-    .map((r) => {
-      const need = Number(r.quantity) || 0;
-      const part_img_url = (r.part_img_url ?? r.img_url ?? null) as string | null;
-      return {
-        part_num: r.part_num,
-        color_id: r.color_id,
-        need,
-        have: 0,
-        short: need,
-        part_img_url,
-      };
-    })
-    .filter((m) => m.need > 0);
+  return rows.map((r) => ({
+    part_num: r.part_num,
+    color_id: r.color_id,
+    need: r.quantity,
+    have: 0,
+    short: r.quantity,
+    part_img_url: r.part_img_url ?? r.img_url ?? FALLBACK_IMG,
+  }));
 }
+
+/* ============================== */
 
 export default function SetPage() {
   const { setNum: raw } = useParams<{ setNum: string }>();
   const navigate = useNavigate();
 
   const setNum = useMemo(() => normSetNum(raw || ""), [raw]);
-  const token = getToken();
-  const isGuest = !token;
+  const isGuest = !getToken();
 
   const [meta, setMeta] = useState<SetSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const [compare, setCompare] = useState<CompareResult | null>(null);
-  const [guestMissing, setGuestMissing] = useState<MissingPart[] | null>(null);
+  const [guestMissing, setGuestMissing] = useState<MissingPart[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!setNum) {
-      setError("No set selected");
-      setLoading(false);
-      return;
-    }
-
     let alive = true;
-
     (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        setMeta(null);
-        setCompare(null);
-        setGuestMissing(null);
+      setLoading(true);
+      setMeta(await fetchSetMeta(setNum));
+      if (!alive) return;
 
-        const m = await fetchSetMeta(setNum);
-        if (!alive) return;
-        setMeta(m);
-
-        if (isGuest) {
-          const missing = await fetchGuestMissing(setNum);
-          if (!alive) return;
-          setGuestMissing(missing);
-        } else {
-          const c = await fetchCompare(setNum);
-          if (!alive) return;
-          setCompare(c);
-        }
-      } catch (e: any) {
-        if (!alive) return;
-        setError(e?.message || "Failed to load set");
-      } finally {
-        if (!alive) return;
-        setLoading(false);
+      if (isGuest) {
+        setGuestMissing(await fetchGuestMissing(setNum));
+      } else {
+        setCompare(await fetchCompare(setNum));
       }
+      setLoading(false);
     })();
-
     return () => {
       alive = false;
     };
   }, [setNum, isGuest]);
 
-  const title = meta?.name || "Set";
-  const subtitle = meta
-    ? `${meta.set_num} • ${meta.year}${meta.num_parts ? ` • ${meta.num_parts.toLocaleString()} parts` : ""}`
-    : setNum;
+  const missing = isGuest ? guestMissing : compare?.missing_parts ?? [];
+  const missingCount = missing.reduce((a, b) => a + (b.short ?? 0), 0);
 
-  const missing = isGuest ? guestMissing || [] : compare?.missing_parts || [];
-  const totalNeeded = isGuest
-    ? missing.reduce((a, b) => a + (b.need || 0), 0)
-    : compare?.total_needed ?? 0;
-  const missingCount = useMemo(() => {
-    if (!missing.length) return 0;
-    return missing.reduce((acc, m) => {
-      const short =
-        typeof m.short === "number"
-          ? m.short
-          : Math.max((m.need ?? 0) - (m.have ?? 0), 0);
-      return acc + (Number.isFinite(short) ? short : 0);
-    }, 0);
-  }, [missing]);
-  const coverageLabel = isGuest
-    ? guestMissing
-      ? "0%"
-      : "—"
-    : typeof compare?.coverage === "number"
-    ? pct(compare.coverage)
-    : "—";
-  const needLabel = isGuest
-    ? guestMissing
-      ? totalNeeded.toLocaleString()
-      : "—"
-    : compare?.total_needed !== undefined
-    ? compare.total_needed.toLocaleString()
-    : "—";
-
+  /* ---------- render ---------- */
   return (
     <div className="page buildability-missing">
-      {/* Local responsive grid rules: 5-wide desktop */}
+      {/* ===== CSS FIXED (NO JSX INSIDE) ===== */}
       <style>{`
-        .tile-grid.tile-grid--5 {
+        .demo-banner {
+          border: 2px solid;
+          border-radius: 14px;
+          padding: 12px 16px;
+          margin: 14px auto 0;
+          max-width: 1600px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          animation: xmasFlash 1.2s linear infinite;
+          background: linear-gradient(135deg, rgba(34,197,94,0.18), rgba(15,23,42,0.6));
+        }
+
+        @keyframes xmasFlash {
+          0%   { border-color: #22c55e; box-shadow: 0 0 0; }
+          25%  { border-color: #ef4444; box-shadow: 0 0 18px rgba(239,68,68,.4); }
+          50%  { border-color: #facc15; box-shadow: 0 0 18px rgba(250,204,21,.4); }
+          75%  { border-color: #3b82f6; box-shadow: 0 0 18px rgba(59,130,246,.4); }
+          100% { border-color: #22c55e; box-shadow: 0 0 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .demo-banner { animation: none; }
+        }
+
+        .tile-grid--5 {
           display: grid;
           grid-template-columns: repeat(5, minmax(0, 1fr));
           gap: 18px;
         }
-        @media (max-width: 1400px) {
-          .tile-grid.tile-grid--5 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-        }
-        @media (max-width: 1100px) {
-          .tile-grid.tile-grid--5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        }
-        @media (max-width: 820px) {
-          .tile-grid.tile-grid--5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-        @media (max-width: 520px) {
-          .tile-grid.tile-grid--5 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-        }
       `}</style>
 
-      <PageHero title={title} subtitle={subtitle}>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.55rem",
-            alignItems: "center",
-          }}
-        >
-          <span
-            className="hero-pill hero-pill--sort"
-            style={{
-              background: "rgba(15,23,42,0.55)",
-              borderColor: "rgba(255,255,255,0.75)",
-              color: "#f8fafc",
-              fontWeight: 700,
-            }}
-          >
-            Coverage: {coverageLabel}
-          </span>
+      <PageHero
+        title={meta?.name ?? "Set"}
+        subtitle={
+          meta
+            ? `${meta.set_num} • ${meta.year} • ${meta.num_parts?.toLocaleString()} parts`
+            : setNum
+        }
+      />
 
-          <span
-            className="hero-pill hero-pill--sort"
-            style={{
-              background: "rgba(15,23,42,0.48)",
-              borderColor: "rgba(255,255,255,0.55)",
-              color: "#f8fafc",
-              fontWeight: 700,
-            }}
-          >
-            Need: {needLabel}
-          </span>
-
-          <span
-            className="hero-pill hero-pill--sort"
-            style={{
-              background: "rgba(220,38,38,0.22)",
-              borderColor: "rgba(252,165,165,0.75)",
-              color: "#fef2f2",
-              fontWeight: 700,
-            }}
-          >
-            Missing pieces: {missingCount.toLocaleString()}
-          </span>
-
-          {isGuest ? (
-            <span
-              className="hero-pill hero-pill--sort"
-              style={{
-                background: "rgba(15,23,42,0.35)",
-                borderColor: "rgba(255,255,255,0.4)",
-                color: "#e2e8f0",
-                fontWeight: 600,
-              }}
-            >
-              Guest demo: sign in to track real buildability
-            </span>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            style={{
-              borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.55)",
-              background: "rgba(255,255,255,0.12)",
-              color: "#fff",
-              padding: "0.35rem 0.85rem",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            ← Back
-          </button>
-          {isGuest ? (
-            <button
-              type="button"
-              onClick={() => navigate("/login")}
-              style={{
-                borderRadius: 999,
-                border: "1px solid rgba(34,197,94,0.7)",
-                background: "linear-gradient(135deg,#22c55e,#16a34a)",
-                color: "#fff",
-                padding: "0.35rem 0.85rem",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Sign in
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => navigate(`/buildability/${setNum}/missing`)}
-              style={{
-                borderRadius: 999,
-                border: "1px solid rgba(34,197,94,0.7)",
-                background: "linear-gradient(135deg,#22c55e,#16a34a)",
-                color: "#fff",
-                padding: "0.35rem 0.85rem",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Open Missing Parts
-            </button>
-          )}
+      {/* ===== FLASHING DEMO BANNER (FIXED) ===== */}
+      {isGuest && (
+        <div className="demo-banner">
+          <div>
+            <strong>Demo mode</strong>
+            <div style={{ fontSize: 13, opacity: 0.9 }}>
+              Viewing this set with zero inventory.
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => navigate("/login")}>Sign in</button>
+            <button onClick={() => navigate("/account")}>Create account</button>
+          </div>
         </div>
-      </PageHero>
+      )}
 
-      <div
-        style={{
-          maxWidth: "1600px",
-          margin: "0 auto 2.5rem",
-          padding: "0 1.5rem",
-        }}
-      >
-        {loading && (
-          <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>
-            Loading missing parts…
-          </p>
-        )}
-
-        {error && <p style={{ color: "#ef4444", fontSize: "0.92rem" }}>{error}</p>}
-
-        {!loading && !error && (
-          <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>
-            Missing parts ({missing.length})
-          </p>
-        )}
-
-        {!loading && !error && missing.length === 0 && (
-          <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>
-            No missing parts for this set.
-          </p>
-        )}
-
-        {!loading && !error && missing.length > 0 ? (
-          <div className="tile-grid tile-grid--5" style={{ marginTop: "0.5rem" }}>
-            {missing.map((m, idx) => (
+      {/* ===== GRID ===== */}
+      <div style={{ maxWidth: 1600, margin: "20px auto", padding: "0 1.5rem" }}>
+        {!loading && missing.length > 0 && (
+          <div className="tile-grid--5">
+            {missing.map((m, i) => (
               <BuildabilityPartsTile
-                key={`${m.part_num}-${m.color_id}-${idx}`}
+                key={`${m.part_num}-${m.color_id}-${i}`}
                 part={{
                   part_num: m.part_num,
                   color_id: m.color_id,
-                  part_img_url: (m.part_img_url ?? undefined) as any,
+                  part_img_url: m.part_img_url || FALLBACK_IMG,
                 }}
                 need={m.need}
                 have={m.have}
@@ -361,7 +196,7 @@ export default function SetPage() {
               />
             ))}
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
