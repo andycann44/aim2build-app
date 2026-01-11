@@ -5,6 +5,7 @@ import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import RequireAuth from "../components/RequireAuth";
 import { authHeaders, getToken } from "../utils/auth";
 import { API_BASE } from "../api/client";
+import PageHero from "../components/PageHero";
 
 type MissingPart = {
   part_num: string;
@@ -166,168 +167,95 @@ const MissingPartsInner: React.FC = () => {
         }
       `}</style>
 
-      {/* HERO – match buildability styling */}
-      <div
-        className="search-hero"
-        style={{
-          width: "100%",
-          maxWidth: "100%",
-          borderRadius: "18px",
-          padding: "1.75rem 1.5rem 1.5rem",
-          background:
-            "linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%)",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
-          marginTop: "1.5rem",
-          marginRight: "2.5rem",
-          marginBottom: "1.5rem",
-          marginLeft: 0,
-        }}
-      >
+      <PageHero title="Missing parts" subtitle={setLine}>
         <div
-          aria-hidden="true"
           style={{
-            position: "absolute",
-            inset: "0 0 auto 0",
-            height: "10px",
             display: "flex",
-            gap: "2px",
-            padding: "0 8px",
+            flexWrap: "wrap",
+            gap: "0.55rem",
+            alignItems: "center",
           }}
         >
-          {["#dc2626", "#f97316", "#fbbf24", "#22c55e", "#0ea5e9", "#6366f1"].map(
-            (c, i) => (
-              <div
-                key={i}
-                style={{
-                  flex: 1,
-                  borderRadius: "99px",
-                  background: c,
-                  opacity: 0.9,
-                }}
-              />
-            )
-          )}
+          <span
+            className="hero-pill hero-pill--sort"
+            style={{
+              background: "rgba(15,23,42,0.55)",
+              borderColor: "rgba(255,255,255,0.75)",
+              color: "#f8fafc",
+              fontWeight: 700,
+            }}
+          >
+            Coverage:{" "}
+            {typeof summary?.coverage === "number"
+              ? `${Math.round(summary.coverage * 100)}%`
+              : "—"}
+          </span>
+
+          <span
+            className="hero-pill hero-pill--sort"
+            style={{
+              background: "rgba(15,23,42,0.48)",
+              borderColor: "rgba(255,255,255,0.55)",
+              color: "#f8fafc",
+              fontWeight: 700,
+            }}
+          >
+            Need:{" "}
+            {summary?.total_needed !== undefined
+              ? summary.total_needed.toLocaleString()
+              : "—"}
+          </span>
+
+          <span
+            className="hero-pill hero-pill--sort"
+            style={{
+              background: "rgba(220,38,38,0.22)",
+              borderColor: "rgba(252,165,165,0.75)",
+              color: "#fef2f2",
+              fontWeight: 700,
+            }}
+          >
+            Missing pieces: {missingCount.toLocaleString()}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (setNum) navigate(`/buildability/${encodeURIComponent(setNum)}`);
+              else navigate(-1);
+            }}
+            style={{
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.55)",
+              background: "rgba(255,255,255,0.12)",
+              color: "#fff",
+              padding: "0.35rem 0.85rem",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            ← Back to details
+          </button>
+          <button
+            type="button"
+            onClick={() => void applyPending()}
+            disabled={!isPro}
+            style={{
+              borderRadius: 999,
+              border: "1px solid rgba(34,197,94,0.7)",
+              background: isPro
+                ? "linear-gradient(135deg,#22c55e,#16a34a)"
+                : "rgba(15,23,42,0.08)",
+              color: isPro ? "#fff" : "#6b7280",
+              padding: "0.35rem 0.85rem",
+              fontWeight: 700,
+              cursor: isPro ? "pointer" : "not-allowed",
+            }}
+          >
+            Update inventory
+          </button>
         </div>
-
-        <div style={{ position: "relative", zIndex: 1, marginTop: "1.75rem" }}>
-          <h1
-            style={{
-              fontSize: "1.9rem",
-              fontWeight: 800,
-              letterSpacing: "0.03em",
-              margin: 0,
-              textShadow: "0 2px 6px rgba(0,0,0,0.45)",
-            }}
-          >
-            Missing parts
-          </h1>
-
-          <p
-            style={{
-              margin: 0,
-              marginTop: "0.25rem",
-              fontSize: "0.9rem",
-              lineHeight: 1.45,
-              opacity: 0.92,
-              maxWidth: "640px",
-            }}
-          >
-            {setLine}
-          </p>
-
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.55rem",
-              alignItems: "center",
-              marginTop: "0.85rem",
-            }}
-          >
-            <span
-              className="hero-pill hero-pill--sort"
-              style={{
-                background: "rgba(15,23,42,0.55)",
-                borderColor: "rgba(255,255,255,0.75)",
-                color: "#f8fafc",
-                fontWeight: 700,
-              }}
-            >
-              Coverage:{" "}
-              {typeof summary?.coverage === "number"
-                ? `${Math.round(summary.coverage * 100)}%`
-                : "—"}
-            </span>
-
-            <span
-              className="hero-pill hero-pill--sort"
-              style={{
-                background: "rgba(15,23,42,0.48)",
-                borderColor: "rgba(255,255,255,0.55)",
-                color: "#f8fafc",
-                fontWeight: 700,
-              }}
-            >
-              Need:{" "}
-              {summary?.total_needed !== undefined
-                ? summary.total_needed.toLocaleString()
-                : "—"}
-            </span>
-
-            <span
-              className="hero-pill hero-pill--sort"
-              style={{
-                background: "rgba(220,38,38,0.22)",
-                borderColor: "rgba(252,165,165,0.75)",
-                color: "#fef2f2",
-                fontWeight: 700,
-              }}
-            >
-              Missing pieces: {missingCount.toLocaleString()}
-            </span>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (setNum) navigate(`/buildability/${encodeURIComponent(setNum)}`);
-                else navigate(-1);
-              }}
-              style={{
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.55)",
-                background: "rgba(255,255,255,0.12)",
-                color: "#fff",
-                padding: "0.35rem 0.85rem",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              ← Back to details
-            </button>
-            <button
-              type="button"
-              onClick={() => void applyPending()}
-              disabled={!isPro}
-              style={{
-                borderRadius: 999,
-                border: "1px solid rgba(34,197,94,0.7)",
-                background: isPro
-                  ? "linear-gradient(135deg,#22c55e,#16a34a)"
-                  : "rgba(15,23,42,0.08)",
-                color: isPro ? "#fff" : "#6b7280",
-                padding: "0.35rem 0.85rem",
-                fontWeight: 700,
-                cursor: isPro ? "pointer" : "not-allowed",
-              }}
-            >
-              Update inventory
-            </button>
-          </div>
-        </div>
-      </div>
+      </PageHero>
 
       <div
         style={{

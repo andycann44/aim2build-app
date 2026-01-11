@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SetTile from "../components/SetTile";
 import { SetSummary, searchSets } from "../api/client";
+import PageHero from "../components/PageHero";
+import { getToken } from "../utils/auth";
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -9,6 +11,23 @@ const HomePage: React.FC = () => {
   const [loadingFeatured, setLoadingFeatured] = useState(false);
 
   const placeholders = useMemo(() => Array.from({ length: 8 }), []);
+
+  // ✅ MUST be top-level (not inside useEffect) to avoid “invalid hook call”
+  const onOpenFeatured = useCallback(
+    (setNum: string) => {
+      const loggedIn = !!getToken();
+
+      // Logged out: open Missing Parts view (shows “everything missing”)
+      if (!loggedIn) {
+        navigate(`/set/${encodeURIComponent(setNum)}`);
+        return;
+      }
+
+      // Logged in: go to normal set view
+      navigate(`/buildability/${encodeURIComponent(setNum)}`);
+    },
+    [navigate]
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -31,9 +50,7 @@ const HomePage: React.FC = () => {
             const res = await searchSets(sn);
             const match =
               res.find((s) => s.set_num === sn) || res.find((s) => s.set_num.startsWith(sn));
-            if (match) {
-              results.push(match);
-            }
+            if (match) results.push(match);
           } catch {
             // ignore individual failures
           }
@@ -50,148 +67,66 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="page page-home">
-      {/* HERO HEADER */}
-      <div
-        className="home-hero"
-        style={{
-          width: "100%",
-          maxWidth: "100%",
-          boxSizing: "border-box",
-          marginTop: "1.5rem",
-          marginRight: "2.5rem",
-          marginBottom: "1.5rem",
-          marginLeft: 0,
-          borderRadius: "18px",
-          padding: "1.75rem 1.5rem 1.5rem",
-          background:
-            "linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%)",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
-        }}
+      <PageHero
+        eyebrow="Aim2Build"
+        title="What can you build today?"
+        subtitle="Discover what LEGO sets you can build with the bricks you own."
       >
-        {/* top colour bar */}
         <div
-          aria-hidden="true"
-          className="hero-tiles"
           style={{
-            position: "absolute",
-            inset: "0 0 auto 0",
-            height: "18px",
+            marginTop: "1.1rem",
             display: "flex",
-            gap: "10px",
-            padding: "0 8px",
-            borderRadius: "0",
+            gap: "0.75rem",
+            flexWrap: "wrap",
           }}
         >
-          {[
-            "#dc2626",
-            "#f97316",
-            "#fbbf24",
-            "#22c55e",
-            "#0ea5e9",
-            "#6366f1",
-          ].map((c, i) => (
-            <div
-              key={i}
-              className="hero-tile"
-              style={{ flex: 1, "--c": c } as React.CSSProperties}
-            />
-          ))}
-        </div>
-
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div
+          <button
+            type="button"
+            onClick={() => navigate("/search")}
             style={{
-              fontSize: "0.8rem",
-              letterSpacing: "0.15em",
+              borderRadius: "999px",
+              padding: "0.65rem 1.3rem",
+              border: "none",
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: "0.9rem",
+              background: "linear-gradient(135deg, #22c55e 0%, #a3e635 100%)",
+              color: "#022c22",
+              boxShadow: "0 10px 25px rgba(15,23,42,0.6)",
               textTransform: "uppercase",
-              opacity: 0.9,
-              marginBottom: "0.35rem",
+              letterSpacing: "0.08em",
             }}
           >
-            Aim2Build
-          </div>
-          <h1
+            Go to Search
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/buildability")}
             style={{
-              fontSize: "1.9rem",
-              fontWeight: 800,
-              margin: 0,
+              borderRadius: "999px",
+              padding: "0.6rem 1.1rem",
+              border: "1px solid rgba(148,163,184,0.7)",
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: "0.85rem",
+              background: "rgba(15,23,42,0.65)",
+              color: "#e5e7eb",
             }}
           >
-            What can you build today?
-          </h1>
-          <p
-            style={{
-              marginTop: "0.45rem",
-              marginBottom: 0,
-              fontSize: "0.95rem",
-              maxWidth: "560px",
-              opacity: 0.95,
-            }}
-          >
-            Discover what LEGO sets you can build with the bricks you own.
-          </p>
-
-          {/* primary CTA */}
-          <div
-            style={{
-              marginTop: "1.1rem",
-              display: "flex",
-              gap: "0.75rem",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => navigate("/search")}
-              style={{
-                borderRadius: "999px",
-                padding: "0.65rem 1.3rem",
-                border: "none",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "0.9rem",
-                background:
-                  "linear-gradient(135deg, #22c55e 0%, #a3e635 100%)",
-                color: "#022c22",
-                boxShadow: "0 10px 25px rgba(15,23,42,0.6)",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-              }}
-            >
-              Go to Search
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/buildability")}
-              style={{
-                borderRadius: "999px",
-                padding: "0.6rem 1.1rem",
-                border: "1px solid rgba(148,163,184,0.7)",
-                cursor: "pointer",
-                fontWeight: 600,
-                fontSize: "0.85rem",
-                background: "rgba(15,23,42,0.65)",
-                color: "#e5e7eb",
-              }}
-            >
-              View buildability
-            </button>
-          </div>
-
-          <div style={{ marginTop: "0.6rem", color: "#e5e7eb", opacity: 0.9 }}>
-            Need help?{" "}
-            <a
-              href="mailto:support@aim2build.co.uk"
-              style={{ color: "#c7d2fe", textDecoration: "underline" }}
-            >
-              support@aim2build.co.uk
-            </a>
-          </div>
+            View buildability
+          </button>
         </div>
-      </div>
+
+        <div style={{ marginTop: "0.6rem", color: "#e5e7eb", opacity: 0.9 }}>
+          Need help?{" "}
+          <a
+            href="mailto:support@aim2build.co.uk"
+            style={{ color: "#c7d2fe", textDecoration: "underline" }}
+          >
+            support@aim2build.co.uk
+          </a>
+        </div>
+      </PageHero>
 
       {/* Featured sets */}
       <div
@@ -211,9 +146,8 @@ const HomePage: React.FC = () => {
         >
           Featured sets
         </h2>
-        <div
-          className="home-feature-grid"
-        >
+
+        <div className="home-feature-grid">
           {loadingFeatured
             ? placeholders.map((_, idx) => (
                 <div
@@ -239,16 +173,21 @@ const HomePage: React.FC = () => {
                 </div>
               ))
             : featured.map((s) => (
-                <SetTile
+                <div
                   key={s.set_num}
-                  set={{
-                    set_num: s.set_num,
-                    name: s.name,
-                    year: s.year,
-                    num_parts: s.num_parts,
-                    img_url: s.img_url ?? null,
-                  }}
-                />
+                  onDoubleClick={() => onOpenFeatured(s.set_num)}
+                  style={{ cursor: "default" }}
+                >
+                  <SetTile
+                    set={{
+                      set_num: s.set_num,
+                      name: s.name,
+                      year: s.year,
+                      num_parts: s.num_parts,
+                      img_url: s.img_url ?? null,
+                    }}
+                  />
+                </div>
               ))}
         </div>
       </div>
@@ -323,8 +262,8 @@ const HomePage: React.FC = () => {
             User accounts, personalised suggestions and proper onboarding.
           </p>
           <p style={{ margin: 0 }}>
-            You&apos;ll start here, log in, and Aim2Build will show you what
-            you can build with the LEGO you already own.
+            You&apos;ll start here, log in, and Aim2Build will show you what you can build with the
+            LEGO you already own.
           </p>
         </div>
       </div>

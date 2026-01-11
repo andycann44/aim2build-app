@@ -2,6 +2,7 @@
 import { API_BASE } from "../api/client";
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import PageHero from "../components/PageHero";
 
 const API = API_BASE;
 
@@ -78,49 +79,41 @@ const SetPartsPage: React.FC = () => {
     return <p style={{ padding: "1.5rem" }}>No set selected.</p>;
   }
 
+  const heroTitle = setInfo?.name ?? `Set ${set_num}`;
+  const heroSubtitle = [
+    set_num,
+    setInfo?.year ? String(setInfo.year) : null,
+    setInfo?.num_parts ? `${setInfo.num_parts} pcs` : null,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+
   return (
     <div className="page page-set-parts" style={{ padding: "1.5rem 0 2.5rem" }}>
-      <div
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto 1.75rem",
-          padding: "1.25rem 1.5rem",
-          borderRadius: 20,
-          background:
-            "linear-gradient(135deg,#0b1120 0%,#1d4ed8 35%,#f97316 70%,#22c55e 100%)",
-          color: "#f9fafb",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-          display: "flex",
-          gap: "1.5rem",
-          alignItems: "center",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          style={{
-            borderRadius: 999,
-            border: "none",
-            padding: "0.45rem 0.9rem",
-            fontSize: "0.8rem",
-            cursor: "pointer",
-            background: "rgba(15,23,42,0.7)",
-            color: "#e5e7eb",
-            marginRight: "0.5rem",
-          }}
-        >
-          ← Back
-        </button>
+      <PageHero
+        title={heroTitle}
+        subtitle={heroSubtitle}
+        left={
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="a2b-hero-button a2b-cta-dark"
+          >
+            ← Back
+          </button>
+        }
+      />
 
+      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 1.5rem" }}>
         {setInfo?.img_url && (
           <div
             style={{
+              marginBottom: "1rem",
               borderRadius: 18,
               overflow: "hidden",
               background: "#0f172a",
-              width: 140,
-              minWidth: 140,
-              height: 100,
+              width: 180,
+              height: 120,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -137,45 +130,6 @@ const SetPartsPage: React.FC = () => {
             />
           </div>
         )}
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: "0.8rem",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              opacity: 0.9,
-              marginBottom: "0.25rem",
-            }}
-          >
-            Set breakdown
-          </div>
-          <h1
-            style={{
-              fontSize: "1.7rem",
-              fontWeight: 800,
-              margin: 0,
-              marginBottom: "0.25rem",
-              textShadow: "0 4px 18px rgba(0,0,0,0.6)",
-            }}
-          >
-            {setInfo?.name ?? set_num}
-          </h1>
-          <div style={{ fontSize: "0.9rem", opacity: 0.9 }}>
-            {set_num}
-            {setInfo?.year ? ` • ${setInfo.year}` : null}
-            {setInfo?.num_parts ? ` • ${setInfo.num_parts} pcs` : null}
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "0 1.5rem",
-        }}
-      >
         {error && (
           <p style={{ color: "red", marginBottom: "1rem" }}>{error}</p>
         )}

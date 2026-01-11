@@ -13,10 +13,13 @@ from app.routers import (
     catalog,
     search,
     inventory,   # IMPORTANT: inventory router
+    top_common_parts,
+    top_common_parts_by_color,
 )
-
+from app.routers import buildability_discover
 from app.routers import auth as auth_router
 from app.routers.auth import get_current_user
+
 
 app = FastAPI(title="Aim2Build API")
 
@@ -151,4 +154,10 @@ app.include_router(
     catalog.router,
     prefix="/api/catalog",
     tags=["catalog"],
+)
+
+app.include_router(
+    buildability_discover.router,
+    prefix="/api/buildability",
+    tags=["buildability-discover"],
 )

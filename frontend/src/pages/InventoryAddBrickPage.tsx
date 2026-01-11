@@ -5,6 +5,7 @@ import RequireAuth from "../components/RequireAuth";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import { searchParts, API_BASE } from "../api/client";
 import { authHeaders } from "../utils/auth";
+import PageHero from "../components/PageHero";
 
 type PartSummary = {
   part_num: string;
@@ -344,74 +345,30 @@ const InventoryAddBrickInner: React.FC = () => {
 
   return (
     <div className="a2b-page a2b-page-inventory-add-brick">
-      {/* HERO */}
-      <div
-        className="search-hero"
-        style={{
-          width: "100%",
-          maxWidth: "100%",
-          marginTop: "1.5rem",
-          marginBottom: "1.5rem",
-          borderRadius: "18px",
-          padding: "1.75rem 1.5rem",
-          background: "linear-gradient(135deg,#0b1120,#1d4ed8,#fbbf24,#dc2626)",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "0 0 auto 0",
-            height: "10px",
-            display: "flex",
-            gap: "2px",
-            padding: "0 8px",
-          }}
-        >
-          {["#dc2626", "#f97316", "#fbbf24", "#22c55e", "#0ea5e9", "#6366f1"].map((c, i) => (
-            <div
-              key={i}
-              style={{
-                flex: 1,
-                borderRadius: "99px",
-                background: c,
-                opacity: 0.9,
-              }}
-            />
-          ))}
-        </div>
-
-        <h1 style={{ margin: 0, fontSize: "1.9rem", fontWeight: 800 }}>Add Bricks</h1>
-        <p style={{ marginTop: "0.4rem", fontSize: "0.92rem", opacity: 0.9 }}>
-          Search a brick, then choose a colour.
-        </p>
-
-        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginTop: "0.6rem" }}>
+      <PageHero
+        title="Add Bricks"
+        subtitle="Search a brick, then choose a colour."
+        left={
           <button
             type="button"
             className="a2b-hero-button a2b-cta-dark"
             onClick={() => navigate("/inventory/add")}
-            style={{ padding: "0.45rem 1rem", fontSize: "0.92rem" }}
           >
             ← Back to categories
           </button>
-
+        }
+        right={
           <button
             type="button"
             className="a2b-hero-button a2b-cta-green"
             onClick={() => void loadInventory()}
-            style={{ padding: "0.45rem 1rem", fontSize: "0.92rem" }}
             title="Refresh your inventory counts"
           >
             Update inventory
           </button>
-        </div>
-
-        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginTop: "1rem" }}>
+        }
+      >
+        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
           {BRICK_SIZES.map((b) => (
             <button
               key={b.part_num}
@@ -447,7 +404,7 @@ const InventoryAddBrickInner: React.FC = () => {
             }}
           />
         </div>
-      </div>
+      </PageHero>
 
       {/* Part selection tiles */}
       <div
