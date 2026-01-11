@@ -1,5 +1,6 @@
 // frontend/src/components/InventoryCategoryTile.tsx
 import React from "react";
+import SafeImg from "./SafeImg";
 
 export type InventoryCategory = {
   key: string;
@@ -76,23 +77,16 @@ const InventoryCategoryTile: React.FC<{ category: InventoryCategory }> = ({
     >
       <div style={innerStyle}>
         <div style={imgBox}>
-          {category.sampleImgUrl ? (
-            <img
-              src={category.sampleImgUrl}
-              alt={category.label}
-              style={{
-                maxWidth: "100%",
-                maxHeight: 120,
-                objectFit: "contain",
-                display: "block",
-              }}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
-          ) : (
-            <span style={{ color: "#9ca3af", fontSize: "0.85rem" }}>No image</span>
-          )}
+          <SafeImg
+            src={category.sampleImgUrl ?? undefined}
+            alt={category.label}
+            style={{
+              maxWidth: "100%",
+              maxHeight: 120,
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
         </div>
 
         <div style={labelPill}>{category.label}</div>
