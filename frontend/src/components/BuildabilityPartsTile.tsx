@@ -1,5 +1,6 @@
 // frontend/src/components/BuildabilityPartsTile.tsx
 import React from "react";
+import SafeImg from "./SafeImg";
 import { InventoryPart } from "./PartsTile";
 
 type BuildabilityPartsTileProps = {
@@ -123,20 +124,16 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
             overflow: "hidden",
           }}
         >
-          {part.part_img_url ? (
-            <img
-              src={part.part_img_url}
-              alt={part.part_num}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "100%",
-                objectFit: "contain",
-                display: "block",
-              }}
-            />
-          ) : (
-            <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>No image</span>
-          )}
+          <SafeImg
+            src={part.part_img_url ?? undefined}
+            alt={part.part_num}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "100%",
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
         </div>
 
         {/* Text + pills */}
