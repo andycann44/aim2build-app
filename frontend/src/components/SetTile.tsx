@@ -1,4 +1,5 @@
 import React from "react";
+import SafeImg from "./SafeImg";
 import { SetSummary } from "../api/client";
 import { API_BASE } from "../api/client";
 import { authHeaders } from "../utils/auth";
@@ -135,30 +136,18 @@ const SetTile: React.FC<SetTileProps> = ({
             width: "100%",
           }}
         >
-          {img_url ? (
-            <img
-              src={img_url}
-              alt={name}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "100%",
-                height: "100%",
-                width: "auto",
-                objectFit: "contain",
-                display: "block",
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                padding: "2rem",
-                color: "#9ca3af",
-                fontSize: "0.9rem",
-              }}
-            >
-              No image available
-            </div>
-          )}
+          <SafeImg
+            src={img_url ?? undefined}
+            alt={name}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "100%",
+              height: "100%",
+              width: "auto",
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
         </div>
 
         {/* TITLE + PCS PILL */}

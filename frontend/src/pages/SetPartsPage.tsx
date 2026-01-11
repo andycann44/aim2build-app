@@ -3,6 +3,7 @@ import { API_BASE } from "../api/client";
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import PageHero from "../components/PageHero";
+import SafeImg from "../components/SafeImg";
 
 const API = API_BASE;
 
@@ -105,7 +106,7 @@ const SetPartsPage: React.FC = () => {
       />
 
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 1.5rem" }}>
-        {setInfo?.img_url && (
+        {setInfo ? (
           <div
             style={{
               marginBottom: "1rem",
@@ -119,8 +120,8 @@ const SetPartsPage: React.FC = () => {
               justifyContent: "center",
             }}
           >
-            <img
-              src={setInfo.img_url}
+            <SafeImg
+              src={setInfo.img_url ?? undefined}
               alt={setInfo.name}
               style={{
                 maxWidth: "100%",
@@ -129,7 +130,7 @@ const SetPartsPage: React.FC = () => {
               }}
             />
           </div>
-        )}
+        ) : null}
         {error && (
           <p style={{ color: "red", marginBottom: "1rem" }}>{error}</p>
         )}
