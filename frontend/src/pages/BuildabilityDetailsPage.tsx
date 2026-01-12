@@ -5,8 +5,7 @@ import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import PageHero from "../components/PageHero";
-
-const API = API_BASE;
+import InstructionsTile from "../components/InstructionsTile";
 
 type MissingPart = {
   part_num: string;
@@ -48,6 +47,7 @@ const BuildabilityDetailsInner: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<CompareResult | null>(null);
   const [parts, setParts] = useState<CatalogPart[]>([]);
+  const [setImgUrl, setSetImgUrl] = useState<string | null>(null);
 
   useEffect(() => {
     console.log("BuildabilityDetails route param:", setId);
@@ -64,6 +64,7 @@ const BuildabilityDetailsInner: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
+        setSetImgUrl(null);
 
         const compareUrl = `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(
           setId
@@ -99,6 +100,23 @@ const BuildabilityDetailsInner: React.FC = () => {
 
         setSummary(compareJson);
         setParts(partsJson);
+
+        // Fetch set image (same img_url source as Home tiles)
+        try {
+          const base = (setId || "").trim();
+          const searchUrl = `${API_BASE}/api/search?q=${encodeURIComponent(base)}`;
+          const r = await fetch(searchUrl, { headers, signal: controller.signal });
+
+          if (r.ok) {
+            const list = (await r.json()) as any[];
+            const hit = list.find((x) => x?.set_num === base) || list[0] || null;
+            setSetImgUrl((hit?.img_url ?? null) as any);
+          } else {
+            setSetImgUrl(null);
+          }
+        } catch {
+          setSetImgUrl(null);
+        }
       } catch (err: any) {
         if (err.name === "AbortError") return;
         console.error("Failed to load buildability details:", err);
@@ -137,6 +155,7 @@ const BuildabilityDetailsInner: React.FC = () => {
     typeof summary?.coverage === "number"
       ? Math.round(summary.coverage * 100)
       : null;
+
   const setName = summary?.name ?? summary?.set_name ?? null;
   const setYearValue = summary?.year ?? summary?.set_year;
   const setYear =
@@ -154,66 +173,113 @@ const BuildabilityDetailsInner: React.FC = () => {
 
   return (
     <div className="page buildability-details">
-      <PageHero
-        title="Buildability details"
-        subtitle={setLine || "Compare what this set needs with what you already own."}
-      >
+      <div style={{ position: "relative" }}>
+        <PageHero
+          title="Buildability details"
+          subtitle={
+            setLine || "Compare what this set needs with what you already own."
+          }
+        />
+
         <div
+          className="heroTwoCol"
           style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.55rem",
+            position: "absolute",
+            left: 22,
+            right: 22,
+            bottom: 18,
+            zIndex: 5,
+
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
             alignItems: "center",
+            columnGap: 16,
           }}
         >
-          <span
-            className="hero-pill hero-pill--sort"
-            style={{
-              background: "rgba(15,23,42,0.55)",
-              borderColor: "rgba(255,255,255,0.75)",
-              color: "#f8fafc",
-              fontWeight: 700,
-            }}
-          >
-            Coverage: {coveragePct !== null ? `${coveragePct}%` : "—"}
-          </span>
-          <span
-            className="hero-pill hero-pill--sort"
-            style={{
-              background: "rgba(15,23,42,0.48)",
-              borderColor: "rgba(255,255,255,0.55)",
-              color: "#f8fafc",
-              fontWeight: 700,
-            }}
-          >
-            Have:{" "}
-            {summary?.total_have !== undefined
-              ? summary.total_have.toLocaleString()
-              : "—"}{" "}
-            / Need:{" "}
-            {summary?.total_needed !== undefined
-              ? summary.total_needed.toLocaleString()
-              : "—"}
-          </span>
-          {missingPiecesTotal > 0 && (
-            <span
-              className="hero-pill hero-pill--sort"
+          <div className="heroLeft">
+            <div
               style={{
-                background: "rgba(220,38,38,0.22)",
-                borderColor: "rgba(252,165,165,0.75)",
-                color: "#fef2f2",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-              onClick={() => {
-                if (setId) navigate(`/buildability/${encodeURIComponent(setId)}/missing`);
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.55rem",
+                alignItems: "center",
               }}
             >
-              Missing pieces: {missingPiecesTotal.toLocaleString()}
-            </span>
-          )}
+              <span
+                className="hero-pill hero-pill--sort"
+                style={{
+                  background: "rgba(15,23,42,0.55)",
+                  borderColor: "rgba(255,255,255,0.75)",
+                  color: "#f8fafc",
+                  fontWeight: 700,
+                }}
+              >
+                Coverage: {coveragePct !== null ? `${coveragePct}%` : "—"}
+              </span>
+
+              <span
+                className="hero-pill hero-pill--sort"
+                style={{
+                  background: "rgba(15,23,42,0.48)",
+                  borderColor: "rgba(255,255,255,0.55)",
+                  color: "#f8fafc",
+                  fontWeight: 700,
+                }}
+              >
+                Have:{" "}
+                {summary?.total_have !== undefined
+                  ? summary.total_have.toLocaleString()
+                  : "—"}{" "}
+                / Need:{" "}
+                {summary?.total_needed !== undefined
+                  ? summary.total_needed.toLocaleString()
+                  : "—"}
+              </span>
+
+              {missingPiecesTotal > 0 && (
+                <span
+                  className="hero-pill hero-pill--sort"
+                  style={{
+                    background: "rgba(220,38,38,0.22)",
+                    borderColor: "rgba(252,165,165,0.75)",
+                    color: "#fef2f2",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    if (setId)
+                      navigate(
+                        `/buildability/${encodeURIComponent(setId)}/missing`
+                      );
+                  }}
+                >
+                  Missing pieces: {missingPiecesTotal.toLocaleString()}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="heroRight"
+            style={{
+              background: "transparent",
+              border: "none",
+              boxShadow: "none",
+              outline: "none",
+              padding: 0,
+              margin: 0,
+              justifySelf: "end",
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "flex-end",
+            }}
+          >
+            <div style={{ width: 220, height: 140 }}>
+              <InstructionsTile setNum={setId || ""} imgUrl={setImgUrl} />
+            </div>
+          </div>
         </div>
-      </PageHero>
+      </div>
 
       {/* parts grid */}
       <div
@@ -235,9 +301,7 @@ const BuildabilityDetailsInner: React.FC = () => {
           </p>
         )}
 
-        {error && (
-          <p style={{ color: "#ef4444", fontSize: "0.92rem" }}>{error}</p>
-        )}
+        {error && <p style={{ color: "#ef4444", fontSize: "0.92rem" }}>{error}</p>}
 
         {!loading && !error && setId && parts.length === 0 && (
           <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>

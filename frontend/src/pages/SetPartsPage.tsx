@@ -3,6 +3,7 @@ import { API_BASE } from "../api/client";
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import PageHero from "../components/PageHero";
+import InstructionsTile from "../components/InstructionsTile";
 import SafeImg from "../components/SafeImg";
 
 const API = API_BASE;
@@ -91,19 +92,37 @@ const SetPartsPage: React.FC = () => {
 
   return (
     <div className="page page-set-parts" style={{ padding: "1.5rem 0 2.5rem" }}>
-      <PageHero
-        title={heroTitle}
-        subtitle={heroSubtitle}
-        left={
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="a2b-hero-button a2b-cta-dark"
-          >
-            ← Back
-          </button>
-        }
-      />
+      <div style={{ position: "relative" }}>
+        <PageHero
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          left={
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="a2b-hero-button a2b-cta-dark"
+            >
+              ← Back
+            </button>
+          }
+        />
+
+        <div
+          className="heroTwoCol"
+          style={{
+            position: "absolute",
+            left: 22,
+            right: 22,
+            bottom: 18,
+            zIndex: 5,
+          }}
+        >
+          <div className="heroLeft" />
+          <div className="heroRight">
+            <InstructionsTile setNum={set_num || ""} />
+          </div>
+        </div>
+      </div>
 
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 1.5rem" }}>
         {setInfo ? (

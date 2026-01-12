@@ -713,6 +713,79 @@ body.aim2-root {
   color: #ffffff;
 }
 
+/* Hero two-column layout */
+.heroTwoCol {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.heroLeft {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.heroRight {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* Instructions tile */
+.instructionsTile {
+  position: relative;
+  display: block;
+  width: clamp(150px, 18vw, 230px);
+  height: clamp(150px, 18vw, 230px);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: none;
+  border-radius: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.instructionsTile__window {
+  position: absolute;
+  top: 24%;
+  left: 24%;
+  right: 24%;
+  bottom: 30%;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.instructionsTile__image {
+  width: 92%;
+  height: 92%;
+  object-fit: contain;
+  display: block;
+}
+
+.instructionsTile__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.3));
+}
+
 .hero-sort-menu {
   position: absolute;
   top: calc(100% + 8px);
