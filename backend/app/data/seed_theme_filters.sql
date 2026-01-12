@@ -10,3 +10,5 @@ INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES
   (760, 1, 'Activity Books'),
   (761, 1, 'Exclude theme_id 761'),
   (777, 1, 'No theme row');
+  (409, 1, 'monthly buildable subscription box')
+  
