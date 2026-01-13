@@ -56,7 +56,7 @@ export default function InstructionsSearchPage() {
   return (
     <div className="page page-search">
       <PageHero
-        title="Instructions"
+        title=" Set Instructions"
         subtitle='Search for a set, then open it to view instructions / parts. Tip: double-click a tile to open LEGO instructions.'
       >
         <form
