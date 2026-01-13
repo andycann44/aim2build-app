@@ -6,6 +6,7 @@ import BuildabilityOverviewPage from "./pages/BuildabilityOverviewPage";
 import InventoryPage from "./pages/InventoryPage";
 import MySetsPage from "./pages/MySetsPage";
 import WishlistPage from "./pages/WishlistPage";
+import InstructionsSearchPage from "./pages/InstructionsSearchPage";
 import SettingsPage from "./pages/SettingsPage";
 import BuildabilityDetailsPage from "./pages/BuildabilityDetailsPage";
 import MissingPartsPage from "./pages/MissingPartsPage";
@@ -19,7 +20,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import { initSessionIdleGuard } from "./utils/sessionGuard";
 import BuildabilityDiscoverPage from "./pages/BuildabilityDiscoverPage";
 import SetPage from "./pages/SetPage";
-import { getToken } from "./utils/auth"; // <-- ADD THIS
+import { getToken } from "./utils/auth";
 
 const App: React.FC = () => {
   const nav = useNavigate();
@@ -65,6 +66,11 @@ const App: React.FC = () => {
               Wishlist
             </NavLink>
 
+            {/* NEW: Instructions (under Wishlist) */}
+            <NavLink to="/instructions" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+              Instructions
+            </NavLink>
+
             <NavLink to="/account" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
               Account
             </NavLink>
@@ -79,8 +85,10 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/set/:setNum" element={<SetPage />} />
+
             <Route path="/search" element={<SearchPage />} />
             <Route path="/my-sets" element={<MySetsPage />} />
+
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/inventory/edit" element={<InventoryEditPage />} />
             <Route path="/inventory/add" element={<InventoryAddCategoriesPage />} />
@@ -93,8 +101,13 @@ const App: React.FC = () => {
             <Route path="/buildability/discover" element={<BuildabilityDiscoverPage />} />
 
             <Route path="/wishlist" element={<WishlistPage />} />
+
+            {/* NEW: Instructions Search */}
+            <Route path="/instructions" element={<InstructionsSearchPage />} />
+
             <Route path="/account" element={<AccountPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+
             <Route path="/login" element={<AccountPage />} />
             <Route path="/Login" element={<Navigate to="/login" replace />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
