@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../api/client";
@@ -39,7 +40,9 @@ function toBuildabilityItem(r: DiscoverRow): BuildabilityItem {
   } as BuildabilityItem;
 }
 
-async function fetchText(url: string): Promise<{ ok: boolean; status: number; text: string }> {
+async function fetchText(
+  url: string
+): Promise<{ ok: boolean; status: number; text: string }> {
   const res = await fetch(url, {
     method: "GET",
     headers: { ...authHeaders() },
@@ -51,7 +54,6 @@ async function fetchText(url: string): Promise<{ ok: boolean; status: number; te
 type DiscoverFilters = {
   minCoverage: number;
   includeComplete: boolean;
-  showOwned: boolean; // UI checkbox: checked = show owned sets
   limit: number;
 };
 
@@ -71,7 +73,10 @@ function readCache(key: string): DiscoverRow[] | null {
 function writeCache(key: string, rows: DiscoverRow[]): void {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(key, JSON.stringify({ rows, cached_at: Date.now() }));
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({ rows, cached_at: Date.now() })
+    );
   } catch {
     // ignore cache write failures
   }
@@ -82,8 +87,9 @@ async function fetchDiscover(filters: DiscoverFilters): Promise<DiscoverRow[]> {
   params.set("min_coverage", filters.minCoverage.toFixed(2));
   params.set("limit", String(filters.limit));
   params.set("include_complete", String(filters.includeComplete));
-  // backend expects hide_owned; UI is showOwned => invert
-  params.set("hide_owned", String(!filters.showOwned));
+
+  // Discover should stay "new builds" by default: ALWAYS hide owned sets here.
+  params.set("hide_owned", "true");
 
   const url = apiUrl(`/api/buildability/discover?${params.toString()}`);
   const { ok, status, text } = await fetchText(url);
@@ -105,15 +111,14 @@ export default function BuildabilityDiscoverPage() {
 
   const [minPct, setMinPct] = React.useState<number>(90); // default 90%
   const [include100, setInclude100] = React.useState<boolean>(false);
-  const [showOwned, setShowOwned] = React.useState<boolean>(false); // default OFF (hide owned by default)
 
   const [rows, setRows] = React.useState<DiscoverRow[] | null>(null);
   const [err, setErr] = React.useState<string>("");
   const [busy, setBusy] = React.useState<boolean>(false);
 
   const cacheKey = React.useMemo(
-    () => `${CACHE_PREFIX}:${minPct}:${include100 ? 1 : 0}:${showOwned ? 1 : 0}`,
-    [minPct, include100, showOwned]
+    () => `${CACHE_PREFIX}:${minPct}:${include100 ? 1 : 0}`,
+    [minPct, include100]
   );
 
   const runIdRef = React.useRef(0);
@@ -133,6 +138,7 @@ export default function BuildabilityDiscoverPage() {
           return;
         }
       }
+
       setErr("");
       setBusy(true);
       if (!force) setRows(null);
@@ -142,7 +148,6 @@ export default function BuildabilityDiscoverPage() {
         const discover = await fetchDiscover({
           minCoverage,
           includeComplete: include100,
-          showOwned,
           limit: DISCOVER_LIMIT,
         });
 
@@ -158,11 +163,10 @@ export default function BuildabilityDiscoverPage() {
         if (runIdRef.current === runId) setBusy(false);
       }
     },
-    [cacheKey, minPct, include100, showOwned]
+    [cacheKey, minPct, include100]
   );
 
   React.useEffect(() => {
-    // initial load
     run();
   }, [run]);
 
@@ -200,7 +204,10 @@ export default function BuildabilityDiscoverPage() {
               alignItems: "center",
             }}
           >
-            <label className="hero-pill hero-pill--sort" style={{ gap: "0.6rem", cursor: "default" }}>
+            <label
+              className="hero-pill hero-pill--sort"
+              style={{ gap: "0.6rem", cursor: "default" }}
+            >
               <span>Min buildability</span>
               <span className="hero-pill__value">{minPct}%</span>
               <input
@@ -209,7 +216,9 @@ export default function BuildabilityDiscoverPage() {
                 max={99}
                 step={1}
                 value={minPct}
-                onChange={(e) => setMinPct(parseInt(e.target.value || "90", 10))}
+                onChange={(e) =>
+                  setMinPct(parseInt(e.target.value || "90", 10))
+                }
                 style={{ width: "180px" }}
               />
             </label>
@@ -223,19 +232,28 @@ export default function BuildabilityDiscoverPage() {
               Include 100% complete sets
             </label>
 
-            <label className="hero-pill hero-pill--sort" style={{ gap: "0.5rem" }}>
-              <input
-                type="checkbox"
-                checked={showOwned}
-                onChange={(e) => setShowOwned(!!e.target.checked)}
-              />
+            <button
+              type="button"
+              className="hero-pill hero-pill--sort"
+              onClick={() => nav("/my-sets?from=discover")}
+              style={{ gap: "0.5rem" }}
+            >
               Show sets I already own
-            </label>
+            </button>
           </div>
         </PageHero>
 
-        <div style={{ marginTop: "0.5rem", marginRight: "2.5rem", marginBottom: "1rem" }}>
-          <h2 style={{ margin: "0 0 0.65rem", fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}>
+        <div
+          style={{ marginTop: "0.5rem", marginRight: "2.5rem", marginBottom: "1rem" }}
+        >
+          <h2
+            style={{
+              margin: "0 0 0.65rem",
+              fontSize: "1.1rem",
+              fontWeight: 800,
+              color: "#0f172a",
+            }}
+          >
             Discoverable sets
           </h2>
 
@@ -255,18 +273,24 @@ export default function BuildabilityDiscoverPage() {
             </div>
           ) : null}
 
-          {!rows ? <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading…</p> : null}
+          {!rows ? (
+            <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading…</p>
+          ) : null}
 
           {rows ? (
             rows.length === 0 ? (
-              <p style={{ fontSize: "0.9rem", color: "#6b7280" }}>No discover results yet.</p>
+              <p style={{ fontSize: "0.9rem", color: "#6b7280" }}>
+                No discover results yet.
+              </p>
             ) : (
               <div className="tile-grid">
                 {rows.map((r) => (
                   <BuildabilityTile
                     key={r.set_num}
                     item={toBuildabilityItem(r)}
-                    onOpenDetails={() => nav(`/buildability/${encodeURIComponent(r.set_num)}`)}
+                    onOpenDetails={() =>
+                      nav(`/buildability/${encodeURIComponent(r.set_num)}`)
+                    }
                   />
                 ))}
               </div>

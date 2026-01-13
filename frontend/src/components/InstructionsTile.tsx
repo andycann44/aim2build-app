@@ -16,7 +16,7 @@ function normalizeSetForLegoSearch(setNum: string) {
 // LEGO building instructions search (UK)
 function legoInstructionsUrl(setNum: string) {
   const q = normalizeSetForLegoSearch(setNum);
-  return `https://www.lego.com/en-gb/service/buildinginstructions/search?q=${encodeURIComponent(
+  return `https://www.lego.com/en-gb/service/buildinginstructions/${encodeURIComponent(
     q
   )}`;
 }

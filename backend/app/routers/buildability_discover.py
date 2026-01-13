@@ -31,6 +31,10 @@ def _has_table(con, table_name: str) -> bool:
         return False
 
 
+def _has_set_filters(con) -> bool:
+    return _has_table(con, "set_filters")
+
+
 def _base_set_num(set_num: str) -> str:
     sn = (set_num or "").strip()
     if "-" in sn:
@@ -72,6 +76,7 @@ def discover_buildability(
     Set BOM source: lego_catalog.db set_parts (spares excluded at import time)
     Set meta: lego_catalog.db sets
     Optional theme exclusions: lego_catalog.db theme_filters (toggle table)
+    Optional set exclusions: lego_catalog.db set_filters (toggle table)
 
     Performance note:
     We avoid scanning *all* set_parts. We compute total_have only for sets that share
@@ -105,12 +110,14 @@ def discover_buildability(
     with db() as con:
         has_theme_id = _sets_has_theme_id(con)
         has_theme_filters = _has_table(con, "theme_filters") if has_theme_id else False
+        has_set_filters = _has_set_filters(con)
 
         where_bits: List[str] = []
         q_params: List[object] = list(inv_params)
 
         # Basic guards
         where_bits.append("total_needed > 0")
+        where_bits.append("total_needed >= 50")  # auto-kill micro/junk sets
         where_bits.append("coverage >= ?")
         q_params.append(float(min_coverage))
 
@@ -121,6 +128,10 @@ def discover_buildability(
         # theme filters (toggle table): if a theme_id is marked enabled=1, exclude it
         if has_theme_id and has_theme_filters:
             where_bits.append("filtered_theme_id IS NULL")
+
+        # set filters (toggle table): if a set/base-set is marked enabled=1, exclude it
+        if has_set_filters:
+            where_bits.append("filtered_set_num IS NULL")
 
         # hide sets you already own (My Sets) INCLUDING other versions (e.g. 42141-2 when you own 42141-1)
         if owned_bases:
@@ -133,8 +144,25 @@ def discover_buildability(
         theme_join_sql = ""
         filtered_select_sql = ""
         if has_theme_id and has_theme_filters:
-            theme_join_sql = "LEFT JOIN theme_filters tf ON tf.theme_id = s.theme_id AND tf.enabled = 1"
+            theme_join_sql = (
+                "LEFT JOIN theme_filters tf "
+                "ON tf.theme_id = s.theme_id AND tf.enabled = 1"
+            )
             filtered_select_sql = ", tf.theme_id AS filtered_theme_id"
+
+        set_join_sql = ""
+        set_filtered_select_sql = ""
+        if has_set_filters:
+            # Matches either exact set_num OR base set_num (e.g. store '501' to exclude all '501-*')
+            set_join_sql = (
+                "LEFT JOIN set_filters sf "
+                "ON sf.enabled = 1 AND ("
+                " sf.set_num = s.set_num"
+                " OR (CASE WHEN instr(sf.set_num,'-')>0 THEN substr(sf.set_num,1,instr(sf.set_num,'-')-1) ELSE sf.set_num END)"
+                "    = (CASE WHEN instr(s.set_num,'-')>0 THEN substr(s.set_num,1,instr(s.set_num,'-')-1) ELSE s.set_num END)"
+                ")"
+            )
+            set_filtered_select_sql = ", sf.set_num AS filtered_set_num"
 
         # NOTE:
         # - total_needed uses sets.num_parts (fast)
@@ -178,9 +206,11 @@ def discover_buildability(
                     END AS base_set_num
                     {", s.theme_id AS theme_id" if has_theme_id else ""}
                     {filtered_select_sql}
+                    {set_filtered_select_sql}
                 FROM sets AS s
                 LEFT JOIN have_by_set AS h ON h.set_num = s.set_num
                 {theme_join_sql}
+                {set_join_sql}
             )
             SELECT
                 set_num,
