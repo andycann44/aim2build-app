@@ -68,7 +68,7 @@ const App: React.FC = () => {
 
             {/* NEW: Instructions (under Wishlist) */}
             <NavLink to="/instructions" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-              Instructions
+              Set Instructions
             </NavLink>
 
             <NavLink to="/account" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
