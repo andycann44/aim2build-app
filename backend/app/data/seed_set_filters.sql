@@ -21,4 +21,6 @@ INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('991336-1', 
 INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('5004059-1', 1, 'Parts pack, not a real set');
 INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('9943-1', 1, 'axels and wheels pack, not a real set');
 INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('5003200-1', 1, 'Parts pack, not a real set');
+INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('5020-1', 1, 'Parts pack, not a real set');
+INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('10065-1', 1, 'Parts pack, not a real set');
 
