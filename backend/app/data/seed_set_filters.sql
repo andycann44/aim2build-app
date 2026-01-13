@@ -15,3 +15,10 @@
 --
 -- Example rows (edit/remove as you like):
 INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('42141-2', 1, 'Duplicate edition');
+INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('501-1', 1, 'Bad data / rubbish result');
+INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('501', 1, 'Duplicate base set');
+INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('991336-1', 1, 'Parts pack, not a real set');
+INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('5004059-1', 1, 'Parts pack, not a real set');
+INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('9943-1', 1, 'axels and wheels pack, not a real set');
+INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('5003200-1', 1, 'Parts pack, not a real set');
+

@@ -6,6 +6,7 @@ import RequireAuth from "../components/RequireAuth";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import PageHero from "../components/PageHero";
 import InstructionsTile from "../components/InstructionsTile";
+import { useLocation } from "react-router-dom";
 
 type MissingPart = {
   part_num: string;
@@ -81,16 +82,14 @@ const BuildabilityDetailsInner: React.FC = () => {
         if (!compareRes.ok) {
           const txt = await compareRes.text();
           throw new Error(
-            `Compare failed (${compareRes.status}): ${
-              txt || compareRes.statusText
+            `Compare failed (${compareRes.status}): ${txt || compareRes.statusText
             }`
           );
         }
         if (!partsRes.ok) {
           const txt = await partsRes.text();
           throw new Error(
-            `Parts lookup failed (${partsRes.status}): ${
-              txt || partsRes.statusText
+            `Parts lookup failed (${partsRes.status}): ${txt || partsRes.statusText
             }`
           );
         }
@@ -129,6 +128,10 @@ const BuildabilityDetailsInner: React.FC = () => {
     load();
     return () => controller.abort();
   }, [setId]);
+
+  const loc = useLocation();
+  const qs = new URLSearchParams(loc.search);
+  const autoOpen = qs.get("open") === "instructions";
 
   const missingMap = useMemo(() => {
     const map = new Map<string, MissingPart>();

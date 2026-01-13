@@ -44,6 +44,56 @@ def _db() -> sqlite3.Connection:
     return con
 
 
+def _has_table(con: sqlite3.Connection, table_name: str) -> bool:
+    try:
+        row = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+            (table_name,),
+        ).fetchone()
+        return row is not None
+    except Exception:
+        return False
+
+
+def _filters_sql(con: sqlite3.Connection) -> Tuple[str, str]:
+    """
+    Returns (joins_sql, where_sql_addition) to exclude junk using:
+      - theme_filters(theme_id, enabled)
+      - set_filters(set_num, enabled)
+    Safe if tables don't exist.
+    """
+    joins: List[str] = []
+    wheres: List[str] = []
+
+    has_theme_filters = _has_table(con, "theme_filters")
+    if has_theme_filters:
+        joins.append("LEFT JOIN theme_filters tf ON tf.theme_id = s.theme_id AND tf.enabled = 1")
+        wheres.append("tf.theme_id IS NULL")
+
+    has_set_filters = _has_table(con, "set_filters")
+    if has_set_filters:
+        # exclude exact set_num OR base match (e.g., 2000700 excludes 2000700-1 etc.)
+        joins.append(
+            """
+            LEFT JOIN set_filters sf
+              ON sf.enabled = 1
+             AND (
+                    sf.set_num = s.set_num
+                 OR (CASE WHEN instr(sf.set_num,'-')>0 THEN substr(sf.set_num,1,instr(sf.set_num,'-')-1) ELSE sf.set_num END)
+                    =
+                    (CASE WHEN instr(s.set_num,'-')>0 THEN substr(s.set_num,1,instr(s.set_num,'-')-1) ELSE s.set_num END)
+                )
+            """
+        )
+        wheres.append("sf.set_num IS NULL")
+
+    join_sql = "\n".join([j.strip() for j in joins if j and j.strip()])
+    where_sql = ""
+    if wheres:
+        where_sql = " AND " + " AND ".join(wheres) + " "
+    return join_sql, where_sql
+
+
 # -------------------------
 # Normalization helpers
 # -------------------------
@@ -54,6 +104,7 @@ def _norm_q(s: str) -> str:
     s = re.sub(r"[^a-z0-9\s]", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s
+
 
 def _base_set_num(s: str) -> Optional[str]:
     """
@@ -163,8 +214,6 @@ def _no_figures_clause() -> str:
     """
 
 
-# Words that are too generic to be useful as text intent.
-# If a query reduces to only these, we fall back to a default list.
 _STOP_WORDS: Set[str] = {"brick", "bricks", "lego", "set", "sets", "building", "build", "kit", "kits"}
 
 _GENERIC_THEME_WORDS: Set[str] = {
@@ -179,8 +228,6 @@ def _strip_stopwords(q_norm: str) -> str:
     return " ".join(toks).strip()
 
 
-# Common spelling / punctuation variants we want to treat identically.
-# NOTE: These are compared against normalized ("_norm_q") phrases.
 _THEME_ALIASES: Dict[str, str] = {
     "brick headz": "brickheadz",
     "brick-headz": "brickheadz",
@@ -197,12 +244,6 @@ def _extract_theme_from_tokens(
     con: sqlite3.Connection,
     q_raw: str,
 ) -> Tuple[List[int], str, bool]:
-    """
-    Multi-intent support:
-      - If the query contains a recognizable theme phrase, extract it and return:
-          (expanded_theme_ids, remaining_query, theme_forced)
-      - theme_forced is True only when the query is *only* a theme (or explicit theme token).
-    """
     q_raw0 = (q_raw or "").strip()
     if not q_raw0:
         return [], q_raw0, False
@@ -214,11 +255,8 @@ def _extract_theme_from_tokens(
 
     best = None  # (start, end, root_theme_ids)
 
-    # Priority special-case: if BrickHeadz appears anywhere in the query,
-    # prefer it as the theme so mixed queries like "harry potter brickheadz"
-    # become theme=BrickHeadz + remaining text="harry potter".
+    # BrickHeadz priority
     for i in range(len(toks)):
-        # single-token form
         if toks[i] == "brickheadz":
             tid_bh = _theme_id_by_exact_name(con, "brickheadz")
             if tid_bh is None:
@@ -230,7 +268,6 @@ def _extract_theme_from_tokens(
                 best = (i, i + 1, [tid_bh])
                 break
 
-        # two-token form: "brick headz"
         if i + 1 < len(toks) and toks[i] == "brick" and toks[i + 1] == "headz":
             tid_bh = _theme_id_by_exact_name(con, "brickheadz")
             if tid_bh is None:
@@ -258,11 +295,8 @@ def _extract_theme_from_tokens(
             phrase = " ".join(toks[i: i + n]).strip()
             phrase = _alias_theme_phrase(phrase)
 
-            # guard: do not treat generic stopwords as themes
             if phrase in _STOP_WORDS:
                 continue
-
-            # guard: single generic words must NOT trigger theme mode
             if n == 1 and phrase in _GENERIC_THEME_WORDS:
                 continue
 
@@ -271,7 +305,6 @@ def _extract_theme_from_tokens(
                 best = (i, i + n, [tid_exact])
                 break
 
-            # prefix theme match: allow single-word or 2/3-word prefixes
             if len(phrase) >= 3:
                 roots = _theme_ids_by_prefix(con, phrase, limit=10)
                 if roots:
@@ -301,11 +334,6 @@ _THEME_TOKEN_RE = re.compile(r"\b(?:theme|theme_id)\s*[:=]\s*(\d+)\b", re.IGNORE
 
 
 def _parse_theme_token(q_raw: str) -> Tuple[Optional[int], str]:
-    """
-    Extract theme_id from tokens like:
-      theme:610, theme=610, theme_id:610, theme_id=610
-    Returns: (theme_id or None, q_raw_without_token)
-    """
     s = (q_raw or "").strip()
     if not s:
         return None, s
@@ -321,9 +349,6 @@ def _parse_theme_token(q_raw: str) -> Tuple[Optional[int], str]:
 
 
 def _theme_id_by_exact_name(con: sqlite3.Connection, q_norm: str) -> Optional[int]:
-    """
-    Resolve a theme name -> theme_id using case-insensitive exact match.
-    """
     qn = (q_norm or "").strip().lower()
     if not qn:
         return None
@@ -338,10 +363,6 @@ def _theme_id_by_exact_name(con: sqlite3.Connection, q_norm: str) -> Optional[in
 
 
 def _theme_ids_by_prefix(con: sqlite3.Connection, q_norm: str, limit: int = 50) -> List[int]:
-    """
-    Resolve "brickheadz" -> [610] by prefix match,
-    but also allows multi-word themes like "star wars".
-    """
     qn = (q_norm or "").strip().lower()
     if not qn:
         return []
@@ -359,9 +380,6 @@ def _theme_ids_by_prefix(con: sqlite3.Connection, q_norm: str, limit: int = 50) 
 
 
 def _expand_theme_descendants(con: sqlite3.Connection, root_ids: List[int], max_ids: int = 300) -> List[int]:
-    """
-    Expand theme family DOWNWARD (theme + children + grandchildren...) using parent_id.
-    """
     ids = [int(x) for x in (root_ids or []) if int(x) > 0]
     if not ids:
         return []
@@ -400,23 +418,14 @@ def _expand_theme_descendants(con: sqlite3.Connection, root_ids: List[int], max_
 
 
 def _theme_filter_from_query(con: sqlite3.Connection, q_raw: str) -> Tuple[List[int], str, bool]:
-    """
-    Returns: (theme_ids_expanded, remaining_query, theme_forced)
-
-    Priority:
-      1) Explicit token: theme:NNN / theme_id=NNN -> forced theme mode
-      2) Mixed query extraction: detect a theme phrase inside the query -> INTERSECTION mode
-    """
     q_raw0 = (q_raw or "").strip()
     if not q_raw0:
         return [], q_raw0, False
 
-    # 1) explicit token
     tid, rest = _parse_theme_token(q_raw0)
     if tid is not None:
         return _expand_theme_descendants(con, [tid]), rest, True
 
-    # 2) try to extract theme phrase from within the query (multi-intent)
     theme_ids, remaining_q_norm, theme_forced = _extract_theme_from_tokens(con, q_raw0)
     if theme_ids:
         return theme_ids, remaining_q_norm, theme_forced
@@ -452,13 +461,15 @@ def search_paged(
     if base:
         con = _db()
         cur = con.cursor()
+        join_filters_sql, where_filters_sql = _filters_sql(con)
 
-        # Pick the highest suffix (-3 > -2 > -1) for the same base
-        sql = """
+        sql = f"""
             SELECT
                 s.set_num, s.name, s.year, s.num_parts, s.set_img_url
             FROM sets s
+            {join_filters_sql}
             WHERE s.set_num LIKE ? || '-%'
+              {where_filters_sql}
             ORDER BY
                 CAST(substr(s.set_num, instr(s.set_num,'-')+1) AS INTEGER) DESC
             LIMIT 1
@@ -468,13 +479,7 @@ def search_paged(
 
         if row:
             result = [_row_to_set(row)]
-            return {
-                "results": result,
-                "page": 1,
-                "page_size": 1,
-                "total": 1,
-                "has_more": False,
-            }
+            return {"results": result, "page": 1, "page_size": 1, "total": 1, "has_more": False}
 
     # True pagination: exact search only (fuzzy slices a precomputed candidate list).
     if fuzzy:
@@ -487,6 +492,8 @@ def search_paged(
 
     con = _db()
     cur = con.cursor()
+
+    join_filters_sql, where_filters_sql = _filters_sql(con)
 
     # Theme filtering (DB-driven)
     theme_ids, q_rest_raw, theme_forced = _theme_filter_from_query(con, q_raw_full)
@@ -509,12 +516,14 @@ def search_paged(
             {_theme_noise_clause()}
             {" " if (wants_figures or theme_forced) else _no_figures_clause()}
             {theme_sql}
+            {where_filters_sql}
         """
 
         count_sql = f"""
             SELECT COUNT(1) AS n
             FROM sets s
             LEFT JOIN themes t ON t.theme_id = s.theme_id
+            {join_filters_sql}
             WHERE {where_sql}
         """
         total = int(cur.execute(count_sql, (*theme_params,)).fetchone()["n"])
@@ -525,6 +534,7 @@ def search_paged(
                 t.name AS theme_name
             FROM sets s
             LEFT JOIN themes t ON t.theme_id = s.theme_id
+            {join_filters_sql}
             WHERE {where_sql}
             {_order_by(sort)}
             LIMIT ? OFFSET ?
@@ -543,12 +553,14 @@ def search_paged(
             ({_base_where_clause(min_parts)})
             {_theme_noise_clause()}
             {_no_figures_clause()}
+            {where_filters_sql}
         """
 
         count_sql = f"""
             SELECT COUNT(1) AS n
             FROM sets s
             LEFT JOIN themes t ON t.theme_id = s.theme_id
+            {join_filters_sql}
             WHERE {where_sql}
         """
         total = int(cur.execute(count_sql).fetchone()["n"])
@@ -559,6 +571,7 @@ def search_paged(
                 t.name AS theme_name
             FROM sets s
             LEFT JOIN themes t ON t.theme_id = s.theme_id
+            {join_filters_sql}
             WHERE {where_sql}
             {_order_by(sort)}
             LIMIT ? OFFSET ?
@@ -589,6 +602,7 @@ def search_paged(
         {_theme_noise_clause()}
         {" " if (wants_figures or theme_forced) else _no_figures_clause()}
         {theme_sql}
+        {where_filters_sql}
         AND (
             s.set_num LIKE ?
             OR s.set_num LIKE ?
@@ -600,6 +614,7 @@ def search_paged(
         SELECT COUNT(1) AS n
         FROM sets s
         LEFT JOIN themes t ON t.theme_id = s.theme_id
+        {join_filters_sql}
         WHERE {where_sql}
     """
     total = int(
@@ -615,6 +630,7 @@ def search_paged(
             t.name AS theme_name
         FROM sets s
         LEFT JOIN themes t ON t.theme_id = s.theme_id
+        {join_filters_sql}
         WHERE {where_sql}
         {_order_by(sort)}
         LIMIT ? OFFSET ?
@@ -638,6 +654,8 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
     cur = con.cursor()
     limit = _clamp_limit(limit)
 
+    join_filters_sql, where_filters_sql = _filters_sql(con)
+
     theme_ids, q_rest_raw, theme_forced = _theme_filter_from_query(con, q_raw_full)
     theme_sql, theme_params = _in_clause_ints("s.theme_id", theme_ids)
 
@@ -655,11 +673,13 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
                 t.name AS theme_name
             FROM sets s
             LEFT JOIN themes t ON t.theme_id = s.theme_id
+            {join_filters_sql}
             WHERE
                 ({_base_where_clause(min_parts)})
                 {_theme_noise_clause()}
                 {" " if (wants_figures or theme_forced) else _no_figures_clause()}
                 {theme_sql}
+                {where_filters_sql}
             {_order_by(sort)}
             LIMIT ?
         """
@@ -678,10 +698,12 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
                 t.name AS theme_name
             FROM sets s
             LEFT JOIN themes t ON t.theme_id = s.theme_id
+            {join_filters_sql}
             WHERE
                 ({_base_where_clause(min_parts)})
                 {_theme_noise_clause()}
                 {_no_figures_clause()}
+                {where_filters_sql}
             {_order_by(sort)}
             LIMIT ?
         """
@@ -711,11 +733,13 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
             t.name AS theme_name
         FROM sets s
         LEFT JOIN themes t ON t.theme_id = s.theme_id
+        {join_filters_sql}
         WHERE
             ({_base_where_clause(min_parts)})
             {_theme_noise_clause()}
             {" " if (wants_figures or theme_forced) else _no_figures_clause()}
             {theme_sql}
+            {where_filters_sql}
             AND (
                 s.set_num LIKE ?
                 OR s.set_num LIKE ?
@@ -739,6 +763,8 @@ def fuzzy_search_sets(q: str, limit: int = 80, min_score: int = 70) -> List[Dict
     cur = con.cursor()
     limit = _clamp_limit(limit)
 
+    join_filters_sql, where_filters_sql = _filters_sql(con)
+
     theme_ids, q_rest_raw, theme_forced = _theme_filter_from_query(con, q_raw_full)
     theme_sql, theme_params = _in_clause_ints("s.theme_id", theme_ids)
 
@@ -758,11 +784,13 @@ def fuzzy_search_sets(q: str, limit: int = 80, min_score: int = 70) -> List[Dict
                 t.name AS theme_name
             FROM sets s
             LEFT JOIN themes t ON t.theme_id = s.theme_id
+            {join_filters_sql}
             WHERE
                 ({_base_where_clause(min_parts)})
                 {_theme_noise_clause()}
                 {" " if (wants_figures or theme_forced) else _no_figures_clause()}
                 {theme_sql}
+                {where_filters_sql}
             LIMIT 2500
             """,
             (*theme_params,),
@@ -776,11 +804,13 @@ def fuzzy_search_sets(q: str, limit: int = 80, min_score: int = 70) -> List[Dict
                 t.name AS theme_name
             FROM sets s
             LEFT JOIN themes t ON t.theme_id = s.theme_id
+            {join_filters_sql}
             WHERE
                 ({_base_where_clause(min_parts)})
                 {_theme_noise_clause()}
                 {" " if (wants_figures or theme_forced) else _no_figures_clause()}
                 {theme_sql}
+                {where_filters_sql}
                 AND (
                     LOWER(REPLACE(s.name, '-', ' ')) LIKE ?
                     OR s.set_num LIKE ?

@@ -1,5 +1,5 @@
-/// <reference types="vite/client" />
 import React, { useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import SetTile from "../components/SetTile";
 import {
   API_BASE,
@@ -22,6 +22,10 @@ type BuildabilityResultWithDisplay = BuildabilityResult & {
 };
 
 const MySetsPage: React.FC = () => {
+  const nav = useNavigate();
+  const loc = useLocation();
+  const fromDiscover = new URLSearchParams(loc.search).get("from") === "discover";
+
   const [sets, setSets] = useState<SetSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,10 +69,10 @@ const MySetsPage: React.FC = () => {
               typeof cmp.total_needed === "number"
                 ? cmp.total_needed
                 : typeof cmp.display_total === "number"
-                  ? cmp.display_total
-                  : typeof s.num_parts === "number"
-                    ? s.num_parts
-                    : 0;
+                ? cmp.display_total
+                : typeof s.num_parts === "number"
+                ? s.num_parts
+                : 0;
 
             partsMap[s.set_num] = totalNeeded;
           } catch (err) {
@@ -99,7 +103,6 @@ const MySetsPage: React.FC = () => {
       try {
         await pourSet(setNum);
         await refreshPouredSets();
-
       } catch (err: any) {
         console.error(err);
         alert(err?.message ?? "Failed to add to inventory");
@@ -146,21 +149,35 @@ const MySetsPage: React.FC = () => {
     [load]
   );
 
-  const handleRemoveFromInventory = useCallback(async (setNum: string) => {
-    try {
-      await unpourSet(setNum);
-      await refreshPouredSets();
-    } catch (err: any) {
-      console.error(err);
-      alert(err?.message ?? "Failed to remove from inventory");
-    }
-  }, [refreshPouredSets]);
+  const handleRemoveFromInventory = useCallback(
+    async (setNum: string) => {
+      try {
+        await unpourSet(setNum);
+        await refreshPouredSets();
+      } catch (err: any) {
+        console.error(err);
+        alert(err?.message ?? "Failed to remove from inventory");
+      }
+    },
+    [refreshPouredSets]
+  );
 
   return (
     <div className="page page-mysets">
       <PageHero
         title="My Sets"
         subtitle='Click "Add to Inventory" to pour all buildable parts (non-spares) from a set into your collection.'
+        left={
+          fromDiscover ? (
+            <button
+              type="button"
+              onClick={() => nav("/buildability/discover")}
+              className="a2b-hero-button a2b-cta-dark"
+            >
+              Back to Discover
+            </button>
+          ) : null
+        }
       />
 
       {/* BODY */}
@@ -199,8 +216,8 @@ const MySetsPage: React.FC = () => {
                     inInv
                       ? undefined
                       : (setNum) => {
-                        handleAddInventory(setNum);
-                      }
+                          handleAddInventory(setNum);
+                        }
                   }
                   onRemoveFromInventory={(setNum) =>
                     handleRemoveFromInventory(setNum)

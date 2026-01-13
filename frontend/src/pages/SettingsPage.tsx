@@ -31,28 +31,6 @@ const SettingsInner: React.FC = () => {
             alignItems: "center",
           }}
         >
-          <span
-            className="hero-pill hero-pill--sort"
-            style={{
-              background: "rgba(15,23,42,0.55)",
-              borderColor: "rgba(255,255,255,0.75)",
-              color: "#f8fafc",
-              fontWeight: 700,
-            }}
-          >
-            Beta
-          </span>
-          <span
-            className="hero-pill hero-pill--sort"
-            style={{
-              background: "rgba(15,23,42,0.48)",
-              borderColor: "rgba(255,255,255,0.55)",
-              color: "#f8fafc",
-              fontWeight: 700,
-            }}
-          >
-            Secure by default
-          </span>
         </div>
       </PageHero>
 
