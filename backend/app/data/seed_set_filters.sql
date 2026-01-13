@@ -21,6 +21,19 @@ INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('991336-1', 
 INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('5004059-1', 1, 'Parts pack, not a real set');
 INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('9943-1', 1, 'axels and wheels pack, not a real set');
 INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('5003200-1', 1, 'Parts pack, not a real set');
-INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('5320-1', 1, 'Parts pack, not a real set');
 INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES('10065-1', 1, 'Parts pack, not a real set');
+INSERT OR REPLACE INTO set_filters(set_num, enabled, reason) VALUES
+('COLUMBUS-1', 1, 'Promotional set, not a real set'),
+('AUSTIN-1', 1, 'Promotional set, not a real set'),
+('DALLAS-1', 1, 'Promotional set, not a real set'),
+('BERLIN-1', 1, 'Promotional set, not a real set'),
+('91426-1', 1, 'Parts pack, not a real set'),
+('5320-1', 1, 'Parts pack, not a real set'),
+('2000708-1', 1, 'Parts pack, not a real set'),
+('10061-1', 1, 'Parts pack, not a real set'),
+('HOUSTON-2', 1, 'Promotional set, not a real set'),
+('10056-1', 1, 'Parts pack, not a real set'),
+('LIGHTBULB-1', 1, 'Promotional set, not a real set');
+
+
 
