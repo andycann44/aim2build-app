@@ -63,3 +63,9 @@ backend/.env
 # local-only vite env
 frontend/.env.local
 frontend/.env.*.local
+
+# --- Aim2Build: local/runtime junk (never commit) ---
+*.bak
+backend/app/data/*user*.json
+backend/app/data/quarantine_legacy/
+backend/app/routers/searchold
