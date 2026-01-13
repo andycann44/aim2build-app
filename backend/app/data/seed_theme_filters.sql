@@ -1,14 +1,12 @@
-INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES
-  (456, 1, 'Exclude: non-buildable / merch'),
-  (501, 1, 'Books / comics'),
-  (503, 1, 'No theme row'),
-  (740, 1, 'Storage / accessory (non-buildable)'),
-  (756, 1, 'Samsonite'),
-  (757, 1, 'Ideas Books'),
-  (758, 1, 'Non-fiction Books'),
-  (759, 1, 'Story Books'),
-  (760, 1, 'Activity Books'),
-  (761, 1, 'Exclude theme_id 761'),
-  (777, 1, 'No theme row');
-  (409, 1, 'monthly buildable subscription box')
-  
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (456, 1, 'Exclude: non-buildable / merch');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (501, 1, 'Books / comics');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (503, 1, 'No theme row');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (740, 1, 'Storage / accessory (non-buildable)');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (756, 1, 'Samsonite');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (757, 1, 'Ideas Books');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (758, 1, 'Non-fiction Books');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (759, 1, 'Story Books');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (760, 1, 'Activity Books');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (761, 1, 'Exclude theme_id 761');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (777, 1, 'No theme row');
+INSERT OR REPLACE INTO theme_filters(theme_id, enabled, reason) VALUES (409, 1, 'monthly buildable subscription box');  
