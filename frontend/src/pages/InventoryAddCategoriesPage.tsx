@@ -34,7 +34,7 @@ const InventoryAddCategoriesPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const url = new URL(`${API}/api/catalog/part-categories/top`);
+        const url = `/api/catalog/part-categories/top`;
         const res = await fetch(url.toString(), {
           headers: {
             ...authHeaders(),
