@@ -2,13 +2,15 @@
   "name": "aim2build-frontend",
   "version": "0.3.0",
   "private": true,
-"scripts": {
-  "dev": "vite --host 127.0.0.1",
-  "build": "vite build",
-  "preview": "vite preview --host 127.0.0.1",
-  "lint": "echo \"no lint configured\""
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "lint": "echo \"no lint configured\""
   },
   "dependencies": {
+    "@capacitor/cli": "^8.0.1",
+    "@capacitor/core": "^8.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0"
