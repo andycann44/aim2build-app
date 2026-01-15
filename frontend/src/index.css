@@ -60,7 +60,7 @@ body.aim2-root {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
     sans-serif;
   color: var(--text-main);
-  background: var(--bg-soft);
+  background: #ffffff;
 }
 
 /* Scrollbar */
@@ -85,29 +85,31 @@ body.aim2-root {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  padding: 24px;
+  padding: 0;
+  background: #ffffff;
 }
 
 .app-maxwidth {
   width: 100%;
-  max-width: 1240px;
+  max-width: 100%;
   display: flex;
-  border-radius: 32px;
+  border-radius: 0;
   overflow: visible;
-  box-shadow: var(--shadow-soft);
-  background: linear-gradient(135deg, #020617, #020617 35%, #111827 100%);
+  box-shadow: none;
+  background: #ffffff;
 }
 
 /* ----------------- SIDEBAR ----------------- */
 
 .app-sidebar {
   width: 230px;
-  border-radius: 24px 0 0 24px;
-  color: #e5e7eb;
+  border-radius: 0;
+  color: var(--text-main);
   padding: 18px 14px 18px 18px;
   display: flex;
   flex-direction: column;
   gap: 18px;
+  background: #ffffff;
 }
 
 .app-sidebar {
@@ -161,6 +163,7 @@ body.aim2-root {
 .app-nav {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 0.4rem;
   margin-top: 0.35rem;
 }
@@ -169,18 +172,20 @@ body.aim2-root {
 .app-nav-link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 0.6rem;
   padding: 0.5rem 0.9rem;
   border-radius: 999px;
   font-size: 0.86rem;
   text-decoration: none;
-  color: #e5e7eb;
-  opacity: 0.9;
+  color: #f8fafc;
+  opacity: 1;
 
-  border: 2px solid rgba(255, 255, 255, 0.32);
-  background: rgba(15, 23, 42, 0.6);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: #0f172a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 10px 18px rgba(0, 0, 0, 0.35);
 
   transition:
     background 0.16s ease,
@@ -192,29 +197,32 @@ body.aim2-root {
 
 .app-nav-link span {
   flex: 1;
+  text-align: center;
 }
 
 .app-nav-link-indicator {
-  font-size: 0.7rem;
-  opacity: 0.8;
+  display: none;
 }
 
 /* Hover state – a bit brighter, small lift */
 .app-nav-link:hover {
-  opacity: 1;
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(255, 255, 255, 0.65);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.7);
+  background: #111827;
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 12px 22px rgba(0, 0, 0, 0.45);
   transform: translateY(-1px);
 }
 
 /* Active state – same gradient language as hero SEARCH button */
 .app-nav-link-active {
   background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
-  color: #020617;
+  color: #111827;
   opacity: 1;
-  border-color: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.9);
+  border: 2px solid #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 12px 24px rgba(0, 0, 0, 0.35);
 }
 
 /* Hero CTA buttons */
@@ -516,9 +524,7 @@ body.aim2-root {
 
 .app-main {
   flex: 1;
-  background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.15), transparent 38%),
-    radial-gradient(circle at 20% 80%, rgba(244, 63, 94, 0.16), transparent 45%),
-    var(--bg);
+  background: #ffffff;
   padding: 20px 24px 22px;
   display: flex;
   flex-direction: column;
@@ -554,10 +560,10 @@ body.aim2-root {
 /* Main content body */
 .app-main-body {
   flex: 1;
-  border-radius: 24px;
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-subtle);
-  padding: 18px 18px 18px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
   overflow: auto;
 }
 
@@ -643,11 +649,21 @@ body.aim2-root {
   color: var(--text-muted);
 }
 
-/* 🔧 Search / My Sets / Buildability tiles – 2 across on desktop */
-.tile-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.4rem;
+/* A2B: Canonical responsive tile grid */
+.tile-grid{
+  display:grid;
+  gap:16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.tile-grid > *{ min-width:0; }
+@media (max-width:1100px){
+  .tile-grid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width:900px){
+  .tile-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width:520px){
+  .tile-grid{ grid-template-columns: 1fr; }
 }
 
 /* ----------------- INVENTORY PAGE ----------------- */
@@ -863,7 +879,7 @@ body.aim2-root {
 
 @media (max-width: 960px) {
   .app-shell {
-    padding: 12px;
+    padding: 0;
   }
 
   /* Make the main content always fill the space next to the sidebar */
@@ -880,27 +896,35 @@ body.aim2-root {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    border-radius: 24px 24px 0 0;
+    border-radius: 0;
+    position: static;
+    top: auto;
+    padding: 12px 14px;
+    gap: 12px;
   }
 
   .app-main {
-    border-radius: 0 0 24px 24px;
+    border-radius: 0;
   }
 
   .app-main-body {
     padding: 14px;
   }
 
-  /* 1 tile per row on smaller screens */
-  .tile-grid {
-    grid-template-columns: 1fr;
+  .app-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 0;
   }
+
 }
 
 @media (max-width: 720px) {
   .app-sidebar {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 0.6rem;
   }
 
@@ -911,67 +935,17 @@ body.aim2-root {
   .app-main-body {
     padding: 12px;
   }
-}
 
-/* ---------- GLOBAL NAV PILLS (Search / My Sets / Inventory / etc) ---------- */
+  .app-nav {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-/* base style for all nav links */
-nav a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
-  margin-right: 8px;
-
-  border-radius: 999px;
-  text-decoration: none;
-
-  font-size: 0.85rem;
-  font-weight: 600;
-
-  /* pill look */
-  background: #0f172a;
-  color: #f9fafb;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.45);
-
-  transition:
-    background 0.16s ease,
-    color 0.16s ease,
-    border-color 0.16s ease,
-    box-shadow 0.16s ease,
-    transform 0.12s ease;
-}
-
-nav a:hover {
-  background: #020617;
-  border-color: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.7);
-  transform: translateY(-1px);
-}
-
-/* active page – matches the hero SEARCH button vibe */
-nav a[aria-current="page"] {
-  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
-  color: #020617;
-  border-color: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.9);
-}
-
-/* Make the nav a vertical stack */
-nav {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-/* Each pill takes full nav width */
-nav a {
-  display: flex;
-  width: 180px;
-  /* tweak this width if you want tighter/wider */
-  justify-content: center;
+  .app-nav-link {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .brand {
@@ -980,10 +954,12 @@ nav a {
   display: flex;
   align-items: center;
   gap: 12px;
+  justify-content: center;
+  width: 100%;
 }
 
 .brand-logo {
-  height: 125px;
+  height: 150px;
   width: auto;
   display: block;
 }
