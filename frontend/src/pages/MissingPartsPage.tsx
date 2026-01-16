@@ -146,27 +146,6 @@ const MissingPartsInner: React.FC = () => {
 
   return (
     <div className="page buildability-missing">
-      {/* Local responsive grid rules: 5-wide desktop */}
-      <style>{`
-        .tile-grid.tile-grid--5 {
-          display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
-          gap: 18px;
-        }
-        @media (max-width: 1400px) {
-          .tile-grid.tile-grid--5 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-        }
-        @media (max-width: 1100px) {
-          .tile-grid.tile-grid--5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        }
-        @media (max-width: 820px) {
-          .tile-grid.tile-grid--5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-        @media (max-width: 520px) {
-          .tile-grid.tile-grid--5 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-        }
-      `}</style>
-
       <PageHero title="Missing parts" subtitle={setLine}>
         <div
           style={{
@@ -279,7 +258,7 @@ const MissingPartsInner: React.FC = () => {
         )}
 
         {!loading && !error && summary?.missing_parts?.length ? (
-          <div className="tile-grid tile-grid--5" style={{ marginTop: "0.5rem" }}>
+          <div className="parts-grid" style={{ marginTop: "0.5rem" }}>
             {summary.missing_parts.map((m) => {
               const key = `${m.part_num}-${m.color_id}`;
               const need = typeof m.need === "number" ? m.need : 0;

@@ -202,11 +202,6 @@ export default function SetPage() {
           .demo-banner::before { animation: none; }
         }
 
-        .tile-grid--5 {
-          display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
-          gap: 18px;
-        }
       `}</style>
 
       {/* HERO + overlay tile */}
@@ -276,7 +271,7 @@ export default function SetPage() {
       {/* GRID */}
       <div style={{ maxWidth: 1600, margin: "20px auto", padding: "0 1.5rem" }}>
         {!loading && missing.length > 0 && (
-          <div className="tile-grid--5">
+          <div className="parts-grid">
             {missing.map((m, i) => (
               <BuildabilityPartsTile
                 key={`${m.part_num}-${m.color_id}-${i}`}

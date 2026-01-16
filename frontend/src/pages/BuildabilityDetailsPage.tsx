@@ -314,9 +314,8 @@ const BuildabilityDetailsInner: React.FC = () => {
 
         {!loading && !error && setId && parts.length > 0 && (
           <div
-            className="tile-grid"
+            className="parts-grid"
             style={{
-              gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
               gap: "1.1rem",
               alignItems: "stretch",
               marginTop: "0.5rem",
