@@ -176,29 +176,11 @@ const BuildabilityDetailsInner: React.FC = () => {
 
   return (
     <div className="page buildability-details">
-      <div style={{ position: "relative" }}>
-        <PageHero
-          title="Buildability details"
-          subtitle={
-            setLine || "Compare what this set needs with what you already own."
-          }
-        />
-
-        <div
-          className="heroTwoCol"
-          style={{
-            position: "absolute",
-            left: 22,
-            right: 22,
-            bottom: 18,
-            zIndex: 5,
-
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            alignItems: "center",
-            columnGap: 16,
-          }}
-        >
+      <PageHero
+        title="Buildability details"
+        subtitle={setLine || "Compare what this set needs with what you already own."}
+      >
+        <div className="heroTwoCol">
           <div className="heroLeft">
             <div
               style={{
@@ -251,9 +233,7 @@ const BuildabilityDetailsInner: React.FC = () => {
                   }}
                   onClick={() => {
                     if (setId)
-                      navigate(
-                        `/buildability/${encodeURIComponent(setId)}/missing`
-                      );
+                      navigate(`/buildability/${encodeURIComponent(setId)}/missing`);
                   }}
                 >
                   Missing pieces: {missingPiecesTotal.toLocaleString()}
@@ -262,34 +242,20 @@ const BuildabilityDetailsInner: React.FC = () => {
             </div>
           </div>
 
-          <div
-            className="heroRight"
-            style={{
-              background: "transparent",
-              border: "none",
-              boxShadow: "none",
-              outline: "none",
-              padding: 0,
-              margin: 0,
-              justifySelf: "end",
-              display: "flex",
-              justifyContent: "flex-end",
-              alignItems: "flex-end",
-            }}
-          >
-            <div style={{ width: 220, height: 140 }}>
+          <div className="heroRight">
+            <div style={{ width: "clamp(180px, 22vw, 240px)", aspectRatio: "220 / 140" }}>
               <InstructionsTile setNum={setId || ""} imgUrl={setImgUrl} />
             </div>
           </div>
         </div>
-      </div>
+      </PageHero>
 
       {/* parts grid */}
       <div
         style={{
-          maxWidth: "1600px",
-          margin: "0 auto 2.5rem",
-          padding: "0 1.5rem",
+          maxWidth: "none",
+          margin: "0 0 2.5rem",
+          padding: "0",
         }}
       >
         {!setId && !error && (
@@ -314,9 +280,8 @@ const BuildabilityDetailsInner: React.FC = () => {
 
         {!loading && !error && setId && parts.length > 0 && (
           <div
-            className="tile-grid"
+            className="parts-grid"
             style={{
-              gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
               gap: "1.1rem",
               alignItems: "stretch",
               marginTop: "0.5rem",

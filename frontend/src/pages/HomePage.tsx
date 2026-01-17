@@ -10,8 +10,6 @@ const HomePage: React.FC = () => {
   const [featured, setFeatured] = useState<SetSummary[]>([]);
   const [loadingFeatured, setLoadingFeatured] = useState(false);
 
-  const placeholders = useMemo(() => Array.from({ length: 8 }), []);
-
   // ✅ MUST be top-level (not inside useEffect) to avoid “invalid hook call”
   const onOpenFeatured = useCallback(
     (setNum: string) => {
@@ -129,13 +127,7 @@ const HomePage: React.FC = () => {
       </PageHero>
 
       {/* Featured sets */}
-      <div
-        style={{
-          marginTop: "0.5rem",
-          marginRight: "2.5rem",
-          marginBottom: "1rem",
-        }}
-      >
+      <div className="home-featured-wrap">
         <h2
           style={{
             margin: "0 0 0.65rem",
@@ -147,62 +139,37 @@ const HomePage: React.FC = () => {
           Featured sets
         </h2>
 
-        <div className="home-feature-grid">
-          {loadingFeatured
-            ? placeholders.map((_, idx) => (
-                <div
-                  key={`skeleton-${idx}`}
-                  style={{
-                    borderRadius: 28,
-                    padding: 2,
-                    background:
-                      "linear-gradient(135deg,#f97316,#facc15,#22c55e,#38bdf8,#6366f1)",
-                    boxShadow: "0 18px 40px rgba(15,23,42,0.45)",
-                    minHeight: 360,
-                    opacity: 0.6,
+        {loadingFeatured ? (
+          <p style={{ fontSize: "0.9rem", color: "#6b7280" }}>
+            Loading featured sets…
+          </p>
+        ) : (
+          <div className="tile-grid home-featured-grid">
+            {featured.map((s) => (
+              <div
+                key={s.set_num}
+                onDoubleClick={() => onOpenFeatured(s.set_num)}
+                style={{ cursor: "default" }}
+              >
+                <SetTile
+                  set={{
+                    set_num: s.set_num,
+                    name: s.name,
+                    year: s.year,
+                    num_parts: s.num_parts,
+                    img_url: s.img_url ?? null,
                   }}
-                >
-                  <div
-                    style={{
-                      borderRadius: 26,
-                      background: "#f3f4f6",
-                      padding: "1.1rem",
-                      height: "100%",
-                    }}
-                  />
-                </div>
-              ))
-            : featured.map((s) => (
-                <div
-                  key={s.set_num}
-                  onDoubleClick={() => onOpenFeatured(s.set_num)}
-                  style={{ cursor: "default" }}
-                >
-                  <SetTile
-                    set={{
-                      set_num: s.set_num,
-                      name: s.name,
-                      year: s.year,
-                      num_parts: s.num_parts,
-                      img_url: s.img_url ?? null,
-                    }}
-                  />
-                </div>
-              ))}
-        </div>
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* SIMPLE STATUS SECTION */}
-      <div
-        style={{
-          marginTop: "0.5rem",
-          marginRight: "2.5rem",
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 2.2fr) minmax(0, 1.2fr)",
-          gap: "1.25rem",
-        }}
-      >
+      <div className="home-bottom-grid">
         <div
+          className="home-bottom-card"
           style={{
             borderRadius: "18px",
             background: "rgba(15,23,42,0.9)",
@@ -238,6 +205,7 @@ const HomePage: React.FC = () => {
         </div>
 
         <div
+          className="home-bottom-card"
           style={{
             borderRadius: "18px",
             background: "rgba(15,23,42,0.9)",

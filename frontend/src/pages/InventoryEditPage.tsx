@@ -301,14 +301,8 @@ const InventoryEditInner: React.FC = () => {
       {loading ? <div style={{ padding: "0.75rem" }}>Loading…</div> : null}
 
       {/* INVENTORY TILE GRID (colour-specific) */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-          gap: "1.1rem",
-          paddingBottom: "2.5rem",
-        }}
-      >
+      <div className="parts-grid" style={{ gap: "1.1rem", paddingBottom: "2.5rem" }}>
+        
         {filtered.map((r) => {
           const pn = String(r.part_num || "");
           const cid = Number(r.color_id ?? 0);

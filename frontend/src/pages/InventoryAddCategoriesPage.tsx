@@ -1,9 +1,7 @@
 // frontend/src/pages/InventoryAddCategoriesPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import InventoryCategoryTile, {
-  InventoryCategory,
-} from "../components/InventoryCategoryTile";
+import InventoryCategoryTile, { InventoryCategory } from "../components/InventoryCategoryTile";
 import { authHeaders } from "../utils/auth";
 
 import { API_BASE } from "../api/client";
@@ -78,24 +76,11 @@ const InventoryAddCategoriesPage: React.FC = () => {
         subtitle="Choose what type of brick you want to add before selecting parts and quantities."
       />
 
-      <div
-        style={{
-          marginRight: "2.5rem",
-          marginLeft: 0,
-          paddingBottom: "2.5rem",
-        }}
-      >
-        {error && (
-          <p style={{ color: "#dc2626", marginBottom: "1rem" }}>{error}</p>
-        )}
+      <div style={{ marginLeft: 0, paddingBottom: "2.5rem" }}>
+        {error && <p style={{ color: "#dc2626", marginBottom: "1rem" }}>{error}</p>}
         {loading && <p style={{ marginBottom: "1rem" }}>Loading categories…</p>}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-            gap: "1.6rem",
-          }}
-        >
+
+        <div className="parts-grid">
           {categories.map((cat) => (
             <InventoryCategoryTile key={cat.key} category={cat} />
           ))}
