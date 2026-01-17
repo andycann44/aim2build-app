@@ -204,12 +204,11 @@ export default function BuildabilityDiscoverPage() {
               alignItems: "center",
             }}
           >
-            <label
-              className="hero-pill hero-pill--sort"
-              style={{ gap: "0.6rem", cursor: "default" }}
-            >
-              <span>Min buildability</span>
-              <span className="hero-pill__value">{minPct}%</span>
+            <div className="hero-sliderRow">
+              <div className="hero-sliderMeta">
+                <span>Min buildability</span>
+                <strong>{minPct}%</strong>
+              </div>
               <input
                 type="range"
                 min={50}
@@ -219,17 +218,16 @@ export default function BuildabilityDiscoverPage() {
                 onChange={(e) =>
                   setMinPct(parseInt(e.target.value || "90", 10))
                 }
-                style={{ width: "180px" }}
               />
-            </label>
+            </div>
 
-            <label className="hero-pill hero-pill--sort" style={{ gap: "0.5rem" }}>
+            <label className="hero-checkRow">
               <input
                 type="checkbox"
                 checked={include100}
                 onChange={(e) => setInclude100(!!e.target.checked)}
               />
-              Include 100% complete sets
+              <span>Include 100% complete sets</span>
             </label>
 
             <button
@@ -243,9 +241,7 @@ export default function BuildabilityDiscoverPage() {
           </div>
         </PageHero>
 
-        <div
-          style={{ marginTop: "0.5rem", marginRight: "2.5rem", marginBottom: "1rem" }}
-        >
+        <div style={{ padding: "0 1.5rem 2.5rem" }}>
           <h2
             style={{
               margin: "0 0 0.65rem",

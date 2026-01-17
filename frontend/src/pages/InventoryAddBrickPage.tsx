@@ -300,8 +300,8 @@ const InventoryAddBrickInner: React.FC = () => {
             resp && typeof resp.qty === "number"
               ? resp.qty
               : resp && typeof resp.qty_total === "number"
-              ? resp.qty_total
-              : optimistic;
+                ? resp.qty_total
+                : optimistic;
           setOwned((m) => ({ ...m, [k]: serverQty }));
         } else if (delta < 0) {
           const resp = await postDecCanonical(part_num, color_id, Math.abs(delta));
@@ -309,8 +309,8 @@ const InventoryAddBrickInner: React.FC = () => {
             resp && typeof resp.qty === "number"
               ? resp.qty
               : resp && typeof resp.qty_total === "number"
-              ? resp.qty_total
-              : Math.max(optimistic, 0);
+                ? resp.qty_total
+                : Math.max(optimistic, 0);
           setOwned((m) => ({ ...m, [k]: serverQty }));
         }
       } catch (err: any) {
@@ -408,13 +408,8 @@ const InventoryAddBrickInner: React.FC = () => {
 
       {/* Part selection tiles */}
       <div
-        style={{
-          marginTop: "0.75rem",
-          marginBottom: "1rem",
-          display: "grid",
-          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-          gap: "1.1rem",
-        }}
+        className="parts-grid"
+        style={{ marginTop: "0.75rem", marginBottom: "1rem" }}
       >
         {visibleParts.map((p) => {
           const hasSingleColour =
@@ -426,8 +421,8 @@ const InventoryAddBrickInner: React.FC = () => {
           const onClickTile = hasSingleColour
             ? undefined
             : () => {
-                void openPickColour(p.part_num);
-              };
+              void openPickColour(p.part_num);
+            };
 
           const tileKey = key(p.part_num, colorId);
           const notice = tileNotice[tileKey];

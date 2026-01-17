@@ -238,8 +238,7 @@ const MissingPartsInner: React.FC = () => {
 
       <div
         style={{
-          maxWidth: "1600px",
-          margin: "0 auto 2.5rem",
+          margin: "0 0 2.5rem",
           padding: "0 1.5rem",
         }}
       >

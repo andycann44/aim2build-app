@@ -63,8 +63,9 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
         background:
           "linear-gradient(135deg,#f97316,#facc15,#22c55e,#38bdf8,#6366f1)",
         boxShadow: "0 16px 36px rgba(15,23,42,0.32)",
-        width: 220,
+        width: "100%",
         height: "100%",
+        minWidth: 0,
         position: "relative",
       }}
     >

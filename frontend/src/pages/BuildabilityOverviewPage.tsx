@@ -300,7 +300,6 @@ const BuildabilityOverviewPage: React.FC = () => {
           <div
             className="tile-grid"
             style={{
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
               gap: "1.4rem",
             }}
           >

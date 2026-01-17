@@ -8,7 +8,6 @@ import { authHeaders } from "../utils/auth";
 import NoticeBanner from "../components/NoticeBanner";
 import PageHero from "../components/PageHero";
 
-
 type ElementRow = {
   part_num: string;
   color_id: number;
@@ -33,14 +32,16 @@ const extractLockedSets = (err: unknown): string[] => {
     (err as any)?.lockedSets ??
     (err as any)?.set_nums ??
     (err as any)?.poured_sets;
+
   const sets: string[] = Array.isArray(candidates)
     ? candidates.map((s) => String(s)).filter(Boolean)
     : [];
 
   const msg = (err as any)?.message || "";
-  const found = [...msg.matchAll(/(\d{4,6}-\d)\b/g), ...msg.matchAll(/(\d{4,6})\b/g)].map(
-    (m) => m[1]
-  );
+  const found = [
+    ...msg.matchAll(/(\d{4,6}-\d)\b/g),
+    ...msg.matchAll(/(\d{4,6})\b/g),
+  ].map((m) => m[1]);
 
   const all = [...sets, ...found];
   const dedup = Array.from(new Set(all.map((s) => s.trim()).filter(Boolean)));
@@ -48,7 +49,9 @@ const extractLockedSets = (err: unknown): string[] => {
 };
 
 const formatLockMessage = (sets: string[]) =>
-  sets.length ? `Remove from My Sets: ${sets.join(", ")}` : "Remove the set from My Sets to go lower.";
+  sets.length
+    ? `Remove from My Sets: ${sets.join(", ")}`
+    : "Remove the set from My Sets to go lower.";
 
 function useQuery() {
   const { search } = useLocation();
@@ -88,19 +91,33 @@ async function postDecCanonical(part_num: string, color_id: number, qty: number)
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ part_num, color_id, qty }),
   });
+
   const text = await res.text().catch(() => "");
   let data: any = null;
-  try { data = text ? JSON.parse(text) : null; } catch { }
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {}
 
-  const lockedCandidates = (data?.locked_sets ?? data?.lockedSets ?? data?.set_nums ?? data?.poured_sets) as any;
-  const sets = Array.isArray(lockedCandidates) ? lockedCandidates.map((s) => String(s)) : [];
+  const lockedCandidates = (data?.locked_sets ??
+    data?.lockedSets ??
+    data?.set_nums ??
+    data?.poured_sets) as any;
+
+  const sets = Array.isArray(lockedCandidates)
+    ? lockedCandidates.map((s) => String(s))
+    : [];
 
   if (!res.ok || (data && data.blocked)) {
-    const msg = data?.detail?.message || data?.message || text || `Decrement failed (${res.status})`;
+    const msg =
+      data?.detail?.message ||
+      data?.message ||
+      text ||
+      `Decrement failed (${res.status})`;
     const err: any = new Error(msg);
     if (sets.length) err.locked_sets = sets;
     throw err;
   }
+
   return data;
 }
 
@@ -132,8 +149,8 @@ const InventoryPickColourInner: React.FC = () => {
           typeof r.qty_total === "number"
             ? r.qty_total
             : typeof r.qty === "number"
-              ? r.qty
-              : 0;
+            ? r.qty
+            : 0;
         map[key(pn, cid)] = qty;
       });
       setOwned(map);
@@ -170,9 +187,10 @@ const InventoryPickColourInner: React.FC = () => {
       const k = key(pn, cid);
       const prev = owned[k] ?? 0;
       const optimistic = Math.max(prev + delta, 0);
+
       setOwned((m) => ({ ...m, [k]: optimistic }));
-      setTileNotice((prev) => {
-        const next = { ...prev };
+      setTileNotice((prev2) => {
+        const next = { ...prev2 };
         delete next[k];
         return next;
       });
@@ -184,8 +202,8 @@ const InventoryPickColourInner: React.FC = () => {
             resp && typeof resp.qty === "number"
               ? resp.qty
               : resp && typeof resp.qty_total === "number"
-                ? resp.qty_total
-                : optimistic;
+              ? resp.qty_total
+              : optimistic;
           setOwned((m) => ({ ...m, [k]: serverQty }));
         } else if (delta < 0) {
           const resp = await postDecCanonical(pn, cid, Math.abs(delta));
@@ -193,22 +211,22 @@ const InventoryPickColourInner: React.FC = () => {
             resp && typeof resp.qty === "number"
               ? resp.qty
               : resp && typeof resp.qty_total === "number"
-                ? resp.qty_total
-                : optimistic;
+              ? resp.qty_total
+              : optimistic;
           setOwned((m) => ({ ...m, [k]: serverQty }));
         }
       } catch (e: any) {
         setOwned((m) => ({ ...m, [k]: prev }));
+
         const msg = e?.message ?? "Locked by poured set floor.";
         const lockedSets = extractLockedSets(e);
         const isLock =
-          typeof msg === "string" && msg.toLowerCase().includes("locked") || lockedSets.length > 0;
+          (typeof msg === "string" && msg.toLowerCase().includes("locked")) ||
+          lockedSets.length > 0;
+
         if (isLock) {
           const text = formatLockMessage(lockedSets);
-          setTileNotice((prev) => ({
-            ...prev,
-            [k]: text,
-          }));
+          setTileNotice((prev2) => ({ ...prev2, [k]: text }));
         } else {
           setError(msg);
         }
@@ -245,16 +263,10 @@ const InventoryPickColourInner: React.FC = () => {
           onClose={() => setError("")}
         />
       )}
+
       {loading && <div style={{ padding: "0.75rem 1rem" }}>Loading…</div>}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-          gap: "1.1rem",
-          paddingBottom: "2.5rem",
-        }}
-      >
+      <div className="parts-grid" style={{ paddingBottom: "2.5rem" }}>
         {elements.map((e) => {
           const pn = String(e.part_num);
           const cid = Number(e.color_id);
@@ -264,11 +276,7 @@ const InventoryPickColourInner: React.FC = () => {
           return (
             <div
               key={`${pn}-${cid}`}
-              style={{
-                position: "relative",
-                overflow: "visible",
-                borderRadius: 24,
-              }}
+              style={{ position: "relative", overflow: "visible", borderRadius: 24 }}
             >
               <BuildabilityPartsTile
                 part={{
@@ -285,6 +293,7 @@ const InventoryPickColourInner: React.FC = () => {
                 showInfoButton={true}
                 infoText={e.color_name || `${pn} / ${cid}`}
               />
+
               {notice && (
                 <div className="a2b-lockOverlay">
                   <div className="a2b-lockTitleRow">
@@ -303,13 +312,13 @@ const InventoryPickColourInner: React.FC = () => {
             </div>
           );
         })}
-      </div>
 
-      {!loading && elements.length === 0 && !error && (
-        <div style={{ padding: "0.75rem 1rem", opacity: 0.8 }}>
-          No colours found for this part.
-        </div>
-      )}
+        {!loading && elements.length === 0 && !error && (
+          <div style={{ padding: "0.75rem 1rem", opacity: 0.8 }}>
+            No colours found for this part.
+          </div>
+        )}
+      </div>
     </div>
   );
 };

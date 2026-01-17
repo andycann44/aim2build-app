@@ -67,23 +67,18 @@ const SearchPage: React.FC = () => {
     ];
 
     for (const path of candidates) {
-      try {
-        const res = await fetch(`${API}${path}`, {
-          method: "POST",
-          headers: authHeaders(),
-        });
+      const res = await fetch(`${API}${path}`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
 
-        if (res.status === 401) throw new Error("401 Unauthorized");
-        if (res.status === 404) continue; // endpoint not present, try next
-        if (!res.ok) {
-          const body = await res.text().catch(() => "");
-          throw new Error(`Inventory cleanup failed: ${res.status} ${body}`.trim());
-        }
-        return; // success
-      } catch (err) {
-        // If network failure, treat as fatal to bubble up. 401 handled above.
-        throw err;
+      if (res.status === 401) throw new Error("401 Unauthorized");
+      if (res.status === 404) continue; // endpoint not present, try next
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`Inventory cleanup failed: ${res.status} ${body}`.trim());
       }
+      return; // success
     }
   }, []);
 
@@ -376,7 +371,7 @@ const SearchPage: React.FC = () => {
       </PageHero>
 
       {/* RESULTS GRID */}
-      <div className="page-body" style={{ marginRight: "2.5rem" }}>
+      <div className="page-body">
         <div className="tile-grid">
           {results.map((s) => (
             <SetTile

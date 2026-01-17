@@ -1,26 +1,26 @@
 :root {
   /* Light, bright, toy-ish but not babyish */
-  --bg: #f3f4f6;
-  --bg-elevated: #ffffff;
+  --bg: #e5e7eb;
+  --bg-elevated: #e5e7eb;
   --bg-soft: #e5e7eb;
   --border-subtle: #e5e7eb;
-  --text-main: #111827;
+  --text-main: hsl(221, 39%, 11%);
   --text-muted: #6b7280;
 
   /* Accent colours (brick-inspired but not LEGO exact) */
   --accent: #2563eb;
-  /* blue */
   --accent-soft: rgba(37, 99, 235, 0.06);
   --accent-yellow: #facc15;
-  /* yellow */
   --accent-red: #f97316;
-  /* warm orange-red */
 
   --danger: #ef4444;
   --danger-soft: rgba(239, 68, 68, 0.08);
 
   --shadow-soft: 0 14px 45px rgba(15, 23, 42, 0.26);
   --shadow-subtle: 0 10px 30px rgba(15, 23, 42, 0.12);
+
+  /* NEW: consistent gutter between sidebar + main */
+  --shell-gap: 28px;
 }
 
 /* Typography helpers */
@@ -57,10 +57,9 @@ body {
 
 body.aim2-root {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   color: var(--text-main);
-  background: #ffffff;
+  background: var(--bg);
 }
 
 /* Scrollbar */
@@ -86,7 +85,7 @@ body.aim2-root {
   align-items: stretch;
   justify-content: center;
   padding: 0;
-  background: #ffffff;
+  background: var(--bg);
 }
 
 .app-maxwidth {
@@ -96,7 +95,12 @@ body.aim2-root {
   border-radius: 0;
   overflow: visible;
   box-shadow: none;
-  background: #ffffff;
+  background: var(--bg-elevated);
+
+  /* NEW: make the shell spacing consistent */
+  gap: var(--shell-gap);
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 /* ----------------- SIDEBAR ----------------- */
@@ -109,13 +113,14 @@ body.aim2-root {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  background: #ffffff;
-}
+  background: var(--bg);
 
-.app-sidebar {
   position: sticky;
   top: 24px;
   align-self: flex-start;
+
+  /* NEW: stop it squeezing content */
+  flex: 0 0 auto;
 }
 
 .app-sidebar-header {
@@ -168,7 +173,7 @@ body.aim2-root {
   margin-top: 0.35rem;
 }
 
-/* 🔥 Pill-style sidebar links to match hero buttons */
+/* Pill-style sidebar links */
 .app-nav-link {
   display: flex;
   align-items: center;
@@ -180,6 +185,7 @@ body.aim2-root {
   text-decoration: none;
   color: #f8fafc;
   opacity: 1;
+  width: 180px;
 
   border: 1px solid rgba(255, 255, 255, 0.35);
   background: #0f172a;
@@ -204,7 +210,6 @@ body.aim2-root {
   display: none;
 }
 
-/* Hover state – a bit brighter, small lift */
 .app-nav-link:hover {
   background: #111827;
   border-color: rgba(255, 255, 255, 0.55);
@@ -214,7 +219,6 @@ body.aim2-root {
   transform: translateY(-1px);
 }
 
-/* Active state – same gradient language as hero SEARCH button */
 .app-nav-link-active {
   background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
   color: #111827;
@@ -225,54 +229,101 @@ body.aim2-root {
     0 12px 24px rgba(0, 0, 0, 0.35);
 }
 
-/* Hero CTA buttons */
-.a2b-hero-button {
-  border-radius: 999px;
-  padding: 0.5rem 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  background: linear-gradient(135deg, #0ea5e9, #22c55e);
-  color: #0b1120;
+/* Sidebar footer */
+.app-sidebar-footer {
+  margin-top: auto;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+/* ----------------- MAIN CONTENT AREA ----------------- */
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-elevated);
+  padding: 20px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+
+  /* NEW: this prevents “tiles too close” by ensuring content doesn’t hug sidebar */
+  margin-left: 0;
+}
+
+.app-main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.app-main-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.app-main-header-title h1 {
+  margin: 0;
+  font-size: 1.4rem;
   font-weight: 800;
-  cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
-.a2b-hero-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(34, 197, 94, 0.2);
+.app-main-header-title p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
 }
 
-.a2b-cta-dark {
-  background: rgba(15, 23, 42, 0.9);
-  color: #e5e7eb;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+.app-main-body {
+  flex: 1;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  overflow: auto;
 }
 
-.a2b-btn-glass-danger {
-  border-radius: 999px;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.82rem;
+/* Generic page body content */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Page headers */
+.page-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 1.8rem;
   font-weight: 800;
-  background: rgba(220, 38, 38, 0.16);
-  color: #fecdd3;
-  border: 1px solid rgba(248, 113, 113, 0.45);
-  box-shadow: 0 10px 22px rgba(185, 28, 28, 0.16) inset,
-    0 12px 24px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 1.6rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
+  color: #020617;
+  border: 3px solid #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.55);
+  text-shadow: none;
 }
 
-.a2b-btn-glass-danger:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(185, 28, 28, 0.22) inset,
-    0 14px 26px rgba(0, 0, 0, 0.28);
+.page-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
 }
 
 /* ----------------- HERO TILES (3004 side-view vibe) ----------------- */
 
-/* wrapper if you have one */
 .hero-tiles {
   position: absolute;
   inset: 0 0 auto 0;
@@ -284,7 +335,6 @@ body.aim2-root {
   border-radius: 0;
 }
 
-/* each little colour segment */
 .hero-tile {
   position: relative;
   border-radius: 6px;
@@ -322,33 +372,21 @@ body.aim2-root {
 }
 
 /* ===========================
-   Aim2Build: FINAL LOCK OVERLAY
-   - Animated rainbow border ONLY around overlay box
-   - Soft pulse + glow
-   - Marquee scrolling text
-   - No layout impact (absolute overlay)
+   LOCK OVERLAY (unchanged)
    =========================== */
 
 @keyframes a2bOverlaySpin {
-  0% {
-    --a2bSpin: 0turn;
-  }
-
-  100% {
-    --a2bSpin: 1turn;
-  }
+  0% { --a2bSpin: 0turn; }
+  100% { --a2bSpin: 1turn; }
 }
 
 @keyframes a2bOverlayPulse {
-
-  0%,
-  100% {
+  0%, 100% {
     transform: translateY(0);
     box-shadow:
       0 10px 22px rgba(0, 0, 0, 0.18),
       0 0 0 0 rgba(255, 193, 7, 0.00);
   }
-
   50% {
     transform: translateY(-1px);
     box-shadow:
@@ -358,34 +396,16 @@ body.aim2-root {
 }
 
 @keyframes a2bSpark {
-  0% {
-    transform: scale(0.90);
-    opacity: 0.35;
-  }
-
-  50% {
-    transform: scale(1.18);
-    opacity: 0.90;
-  }
-
-  100% {
-    transform: scale(0.90);
-    opacity: 0.35;
-  }
+  0% { transform: scale(0.90); opacity: 0.35; }
+  50% { transform: scale(1.18); opacity: 0.90; }
+  100% { transform: scale(0.90); opacity: 0.35; }
 }
 
-/* marquee */
 @keyframes a2bMarquee {
-  0% {
-    transform: translateX(0%);
-  }
-
-  100% {
-    transform: translateX(-50%);
-  }
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
 }
 
-/* Overlay container (place inside a position:relative tile wrapper) */
 .a2b-lockOverlay {
   position: absolute;
   top: 8px;
@@ -393,40 +413,36 @@ body.aim2-root {
   right: 8px;
   z-index: 6;
   pointer-events: none;
-
   border-radius: 16px;
   padding: 10px 12px;
   overflow: hidden;
-
-  /* “glass” base */
   background: rgba(255, 244, 214, 0.92);
   border: 1px solid rgba(255, 193, 7, 0.40);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-
   animation: a2bOverlayPulse 1.9s ease-in-out infinite;
 }
 
-/* Animated rainbow border ring around the overlay */
 .a2b-lockOverlay::before {
   content: "";
   position: absolute;
   inset: -2px;
   border-radius: 18px;
-  background: conic-gradient(from var(--a2bSpin),
-      #ff3b30,
-      #ff9500,
-      #ffcc00,
-      #34c759,
-      #32ade6,
-      #007aff,
-      #af52de,
-      #ff3b30);
+  background: conic-gradient(
+    from var(--a2bSpin),
+    #ff3b30,
+    #ff9500,
+    #ffcc00,
+    #34c759,
+    #32ade6,
+    #007aff,
+    #af52de,
+    #ff3b30
+  );
   animation: a2bOverlaySpin 2.4s linear infinite;
   z-index: 0;
 }
 
-/* Cut-out center so ::before becomes a border ring */
 .a2b-lockOverlay::after {
   content: "";
   position: absolute;
@@ -436,8 +452,7 @@ body.aim2-root {
   z-index: 0;
 }
 
-/* Ensure overlay content sits above the ring */
-.a2b-lockOverlay>* {
+.a2b-lockOverlay > * {
   position: relative;
   z-index: 1;
 }
@@ -462,7 +477,6 @@ body.aim2-root {
   animation: a2bSpark 0.9s ease-in-out infinite;
 }
 
-/* Marquee container: fades edges */
 .a2b-marquee {
   position: relative;
   overflow: hidden;
@@ -471,7 +485,6 @@ body.aim2-root {
   -webkit-mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
 }
 
-/* Track repeats text twice in JSX to create seamless scroll */
 .a2b-marqueeTrack {
   display: inline-flex;
   gap: 28px;
@@ -482,24 +495,16 @@ body.aim2-root {
   font-size: 13px;
 }
 
-/* Reduced motion: disable all animations */
 @media (prefers-reduced-motion: reduce) {
-  .a2b-lockOverlay {
-    animation: none;
-  }
-
-  .a2b-lockOverlay::before {
-    animation: none;
-  }
-
-  .a2b-marqueeTrack {
-    animation: none;
-  }
-
+  .a2b-lockOverlay,
+  .a2b-lockOverlay::before,
+  .a2b-marqueeTrack,
   .a2b-lockSpark {
     animation: none;
   }
 }
+
+/* ----------------- HOME GRID ----------------- */
 
 .home-feature-grid {
   display: grid;
@@ -513,98 +518,97 @@ body.aim2-root {
   }
 }
 
-/* Sidebar footer */
-.app-sidebar-footer {
-  margin-top: auto;
-  font-size: 0.75rem;
-  opacity: 0.75;
+.home-featured-wrap {
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
 }
 
-/* ----------------- MAIN CONTENT AREA ----------------- */
-
-.app-main {
-  flex: 1;
-  min-width: 0;
-  background: #ffffff;
-  padding: 20px 24px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.app-main-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 0.25rem;
-}
-
-.app-main-header-title {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.app-main-header-title h1 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 800;
-}
-
-.app-main-header-title p {
-  margin: 0;
-  font-size: 0.84rem;
-  color: var(--text-muted);
-}
-
-/* Main content body */
-.app-main-body {
-  flex: 1;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-  overflow: auto;
-}
-
-/* Generic page body content */
-.page {
-  display: flex;
-  flex-direction: column;
+.home-bottom-grid {
+  margin-top: 0.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.2fr);
   gap: 1.25rem;
 }
 
-/* 🔹 Page headers – match hero style */
-.page-header {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  margin-bottom: 24px;
+.home-bottom-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-.page-title {
-  /* existing text style */
-  font-size: 1.8rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
+/* ----------------- GRIDS (LOCKED) ----------------- */
 
-  /* put it inside a pill box */
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 1.6rem;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
-  color: #020617;
-  border: 3px solid #ffffff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.55);
-  text-shadow: none;
+/* SET tiles: 2 wide desktop, 1 wide portrait */
+.tile-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.page-subtitle {
-  font-size: 0.9rem;
-  color: var(--text-muted);
+/* --- FIX: set tiles on phone portrait should NOT be full-bleed --- */
+@media (max-width: 720px) {
+  .app-main-body {
+    overflow-x: hidden;
+  }
+
+  /* Keep 1 wide, but cap the track so the card doesn't look massive */
+  .tile-grid {
+    grid-template-columns: 1fr;
+    max-width: 520px;   /* tweak 480–560 if you want */
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+
+  .tile-grid > * {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .home-featured-grid {
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .home-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Ensure the page has a little gutter so tiles don't kiss the edges */
+  .app-main {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+
+/* PART tiles / categories: 5 wide desktop, 2 wide portrait */
+.parts-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+
+  /* IMPORTANT: allow grid to shrink on phones (prevents “too wide”) */
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .parts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .heroTwoCol {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .heroRight {
+    width: 100%;
+    justify-content: flex-start;
+    margin-top: 0.6rem;
+  }
 }
 
 /* ----------------- SEARCH PAGE ----------------- */
@@ -613,15 +617,12 @@ body.aim2-root {
   margin-top: 0.35rem;
 }
 
-/* Hero container: canonical Home-style hero */
 .search-hero {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
   margin-top: 1.5rem;
-  margin-right: 2.5rem;
   margin-bottom: 1.5rem;
-  margin-left: 0;
   border-radius: 18px;
   padding: 1.75rem 1.5rem 1.5rem;
   background: linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%);
@@ -644,34 +645,12 @@ body.aim2-root {
   margin-bottom: 0.35rem;
 }
 
-/* Narrow helper text */
 .search-empty {
   font-size: 0.9rem;
   color: var(--text-muted);
 }
 
-/* Responsive tile grid (phones auto -> 1 col, tablets 2, desktop 3/4) */
-.tile-grid{
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-}
-
-/* A2B: Canonical responsive parts grid */
-.parts-grid{
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-.parts-grid > * { min-width: 0; }
-@media (max-width: 520px){
-  .parts-grid{ grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
-}
-@media (max-width: 380px){
-  .parts-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-/* ----------------- INVENTORY PAGE ----------------- */
+/* ----------------- INVENTORY PAGE (existing bits) ----------------- */
 
 .inventory-summary-row {
   display: flex;
@@ -692,7 +671,6 @@ body.aim2-root {
   gap: 0.5rem;
 }
 
-/* Inventory sort menu */
 .hero-sort {
   position: relative;
   display: inline-flex;
@@ -703,30 +681,33 @@ body.aim2-root {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.3rem 0.75rem;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.35);
-  color: #e5e7eb;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.35);
   cursor: pointer;
   font-size: 0.82rem;
   line-height: 1.2;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
-  transition:
-    background 0.12s ease,
-    border-color 0.12s ease,
-    transform 0.12s ease;
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 12px 26px rgba(15, 23, 42, 0.45);
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
 }
 
 .hero-pill--sort {
-  background: rgba(15, 23, 42, 0.55);
-  border-color: rgba(148, 163, 184, 0.5);
+  background: #0f172a;
+  border-color: rgba(255, 255, 255, 0.45);
 }
 
 .hero-pill:hover {
-  background: rgba(15, 23, 42, 0.55);
-  border-color: rgba(148, 163, 184, 0.6);
+  background: #111827;
+  border-color: rgba(255, 255, 255, 0.6);
   transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 14px 30px rgba(15, 23, 42, 0.55);
 }
 
 .hero-pill__value {
@@ -734,7 +715,130 @@ body.aim2-root {
   color: #ffffff;
 }
 
-/* Hero two-column layout */
+/* Hero action buttons: match sidebar pill styling */
+.a2b-hero-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: #0f172a;
+  color: #f8fafc;
+  font-weight: 700;
+  font-size: 0.86rem;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 12px 26px rgba(15, 23, 42, 0.45);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.a2b-hero-button:hover {
+  background: #111827;
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 14px 30px rgba(15, 23, 42, 0.55);
+}
+
+.a2b-hero-button:disabled {
+  opacity: 0.65;
+  cursor: default;
+  transform: none;
+}
+
+.a2b-cta-dark {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.a2b-cta-green {
+  background: linear-gradient(135deg, #0ea5e9, #22c55e);
+  color: #0b1120;
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+.a2b-btn-glass-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: linear-gradient(135deg, #f97316, #ef4444);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.86rem;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 12px 26px rgba(15, 23, 42, 0.45);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.a2b-btn-glass-danger:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 14px 30px rgba(15, 23, 42, 0.55);
+}
+
+/* Sort menu options: match sidebar pill styling */
+.hero-sort-option {
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 10px 18px rgba(0, 0, 0, 0.35);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.hero-sort-option:hover {
+  background: #111827;
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 12px 22px rgba(0, 0, 0, 0.45);
+}
+
+.hero-sort-option--active {
+  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
+  color: #111827;
+  border: 2px solid #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 12px 24px rgba(0, 0, 0, 0.35);
+}
+
 .heroTwoCol {
   display: flex;
   align-items: center;
@@ -756,7 +860,7 @@ body.aim2-root {
   align-items: center;
 }
 
-/* Instructions tile */
+/* Instructions tile (unchanged) */
 .instructionsTile {
   position: relative;
   display: block;
@@ -807,56 +911,6 @@ body.aim2-root {
   filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.3));
 }
 
-.hero-sort-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  min-width: 210px;
-  padding: 0.4rem;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-  z-index: 10;
-}
-
-.hero-sort-option {
-  text-align: left;
-  border: none;
-  background: transparent;
-  color: #e5e7eb;
-  padding: 0.45rem 0.5rem;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 0.88rem;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-
-.hero-sort-option:hover {
-  background: rgba(59, 130, 246, 0.15);
-}
-
-.hero-sort-option--active {
-  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
-  color: #0f172a;
-  font-weight: 700;
-}
-
-.hero-sort-option--active:hover {
-  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
-}
-
-/* ----------------- WISHLIST PANEL ----------------- */
-
-.wishlist-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
 /* ----------------- SEARCH EMPTY CARD ----------------- */
 
 .search-empty-card {
@@ -887,13 +941,11 @@ body.aim2-root {
     padding: 0;
   }
 
-  /* Make the main content always fill the space next to the sidebar */
-  .app-shell>.main {
-    flex: 1 1 auto;
-  }
-
   .app-maxwidth {
     flex-direction: column;
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .app-sidebar {
@@ -924,9 +976,8 @@ body.aim2-root {
     margin-top: 0;
   }
 
-  /* 1 tile per row on smaller screens */
-  .tile-grid {
-    grid-template-columns: 1fr;
+  .app-nav-link {
+    width: auto;
   }
 }
 
@@ -957,67 +1008,32 @@ body.aim2-root {
   }
 }
 
-/* ---------- GLOBAL NAV PILLS (Search / My Sets / Inventory / etc) ---------- */
+/* Mobile: make long search text/placeholder readable */
+@media (max-width: 720px) {
+  .search-hero input[type="text"],
+  .search-hero input[type="search"],
+  .search-hero input {
+    text-align: left;
+    white-space: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    text-overflow: clip;
+  }
 
-/* base style for all nav links */
-nav a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
-  margin-right: 0;
-
-  border-radius: 999px;
-  text-decoration: none;
-
-  font-size: 0.85rem;
-  font-weight: 600;
-
-  /* pill look */
-  background: #0f172a;
-  color: #f9fafb;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.45);
-
-  transition:
-    background 0.16s ease,
-    color 0.16s ease,
-    border-color 0.16s ease,
-    box-shadow 0.16s ease,
-    transform 0.12s ease;
+  /* If your input sits inside a wrapper that clips, relax it */
+  .search-hero .search-input,
+  .search-hero .searchBox,
+  .search-hero .searchField {
+    overflow: visible;
+  }
 }
 
-nav a:hover {
-  background: #020617;
-  border-color: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.7);
-  transform: translateY(-1px);
-}
+/* -------------------------------------------------
+   IMPORTANT: removed global `nav` / `nav a` overrides
+   Those were clobbering your sidebar/link styles.
+-------------------------------------------------- */
 
-/* active page – matches the hero SEARCH button vibe */
-nav a[aria-current="page"] {
-  background: linear-gradient(135deg, #f97316, #facc15, #22c55e);
-  color: #020617;
-  border-color: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.9);
-}
-
-/* Make the nav a vertical stack */
-nav {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-/* Each pill takes full nav width */
-nav a {
-  display: flex;
-  width: 180px;
-  /* tweak this width if you want tighter/wider */
-  justify-content: center;
-}
-
+/* Brand (unchanged) */
 .brand {
   text-decoration: none;
   color: inherit;
@@ -1026,6 +1042,7 @@ nav a {
   gap: 12px;
   justify-content: center;
   width: 100%;
+  margin-bottom: 6px;
 }
 
 .brand-logo {
@@ -1038,8 +1055,4 @@ nav a {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.brand {
-  margin-bottom: 6px;
 }

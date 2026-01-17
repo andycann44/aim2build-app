@@ -402,14 +402,8 @@ const InventoryPage: React.FC = () => {
         {loading ? (
           <p>Loading inventory…</p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-              gap: "1.1rem",
-              alignItems: "flex-start",
-            }}
-          >
+          <div className="parts-grid" style={{ gap: "1.1rem", paddingBottom: "2.5rem" }}>
+          
             {sortedParts.map((p) => {
               const qty = Number(p.qty_total ?? 0);
               return (

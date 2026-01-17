@@ -144,8 +144,11 @@ const SetTile: React.FC<SetTileProps> = ({
     }
   };
 
-  const handleOpenDetails = () => {
-    onOpenDetails?.(set_num);
+  const handleOpenDetails = (e?: React.MouseEvent) => {
+    if (!onOpenDetails) return;
+    e?.preventDefault();
+    e?.stopPropagation();
+    onOpenDetails(set_num);
   };
 
   const showInstructions = !!inMySets; // only once it’s in My Sets
@@ -160,7 +163,7 @@ const SetTile: React.FC<SetTileProps> = ({
         background: "linear-gradient(135deg,#f97316,#facc15,#22c55e,#38bdf8,#6366f1)",
         boxShadow: "0 18px 40px rgba(15,23,42,0.45)",
       }}
-      onDoubleClick={handleOpenDetails}
+      onDoubleClick={(e) => handleOpenDetails(e)}
     >
       <div
         className="set-tile"

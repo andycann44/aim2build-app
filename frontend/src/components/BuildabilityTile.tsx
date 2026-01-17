@@ -46,8 +46,11 @@ const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
     pillText = "#022c22";
   }
 
-  const handleDoubleClick = () => {
-    if (onOpenDetails) onOpenDetails(set_num);
+  const handleDoubleClick = (e?: React.MouseEvent) => {
+    if (!onOpenDetails) return;
+    e?.preventDefault();
+    e?.stopPropagation();
+    onOpenDetails(set_num);
   };
 
   return (
@@ -66,7 +69,7 @@ const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onDoubleClick={handleDoubleClick}
+      onDoubleClick={(e) => handleDoubleClick(e)}
     >
       <div
         className="set-tile"
