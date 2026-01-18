@@ -90,6 +90,10 @@ const SetTile: React.FC<SetTileProps> = ({
   }, [set.in_inventory]);
 
   const handleAddMySet = () => {
+    if (!getToken()) {
+      navigate("/account?mode=login");
+      return;
+    }
     onAddMySet?.(set_num);
   };
 
@@ -98,6 +102,10 @@ const SetTile: React.FC<SetTileProps> = ({
   };
 
   const handleAddWishlist = () => {
+    if (!getToken()) {
+      navigate("/account?mode=login");
+      return;
+    }
     onAddWishlist?.(set_num);
   };
 
@@ -320,6 +328,10 @@ const SetTile: React.FC<SetTileProps> = ({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (!getToken()) {
+                    navigate("/account?mode=login");
+                    return;
+                  }
                   handleUnpourFromInventory();
                 }}
                 style={{
@@ -336,6 +348,10 @@ const SetTile: React.FC<SetTileProps> = ({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (!getToken()) {
+                    navigate("/account?mode=login");
+                    return;
+                  }
                   handlePourToInventory();
                 }}
                 style={{
