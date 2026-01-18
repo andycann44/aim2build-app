@@ -1,5 +1,6 @@
 // frontend/src/components/PartsTile.tsx
 import React from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export type InventoryPart = {
   part_num: string;
@@ -48,6 +49,9 @@ const PartsTile: React.FC<PartsTileProps> = ({
   // STRICT: only use backend-provided image URLs (no guessing).
   const imgUrl = ((part.part_img_url ?? part.img_url ?? "").trim() || undefined);
   const [imageError, setImageError] = React.useState(false);
+
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const isBuildability = mode === "buildability";
   const isMissing = mode === "missing";
@@ -157,6 +161,41 @@ const PartsTile: React.FC<PartsTileProps> = ({
     justifyContent: "center",
   };
 
+  const goPickColour = () => {
+    if (!isAddBricks) return;
+    const pn = (part.part_num || "").trim();
+    if (!pn) return;
+    navigate(`/inventory/pick-colour/${encodeURIComponent(pn)}${location.search || ""}`);
+  };
+
+    const lastTapRef = React.useRef<number>(0);
+
+  const handleOpenColours = () => {
+    // only on Add Bricks grid
+    if (!isAddBricks) return;
+
+    // ignore if user clicked the +/- buttons
+    const pn = (part.part_num || "").trim();
+    if (!pn) return;
+
+    navigate(`/inventory/pick-colour/${encodeURIComponent(pn)}${location.search || ""}`);
+  };
+
+  const handleTileClick = (e: React.MouseEvent) => {
+    // if click originated from a button, do nothing
+    const target = e.target as HTMLElement | null;
+    if (target && target.closest("button")) return;
+
+    const now = Date.now();
+    const last = lastTapRef.current;
+    lastTapRef.current = now;
+
+    // second tap within 350ms = open colours
+    if (now - last < 350) {
+      handleOpenColours();
+    }
+  };
+  
   return (
     <div
       className="part-tile"
@@ -170,6 +209,7 @@ const PartsTile: React.FC<PartsTileProps> = ({
       }}
     >
       <div
+        onDoubleClick={handleTileClick}
         style={{
           backgroundColor: "#ffffff",
           borderRadius: 24,
@@ -253,6 +293,7 @@ const PartsTile: React.FC<PartsTileProps> = ({
                 <button
                   type="button"
                   onClick={canDec ? () => onChangeQty && onChangeQty(-1) : undefined}
+                  onDoubleClick={(e) => e.stopPropagation()}
                   disabled={!canDec}
                   style={{
                     ...roundBtn,
@@ -271,6 +312,7 @@ const PartsTile: React.FC<PartsTileProps> = ({
                 <button
                   type="button"
                   onClick={canInc ? () => onChangeQty && onChangeQty(1) : undefined}
+                  onDoubleClick={(e) => e.stopPropagation()}
                   disabled={!canInc}
                   style={{
                     ...roundBtn,
