@@ -1,28 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SetTile from "../components/SetTile";
 import { SetSummary, searchSets } from "../api/client";
 import PageHero from "../components/PageHero";
-import { getToken } from "../utils/auth";
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [featured, setFeatured] = useState<SetSummary[]>([]);
   const [loadingFeatured, setLoadingFeatured] = useState(false);
-
-  // ✅ MUST be top-level (not inside useEffect) to avoid “invalid hook call”
-  const onOpenFeatured = useCallback(
+  const handleFeaturedClick = useCallback(
     (setNum: string) => {
-      const loggedIn = !!getToken();
-
-      // Logged out: open Missing Parts view (shows “everything missing”)
-      if (!loggedIn) {
-        navigate(`/set/${encodeURIComponent(setNum)}`);
-        return;
-      }
-
-      // Logged in: go to normal set view
-      navigate(`/buildability/${encodeURIComponent(setNum)}`);
+      const token =
+        localStorage.getItem("a2b_token") || localStorage.getItem("token") || "";
+      const demo = token ? "" : "?demo=1";
+      navigate(`/buildability/${encodeURIComponent(setNum)}${demo}`);
     },
     [navigate]
   );
@@ -148,9 +139,7 @@ const HomePage: React.FC = () => {
             {featured.map((s) => (
               <div
                 key={s.set_num}
-                onClick={() =>
-                  navigate(`/buildability/${encodeURIComponent(s.set_num)}`)
-                }
+                onClick={() => handleFeaturedClick(s.set_num)}
                 style={{ cursor: "default" }}
               >
                 <SetTile

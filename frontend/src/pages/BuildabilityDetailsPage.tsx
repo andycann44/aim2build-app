@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { API_BASE } from "../api/client";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { authHeaders } from "../utils/auth";
 import RequireAuth from "../components/RequireAuth";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import PageHero from "../components/PageHero";
 import InstructionsTile from "../components/InstructionsTile";
-import { useLocation } from "react-router-dom";
 
 type MissingPart = {
   part_num: string;
@@ -37,8 +36,14 @@ type CatalogPart = {
   part_name?: string | null;
 };
 
+type BuildabilityDetailsInnerProps = {
+  demo: boolean;
+};
+
 // INNER IMPLEMENTATION
-const BuildabilityDetailsInner: React.FC = () => {
+const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({
+  demo,
+}) => {
   // match App.tsx: path="/buildability/:setNum"
   const { setNum } = useParams<{ setNum: string }>();
   const setId = setNum;
@@ -67,6 +72,86 @@ const BuildabilityDetailsInner: React.FC = () => {
         setError(null);
         setSetImgUrl(null);
 
+        const base = (setId || "").trim();
+
+        const fetchMeta = async () => {
+          try {
+            const searchUrl = `${API_BASE}/api/search?q=${encodeURIComponent(base)}`;
+            const r = await fetch(searchUrl, {
+              headers,
+              signal: controller.signal,
+            });
+
+            if (r.ok) {
+              const list = (await r.json()) as any[];
+              const hit =
+                list.find((x) => x?.set_num === base) || list[0] || null;
+              setSetImgUrl((hit?.img_url ?? null) as any);
+
+              if (demo && hit) {
+                setSummary((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        name: hit?.name ?? hit?.set_name ?? null,
+                        year: hit?.year ?? hit?.set_year ?? null,
+                      }
+                    : prev
+                );
+              }
+            } else {
+              setSetImgUrl(null);
+            }
+          } catch {
+            setSetImgUrl(null);
+          }
+        };
+
+        if (demo) {
+          const partsUrl = `${API_BASE}/api/catalog/parts?set=${encodeURIComponent(
+            setId
+          )}`;
+          const partsRes = await fetch(partsUrl, {
+            headers,
+            signal: controller.signal,
+          });
+
+          if (!partsRes.ok) {
+            const txt = await partsRes.text();
+            throw new Error(
+              `Parts lookup failed (${partsRes.status}): ${txt || partsRes.statusText}`
+            );
+          }
+
+          const partsJson = (await partsRes.json()) as CatalogPart[];
+          const safeParts = Array.isArray(partsJson) ? partsJson : [];
+
+          setParts(safeParts);
+
+          const totalNeeded = safeParts.reduce(
+            (sum, p) => sum + (p.quantity ?? 0),
+            0
+          );
+          const missingParts = safeParts.map((p) => ({
+            part_num: p.part_num,
+            color_id: p.color_id,
+            need: p.quantity ?? 0,
+            have: 0,
+            short: p.quantity ?? 0,
+          }));
+
+          setSummary({
+            set_num: setId,
+            coverage: 0,
+            total_needed: totalNeeded,
+            total_have: 0,
+            missing_parts: missingParts,
+          });
+
+          await fetchMeta();
+          return;
+        }
+
         const compareUrl = `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(
           setId
         )}`;
@@ -82,15 +167,13 @@ const BuildabilityDetailsInner: React.FC = () => {
         if (!compareRes.ok) {
           const txt = await compareRes.text();
           throw new Error(
-            `Compare failed (${compareRes.status}): ${txt || compareRes.statusText
-            }`
+            `Compare failed (${compareRes.status}): ${txt || compareRes.statusText}`
           );
         }
         if (!partsRes.ok) {
           const txt = await partsRes.text();
           throw new Error(
-            `Parts lookup failed (${partsRes.status}): ${txt || partsRes.statusText
-            }`
+            `Parts lookup failed (${partsRes.status}): ${txt || partsRes.statusText}`
           );
         }
 
@@ -100,22 +183,7 @@ const BuildabilityDetailsInner: React.FC = () => {
         setSummary(compareJson);
         setParts(partsJson);
 
-        // Fetch set image (same img_url source as Home tiles)
-        try {
-          const base = (setId || "").trim();
-          const searchUrl = `${API_BASE}/api/search?q=${encodeURIComponent(base)}`;
-          const r = await fetch(searchUrl, { headers, signal: controller.signal });
-
-          if (r.ok) {
-            const list = (await r.json()) as any[];
-            const hit = list.find((x) => x?.set_num === base) || list[0] || null;
-            setSetImgUrl((hit?.img_url ?? null) as any);
-          } else {
-            setSetImgUrl(null);
-          }
-        } catch {
-          setSetImgUrl(null);
-        }
+        await fetchMeta();
       } catch (err: any) {
         if (err.name === "AbortError") return;
         console.error("Failed to load buildability details:", err);
@@ -127,22 +195,35 @@ const BuildabilityDetailsInner: React.FC = () => {
 
     load();
     return () => controller.abort();
-  }, [setId]);
-
-  const loc = useLocation();
-  const qs = new URLSearchParams(loc.search);
-  const autoOpen = qs.get("open") === "instructions";
+  }, [setId, demo]);
 
   const missingMap = useMemo(() => {
     const map = new Map<string, MissingPart>();
+
+    if (demo) {
+      for (const p of parts) {
+        map.set(`${p.part_num}-${p.color_id}`, {
+          part_num: p.part_num,
+          color_id: p.color_id,
+          need: p.quantity ?? 0,
+          have: 0,
+          short: p.quantity ?? 0,
+        });
+      }
+      return map;
+    }
+
     if (!summary) return map;
     for (const m of summary.missing_parts || []) {
       map.set(`${m.part_num}-${m.color_id}`, m);
     }
     return map;
-  }, [summary]);
+  }, [demo, parts, summary]);
 
   const missingPiecesTotal = useMemo(() => {
+    if (demo) {
+      return parts.reduce((total, p) => total + (p.quantity ?? 0), 0);
+    }
     if (!summary?.missing_parts) return 0;
 
     return summary.missing_parts.reduce((total, m) => {
@@ -152,10 +233,11 @@ const BuildabilityDetailsInner: React.FC = () => {
           : Math.max((m.need ?? 0) - (m.have ?? 0), 0);
       return total + short;
     }, 0);
-  }, [summary]);
+  }, [demo, parts, summary]);
 
-  const coveragePct =
-    typeof summary?.coverage === "number"
+  const coveragePct = demo
+    ? 0
+    : typeof summary?.coverage === "number"
       ? Math.round(summary.coverage * 100)
       : null;
 
@@ -250,6 +332,12 @@ const BuildabilityDetailsInner: React.FC = () => {
         </div>
       </PageHero>
 
+      {demo && (
+        <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>
+          Demo mode - sign in to see your real buildability (assumes have 0).
+        </p>
+      )}
+
       {/* parts grid */}
       <div
         style={{
@@ -290,8 +378,8 @@ const BuildabilityDetailsInner: React.FC = () => {
             {parts.map((p) => {
               const key = `${p.part_num}-${p.color_id}`;
               const missing = missingMap.get(key);
-              const need = missing?.need ?? p.quantity ?? 0;
-              const have = missing ? missing.have : need;
+              const need = demo ? p.quantity ?? 0 : missing?.need ?? p.quantity ?? 0;
+              const have = demo ? 0 : missing ? missing.have : need;
 
               return (
                 <BuildabilityPartsTile
@@ -315,10 +403,18 @@ const BuildabilityDetailsInner: React.FC = () => {
 };
 
 // OUTER: real exported page with auth
-const BuildabilityDetailsPage: React.FC = () => (
-  <RequireAuth pageName="buildability details">
-    <BuildabilityDetailsInner />
-  </RequireAuth>
-);
+const BuildabilityDetailsPage: React.FC = () => {
+  const location = useLocation();
+  const demo = new URLSearchParams(location.search).get("demo") === "1";
+  const content = <BuildabilityDetailsInner demo={demo} />;
+
+  if (demo) return content;
+
+  return (
+    <RequireAuth pageName="buildability details">
+      {content}
+    </RequireAuth>
+  );
+};
 
 export default BuildabilityDetailsPage;
