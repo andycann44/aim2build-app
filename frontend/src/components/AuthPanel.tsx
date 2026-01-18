@@ -7,6 +7,7 @@ const API = API_BASE;
 
 type AuthPanelProps = {
   onAuthed?: () => void;
+  defaultMode?: Mode;
 };
 
 type AuthResult = {
@@ -103,8 +104,8 @@ const res = await fetch(`${API}/api/auth/forgot-password`, {
   return { ok: false, error: detail };
 }
 
-const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
-  const [mode, setMode] = useState<Mode>("login");
+const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode }) => {
+  const [mode, setMode] = useState<Mode>(() => defaultMode ?? "login");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -134,6 +135,10 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed }) => {
     const existing = getToken();
     setIsLoggedIn(!!existing);
   }, []);
+
+  useEffect(() => {
+    if (defaultMode) setMode(defaultMode);
+  }, [defaultMode]);
 
   const resetMessages = () => {
     setError(null);

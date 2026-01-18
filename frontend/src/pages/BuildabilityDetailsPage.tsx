@@ -258,6 +258,82 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({
 
   return (
     <div className="page buildability-details">
+      <style>{`
+        .demo-banner {
+          z-index: 5;
+          position: relative;
+          border-radius: 16px;
+          padding: 12px 16px;
+          margin: 14px auto 0;
+          max-width: 1600px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          color: #f8fafc;
+          background: linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%);
+          box-shadow:
+            0 18px 40px rgba(0, 0, 0, 0.45),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          overflow: visible;
+        }
+
+        .demo-banner strong {
+          color: #f8fafc;
+        }
+
+        .demo-banner::before {
+          content: "";
+          position: absolute;
+          inset: -3px;
+          border-radius: calc(16px + 3px);
+          border: 2px solid #22c55e;
+          box-shadow: 0 0 0 rgba(34, 197, 94, 0);
+          animation: xmasFlash 1.2s linear infinite;
+          pointer-events: auto;
+        }
+
+        .demo-banner button {
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.55);
+          background: rgba(15, 23, 42, 0.55);
+          color: #f8fafc;
+          font-weight: 700;
+          font-size: 0.82rem;
+          padding: 0.3rem 0.75rem;
+          cursor: pointer;
+          box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+          transition:
+            background 0.12s ease,
+            border-color 0.12s ease,
+            transform 0.12s ease;
+        }
+
+        .demo-banner button:hover {
+          background: rgba(15, 23, 42, 0.7);
+          border-color: rgba(255, 255, 255, 0.7);
+          transform: translateY(-1px);
+        }
+
+        .demo-banner button:focus-visible {
+          outline: 2px solid rgba(255, 255, 255, 0.7);
+          outline-offset: 2px;
+        }
+
+        @keyframes xmasFlash {
+          0%   { border-color: #22c55e; box-shadow: 0 0 0 rgba(34,197,94,0); }
+          25%  { border-color: #ef4444; box-shadow: 0 0 18px rgba(239,68,68,0.45); }
+          50%  { border-color: #facc15; box-shadow: 0 0 18px rgba(250,204,21,0.45); }
+          75%  { border-color: #3b82f6; box-shadow: 0 0 18px rgba(59,130,246,0.45); }
+          100% { border-color: #22c55e; box-shadow: 0 0 0 rgba(34,197,94,0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .demo-banner::before { animation: none; }
+        }
+
+      `}</style>
       <PageHero
         title="Buildability details"
         subtitle={setLine || "Compare what this set needs with what you already own."}
@@ -333,9 +409,22 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({
       </PageHero>
 
       {demo && (
-        <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>
-          Demo mode - sign in to see your real buildability (assumes have 0).
-        </p>
+        <div className="demo-banner">
+          <div>
+            <strong>Demo mode</strong>
+            <div style={{ fontSize: 13, opacity: 0.9 }}>
+              Viewing this set with zero inventory.
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" onClick={() => navigate("/account?mode=login")}>
+              Sign in
+            </button>
+            <button type="button" onClick={() => navigate("/account?mode=signup")}>
+              Create account
+            </button>
+          </div>
+        </div>
       )}
 
       {/* parts grid */}

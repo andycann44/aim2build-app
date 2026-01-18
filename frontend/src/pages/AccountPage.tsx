@@ -1,8 +1,18 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import AuthPanel from "../components/AuthPanel";
 import PageHero from "../components/PageHero";
 
 const AccountPage: React.FC = () => {
+  const location = useLocation();
+  const modeParam = new URLSearchParams(location.search).get("mode")?.toLowerCase();
+  const defaultMode: "login" | "register" | undefined =
+    modeParam === "signup" || modeParam === "register" || modeParam === "create"
+      ? "register"
+      : modeParam === "login"
+        ? "login"
+        : undefined;
+
   return (
     <div className="page page-account">
       <PageHero
@@ -12,7 +22,7 @@ const AccountPage: React.FC = () => {
 
       {/* Auth card aligned with other pages */}
       <div style={{ maxWidth: "720px", margin: "0 auto 2rem", width: "100%" }}>
-        <AuthPanel />
+        <AuthPanel defaultMode={defaultMode} />
       </div>
     </div>
   );
