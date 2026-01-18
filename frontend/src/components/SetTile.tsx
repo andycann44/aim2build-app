@@ -1,8 +1,9 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import SafeImg from "./SafeImg";
 import { SetSummary } from "../api/client";
 import { API_BASE } from "../api/client";
-import { authHeaders } from "../utils/auth";
+import { authHeaders, getToken } from "../utils/auth";
 
 type TileSet = Pick<SetSummary, "set_num" | "name" | "year" | "num_parts" | "img_url"> & {
   in_inventory?: boolean;
@@ -79,6 +80,7 @@ const SetTile: React.FC<SetTileProps> = ({
   onOpenDetails,
 }) => {
   const { set_num, name, year, num_parts, img_url } = set;
+  const navigate = useNavigate();
 
   // local state so the Search page can flip instantly without waiting for parent refresh
   const [localInInventory, setLocalInInventory] = React.useState<boolean>(!!set.in_inventory);
@@ -101,6 +103,10 @@ const SetTile: React.FC<SetTileProps> = ({
 
   const handlePourToInventory = async () => {
     if (!set_num) return;
+    if (!getToken()) {
+      navigate("/account?mode=login");
+      return;
+    }
 
     try {
       const res = await fetch(
