@@ -148,7 +148,9 @@ const HomePage: React.FC = () => {
             {featured.map((s) => (
               <div
                 key={s.set_num}
-                onDoubleClick={() => onOpenFeatured(s.set_num)}
+                onClick={() =>
+                  navigate(`/buildability/${encodeURIComponent(s.set_num)}`)
+                }
                 style={{ cursor: "default" }}
               >
                 <SetTile

@@ -120,10 +120,10 @@ export default function App() {
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/inventory/add" element={<InventoryAddCategoriesPage />} />
               <Route path="/inventory/add/brick" element={<InventoryAddBrickPage />} />
-              <Route path="/inventory/pick-colour" element={<InventoryPickColourPage />} />
+              <Route path="/inventory/pick-colour/:partNum" element={<InventoryPickColourPage />} />
               <Route path="/inventory/edit" element={<InventoryEditPage />} />
               <Route path="/inventory/add/bricks" element={<InventoryAddBrickPage />} />
-              <Route path="/inventory/add/bricks/part/:partNum" element={<InventoryAddBrickPage />} />
+              <Route path="/inventory/add/bricks/part/:partNum" element={<InventoryPickColourPage />} />
               <Route path="/inventory/add/brick" element={<Navigate to="/inventory/add/bricks" replace />} />
               <Route path="/buildability" element={<BuildabilityOverviewPage />} />
               <Route path="/buildability/discover" element={<BuildabilityDiscoverPage />} />
