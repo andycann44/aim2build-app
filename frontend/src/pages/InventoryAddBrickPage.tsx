@@ -438,6 +438,12 @@ const InventoryAddBrickInner: React.FC = () => {
             >
               <div
                 onClick={onClickTile}
+                onDoubleClick={(e) => {
+                  // Don't trigger when the user is double-clicking +/- buttons etc.
+                  const el = e.target as HTMLElement | null;
+                  if (el && el.closest("button")) return;
+                  void openPickColour(p.part_num);
+                }}
                 style={{
                   cursor: hasSingleColour ? "default" : "pointer",
                   transform: selectedPart === p.part_num ? "translateY(-3px)" : "translateY(0)",
