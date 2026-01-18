@@ -130,6 +130,7 @@ export default function SetPage() {
       {/* ===== CSS FIXED (NO JSX INSIDE) ===== */}
       <style>{`
         .demo-banner {
+          z-index: 5;
           position: relative;
           border-radius: 16px;
           padding: 12px 16px;
@@ -160,7 +161,7 @@ export default function SetPage() {
           border: 2px solid #22c55e;
           box-shadow: 0 0 0 rgba(34, 197, 94, 0);
           animation: xmasFlash 1.2s linear infinite;
-          pointer-events: none;
+          pointer-events: auto;
         }
 
         .demo-banner button {
@@ -262,8 +263,12 @@ export default function SetPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => navigate("/login")}>Sign in</button>
-            <button onClick={() => navigate("/account")}>Create account</button>
+            <button type="button" onClick={() => navigate("/account?mode=login")}>
+              Sign in
+            </button>
+            <button type="button" onClick={() => navigate("/account?mode=signup")}>
+              Create account
+            </button>
           </div>
         </div>
       )}

@@ -650,6 +650,22 @@ body.aim2-root {
   color: var(--text-muted);
 }
 
+/*-----------------demo banner-----------------*/
+
+.demo-banner {
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.demo-banner button {
+  pointer-events: auto;
+  position: relative;
+  z-index: 11;
+}
+
+
+
 /* ----------------- INVENTORY PAGE (existing bits) ----------------- */
 
 .inventory-summary-row {

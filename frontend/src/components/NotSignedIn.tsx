@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import AuthPanel from "./AuthPanel";
 import PageHero from "./PageHero";
 
@@ -42,10 +43,36 @@ const heroCopy = (pageName?: string) => {
 
 const NotSignedIn: React.FC<Props> = ({ pageName }) => {
   const copy = useMemo(() => heroCopy(pageName), [pageName]);
+  const navigate = useNavigate();
 
   return (
     <div className="page" style={{ width: "100%" }}>
       <PageHero title={copy.title} subtitle={copy.subtitle} />
+
+      <div
+        style={{
+          marginTop: "0.8rem",
+          display: "flex",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+          justifyContent: "center",
+        }}
+      >
+        <button
+          type="button"
+          className="a2b-hero-button"
+          onClick={() => navigate("/account?mode=login")}
+        >
+          Sign in
+        </button>
+        <button
+          type="button"
+          className="a2b-hero-button a2b-cta-dark"
+          onClick={() => navigate("/account?mode=signup")}
+        >
+          Create account
+        </button>
+      </div>
 
       {/* Auth panel */}
       <div style={{ maxWidth: "720px", margin: "0 auto 2rem", width: "100%" }}>

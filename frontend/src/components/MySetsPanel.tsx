@@ -1,5 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
+import { getToken } from '../utils/auth';
 
 type MySet = {
   set_num: string;
@@ -14,6 +16,7 @@ type MySetsResponse = {
 };
 
 export default function MySetsPanel(): JSX.Element {
+  const navigate = useNavigate();
   const [sets, setSets] = useState<MySet[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +67,10 @@ export default function MySetsPanel(): JSX.Element {
       const trimmed = input.trim();
       if (!trimmed) {
         setError('Enter a set number to add.');
+        return;
+      }
+      if (!getToken()) {
+        navigate('/account?mode=login');
         return;
       }
       setBusy(true);
