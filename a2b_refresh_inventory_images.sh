@@ -1,3 +1,11 @@
+# SAFE SCRIPT
+# -----------
+# Refreshes element_images URLs from Rebrickable API.
+# Does NOT rebuild catalog.
+# Does NOT delete tables.
+# Requires REBRICKABLE_API_KEY.
+
+
 #!/bin/bash
 : "${HISTTIMEFORMAT:=}"
 set -euo pipefail

@@ -1,0 +1,188 @@
+%% Aim2Build ERD – lego_catalog.db
+erDiagram
+  COLORS {
+    INTEGER color_id PK
+    TEXT name
+    TEXT rgb
+    INTEGER is_trans
+  }
+
+  ELEMENT_FAMILY_MAP {
+    TEXT family_part_num PK
+    TEXT element_id PK
+  }
+
+  ELEMENT_IMAGES {
+    TEXT part_num PK
+    INTEGER color_id PK
+    TEXT img_url
+  }
+
+  ELEMENTS {
+    TEXT element_id PK
+    TEXT part_num
+    INTEGER color_id
+    TEXT design_id
+    TEXT element_img_url
+    TEXT element_url
+    INTEGER year_from
+    INTEGER year_to
+  }
+
+  INSTRUCTION_SET_ELEMENTS {
+    TEXT set_num PK
+    TEXT element_id PK
+    INTEGER qty
+    TEXT source
+    TEXT created_at
+  }
+
+  INSTRUCTION_SET_REQUIREMENTS {
+    TEXT set_num PK
+    TEXT family_part_num PK
+    INTEGER color_id PK
+    INTEGER qty
+    TEXT source
+    TEXT created_at
+  }
+
+  INVENTORIES {
+    INTEGER inventory_id PK
+    TEXT set_num
+    INTEGER version
+  }
+
+  INVENTORY_MINIFIGS {
+    INTEGER inventory_id
+    TEXT fig_num
+    INTEGER quantity
+  }
+
+  INVENTORY_PARTS {
+    INTEGER inventory_id
+    TEXT part_num
+    INTEGER color_id
+    INTEGER quantity
+    INTEGER is_spare
+    TEXT element_id
+  }
+
+  INVENTORY_PARTS_SUMMARY {
+    TEXT set_num PK
+    TEXT part_num PK
+    INTEGER color_id PK
+    INTEGER quantity
+    TEXT part_img_url
+  }
+
+  MINIFIGS {
+    TEXT fig_num PK
+    TEXT name
+    INTEGER num_parts
+    TEXT fig_img_url
+    TEXT fig_url
+    TEXT last_modified_dt
+  }
+
+  PART_CANONICAL_MAP {
+    TEXT part_num PK
+    TEXT canonical_part_num
+  }
+
+  PART_CATEGORIES {
+    INTEGER part_cat_id PK
+    TEXT name
+    INTEGER parent_id
+  }
+
+  PART_FAMILY_MAP {
+    TEXT family_key PK
+    TEXT canonical_part_num
+    TEXT part_num PK
+  }
+
+  PART_RELATIONSHIPS {
+    TEXT rel_type
+    TEXT child_part_num
+    TEXT parent_part_num
+    INTEGER is_spare
+  }
+
+  PARTS {
+    TEXT part_num PK
+    TEXT name
+    INTEGER part_cat_id
+    TEXT part_material
+    TEXT part_url
+    TEXT part_img_url
+    TEXT part_thumb_url
+    INTEGER year_from
+    INTEGER year_to
+    TEXT print_of
+    TEXT mold
+    INTEGER is_obsolete
+    TEXT design_id
+  }
+
+  SET_FILTERS {
+    TEXT set_num PK
+    INTEGER enabled
+    TEXT note
+    TEXT created_at
+    TEXT reason
+  }
+
+  SET_PARTS {
+    TEXT set_num PK
+    TEXT part_num PK
+    INTEGER color_id PK
+    INTEGER qty_per_set
+    TEXT part_img_url
+  }
+
+  SETS {
+    TEXT set_num PK
+    TEXT name
+    INTEGER year
+    INTEGER theme_id
+    INTEGER num_parts
+    TEXT set_img_url
+    TEXT set_url
+    TEXT last_modified_dt
+  }
+
+  THEME_FILTERS {
+    INTEGER theme_id PK
+    INTEGER enabled
+    TEXT reason
+  }
+
+  THEMES {
+    INTEGER theme_id PK
+    TEXT name
+    INTEGER parent_id
+  }
+
+  TRUTH_CATEGORY_RULES {
+    TEXT category_name PK
+    INTEGER counts_for_buildability
+    INTEGER counts_for_complete
+  }
+
+  TRUTH_GAP_REVIEW {
+    TEXT set_num
+    TEXT part_num
+    INTEGER color_id
+    INTEGER qty
+    TEXT side
+    TEXT category
+    TEXT note
+    TEXT created_at
+  }
+
+  USERS {
+    INTEGER id PK
+    TEXT email
+    TEXT password_hash
+    TEXT created_at
+  }
