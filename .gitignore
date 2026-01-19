@@ -69,3 +69,9 @@ frontend/.env.*.local
 backend/app/data/*user*.json
 backend/app/data/quarantine_legacy/
 backend/app/routers/searchold
+
+# Rebrickable exports (never commit)
+backend/app/data/rebrickable/*.csv
+backend/app/data/rebrickable/*.csv.gz
+backend/app/data/rebrickable/*.zip
+csv/
