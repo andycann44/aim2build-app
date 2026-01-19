@@ -1,3 +1,10 @@
+# WARNING:
+# This module DESTRUCTIVELY rebuilds lego_catalog.db.
+# It DROPS and RECREATES tables.
+#
+# DO NOT run against a live catalog DB.
+# Intended for fresh bootstrap only.
+
 from __future__ import annotations
 
 import os
@@ -449,39 +456,6 @@ def _dataset_specs() -> Sequence[DatasetSpec]:
                     "last_modified_dt",
                     "TEXT",
                     lambda row: _to_text(_first(row, "last_modified_dt")),
-                ),
-            ],
-        ),
-        DatasetSpec(
-            table="minifig_parts",
-            filename="minifig_parts.csv",
-            columns=[
-                ColumnSpec(
-                    "fig_num",
-                    "TEXT NOT NULL",
-                    lambda row: _to_text(_first(row, "fig_num")) or "",
-                    required=True,
-                ),
-                ColumnSpec(
-                    "part_num",
-                    "TEXT NOT NULL",
-                    lambda row: _to_text(_first(row, "part_num")) or "",
-                    required=True,
-                ),
-                ColumnSpec(
-                    "color_id",
-                    "INTEGER",
-                    lambda row: _to_int(_first(row, "color_id")),
-                ),
-                ColumnSpec(
-                    "quantity",
-                    "INTEGER",
-                    lambda row: _to_int(_first(row, "quantity", "qty")),
-                ),
-                ColumnSpec(
-                    "is_spare",
-                    "INTEGER",
-                    lambda row: _to_bool(_first(row, "is_spare")),
                 ),
             ],
         ),

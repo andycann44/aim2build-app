@@ -95,3 +95,47 @@ Fix:
 - close the sqlite3 prompt / DB viewer
 - stop backend briefly if needed
 Then rerun the command.
+
+# ==========================================================
+# ⚠️ CATALOG DATABASE SAFETY NOTICE (READ FIRST)
+# ==========================================================
+#
+# The file:
+#   backend/app/data/lego_catalog.db
+#
+# is a LIVE, canonical catalog database.
+#
+# It contains:
+# - Derived tables (element_images, set_parts, instruction_*,
+#   truth_* tables, family maps, views, indexes, etc.)
+# - Schema that is NOT recreated by the CSV importer.
+#
+# ----------------------------------------------------------
+# 🚫 DO NOT RUN THESE AGAINST A LIVE DB
+# ----------------------------------------------------------
+#
+# catalog_import/import_csv.py
+# backend/scripts/a2b_catalog_reimport.sh
+# a2b_refresh_catalog.sh
+#
+# These scripts:
+# - DROP TABLES
+# - RECREATE ONLY a MINIMAL schema
+# - WILL DESTROY derived tables, views, and indexes
+#
+# They are intended ONLY for:
+# - building a brand new catalog DB from scratch
+# - offline experiments
+#
+# ----------------------------------------------------------
+# ✅ SAFE OPERATIONS (INTENDED WORKFLOW)
+# ----------------------------------------------------------
+#
+# - Copy a known-good catalog DB from STAGING
+# - Apply seed files (theme filters, set filters)
+# - Add metadata only (e.g. last_updated timestamp)
+#
+# NEVER rebuild the catalog DB unless you explicitly intend
+# to recreate the entire schema.
+#
+# ==========================================================

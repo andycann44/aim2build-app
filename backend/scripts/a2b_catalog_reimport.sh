@@ -1,3 +1,10 @@
+# WARNING:
+# This script DESTRUCTIVELY rebuilds lego_catalog.db from CSVs.
+# It DROPS and RECREATES tables.
+#
+# DO NOT run against a live or staging-derived DB.
+# Bootstrap / scratch use ONLY.
+
 #!/bin/bash
 : "${HISTTIMEFORMAT:=}"; set -euo pipefail
 
@@ -14,7 +21,7 @@ fi
 CSV_DIR_ABS="$(cd "$CSV_DIR_INPUT" && pwd)"
 echo "Using CSV directory: $CSV_DIR_ABS"
 
-A2B_CATALOG_CSV="$CSV_DIR_ABS" python - <<'PY'
+A2B_CATALOG_CSV="$CSV_DIR_ABS" python3 - <<'PY'
 import json
 import os
 
