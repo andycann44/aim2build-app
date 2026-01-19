@@ -1,10 +1,21 @@
-%% ERD for lego_catalog.db
+%% Aim2Build ERD – lego_catalog.db
 erDiagram
   COLORS {
     INTEGER color_id PK
     TEXT name
     TEXT rgb
     INTEGER is_trans
+  }
+
+  ELEMENT_FAMILY_MAP {
+    TEXT family_part_num PK
+    TEXT element_id PK
+  }
+
+  ELEMENT_IMAGES {
+    TEXT part_num PK
+    INTEGER color_id PK
+    TEXT img_url
   }
 
   ELEMENTS {
@@ -16,6 +27,23 @@ erDiagram
     TEXT element_url
     INTEGER year_from
     INTEGER year_to
+  }
+
+  INSTRUCTION_SET_ELEMENTS {
+    TEXT set_num PK
+    TEXT element_id PK
+    INTEGER qty
+    TEXT source
+    TEXT created_at
+  }
+
+  INSTRUCTION_SET_REQUIREMENTS {
+    TEXT set_num PK
+    TEXT family_part_num PK
+    INTEGER color_id PK
+    INTEGER qty
+    TEXT source
+    TEXT created_at
   }
 
   INVENTORIES {
@@ -56,10 +84,21 @@ erDiagram
     TEXT last_modified_dt
   }
 
+  PART_CANONICAL_MAP {
+    TEXT part_num PK
+    TEXT canonical_part_num
+  }
+
   PART_CATEGORIES {
     INTEGER part_cat_id PK
     TEXT name
     INTEGER parent_id
+  }
+
+  PART_FAMILY_MAP {
+    TEXT family_key PK
+    TEXT canonical_part_num
+    TEXT part_num PK
   }
 
   PART_RELATIONSHIPS {
@@ -85,6 +124,14 @@ erDiagram
     TEXT design_id
   }
 
+  SET_FILTERS {
+    TEXT set_num PK
+    INTEGER enabled
+    TEXT note
+    TEXT created_at
+    TEXT reason
+  }
+
   SET_PARTS {
     TEXT set_num PK
     TEXT part_num PK
@@ -104,10 +151,33 @@ erDiagram
     TEXT last_modified_dt
   }
 
+  THEME_FILTERS {
+    INTEGER theme_id PK
+    INTEGER enabled
+    TEXT reason
+  }
+
   THEMES {
     INTEGER theme_id PK
     TEXT name
     INTEGER parent_id
+  }
+
+  TRUTH_CATEGORY_RULES {
+    TEXT category_name PK
+    INTEGER counts_for_buildability
+    INTEGER counts_for_complete
+  }
+
+  TRUTH_GAP_REVIEW {
+    TEXT set_num
+    TEXT part_num
+    INTEGER color_id
+    INTEGER qty
+    TEXT side
+    TEXT category
+    TEXT note
+    TEXT created_at
   }
 
   USERS {
