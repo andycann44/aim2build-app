@@ -16,6 +16,7 @@ import InventoryAddBrickPage from "./pages/InventoryAddBrickPage";
 import InventoryPickColourPage from "./pages/InventoryPickColourPage";
 import InventoryEditPage from "./pages/InventoryEditPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import DebugCatalogImagesPage from "./pages/DebugCatalogImagesPage";
 import InstructionsSearchPage from "./pages/InstructionsSearchPage";
 import SetPartsPage from "./pages/SetPartsPage";
 import BuildabilityDiscoverPage from "./pages/BuildabilityDiscoverPage";
@@ -140,7 +141,10 @@ export default function App() {
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            {import.meta.env.DEV && (
+          <Route path="/debug/catalog-images" element={<DebugCatalogImagesPage />} />
+        )}
+      </Routes>
           </div>
         </main>
       </div>

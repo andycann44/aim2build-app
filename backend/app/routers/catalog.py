@@ -500,3 +500,57 @@ def get_elements_by_part(
         }
         for r in rows
     ]
+
+@router.get("/images/stats")
+def catalog_image_stats():
+    con = get_catalog_db()
+    row = con.execute(
+        """
+        SELECT
+          COUNT(*) AS total,
+          SUM(is_dead=1) AS dead,
+          SUM(is_dead=0) AS live,
+          SUM(last_checked IS NULL OR last_checked=0) AS unchecked
+        FROM element_images
+        """
+    ).fetchone()
+    return dict(row)
+
+
+@router.get("/images/sample")
+def catalog_image_sample(
+    mode: str = "best",          # best | raw
+    filter: str = "live",        # live | dead | unchecked | all
+    limit: int = 100,
+    offset: int = 0,
+):
+    con = get_catalog_db()
+
+    if mode == "best":
+        base = """
+        SELECT part_num, color_id, img_url
+        FROM element_best_image
+        """
+        where = ""
+    else:
+        base = """
+        SELECT part_num, color_id, img_url
+        FROM element_images
+        """
+        where = "WHERE img_url IS NOT NULL AND TRIM(img_url) <> ''"
+
+        if filter == "live":
+            where += " AND is_dead=0"
+        elif filter == "dead":
+            where += " AND is_dead=1"
+        elif filter == "unchecked":
+            where += " AND (last_checked IS NULL OR last_checked=0)"
+
+    sql = f"""
+    {base}
+    {where}
+    ORDER BY part_num ASC, color_id ASC, img_url ASC
+    LIMIT ? OFFSET ?
+    """
+    rows = con.execute(sql, (limit, offset)).fetchall()
+    return [dict(r) for r in rows]
