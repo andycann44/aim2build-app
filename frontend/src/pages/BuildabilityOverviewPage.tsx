@@ -44,6 +44,26 @@ async function hydrateSetImages(sets: SetSummary[]): Promise<SetSummary[]> {
   return results;
 }
 
+// Cache buildability results per set_num for this session
+const buildabilityCache = new Map<string, BuildabilityCard>();
+
+async function runWithLimit<T>(tasks: Array<() => Promise<T>>, limit = 4): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let next = 0;
+
+  async function worker() {
+    while (true) {
+      const i = next++;
+      if (i >= tasks.length) return;
+      results[i] = await tasks[i]();
+    }
+  }
+
+  const workers = Array.from({ length: Math.max(1, limit) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
 const BuildabilityOverviewPage: React.FC = () => {
   const navigate = useNavigate();
 
@@ -56,43 +76,63 @@ const BuildabilityOverviewPage: React.FC = () => {
   const [lastQuery, setLastQuery] = useState("");
 
   const fetchCoverageForSets = useCallback(async (sets: SetSummary[]) => {
-    const results = await Promise.all(
-      sets.map(async (s) => {
-        try {
-          const cmp = await getBuildability(s.set_num);
-          const coverage =
-            typeof cmp.coverage === "number" && !Number.isNaN(cmp.coverage) ? cmp.coverage : 0;
+  const tasks = sets.map((s) => async () => {
+    const cached = buildabilityCache.get(s.set_num);
+    if (cached) {
+      // Keep any newer image/name/year from the current list
+      return {
+        ...cached,
+        name: s.name ?? cached.name,
+        year: s.year ?? cached.year,
+        img_url: s.img_url ?? cached.img_url,
+      } as BuildabilityCard;
+    }
 
-          const total_needed =
-            typeof cmp.total_needed === "number" ? cmp.total_needed : s.num_parts;
+    try {
+      const cmp = await getBuildability(s.set_num);
 
-          const total_have = typeof cmp.total_have === "number" ? cmp.total_have : undefined;
+      const coverage =
+        typeof cmp.coverage === "number" && !Number.isNaN(cmp.coverage) ? cmp.coverage : 0;
 
-          return {
-            set_num: s.set_num,
-            name: s.name,
-            year: s.year,
-            img_url: s.img_url ?? undefined,
-            coverage,
-            total_have,
-            total_needed,
-          } as BuildabilityCard;
-        } catch (err) {
-          console.warn("Failed to load buildability for set", s.set_num, err);
-          return {
-            set_num: s.set_num,
-            name: s.name,
-            year: s.year,
-            img_url: s.img_url ?? undefined,
-            coverage: 0,
-            total_have: 0,
-            total_needed: s.num_parts,
-          } as BuildabilityCard;
-        }
-      })
-    );
-    return results;
-  }, []);
+      const total_needed =
+        typeof cmp.total_needed === "number" ? cmp.total_needed : s.num_parts;
+
+      const total_have =
+        typeof cmp.total_have === "number" ? cmp.total_have : undefined;
+
+      const card: BuildabilityCard = {
+        set_num: s.set_num,
+        name: s.name,
+        year: s.year,
+        img_url: s.img_url ?? undefined,
+        coverage,
+        total_have,
+        total_needed,
+      };
+
+      buildabilityCache.set(s.set_num, card);
+      return card;
+    } catch (err) {
+      console.warn("Failed to load buildability for set", s.set_num, err);
+
+      const card: BuildabilityCard = {
+        set_num: s.set_num,
+        name: s.name,
+        year: s.year,
+        img_url: s.img_url ?? undefined,
+        coverage: 0,
+        total_have: 0,
+        total_needed: s.num_parts,
+      };
+
+      buildabilityCache.set(s.set_num, card);
+      return card;
+    }
+  });
+
+  // 4 concurrent requests max (tweak if you want: 3 on mobile, 6 on desktop)
+  return await runWithLimit(tasks, 4);
+}, []);
 
   const loadMode = useCallback(
     async (nextMode: Mode) => {
