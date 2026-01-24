@@ -7,6 +7,7 @@ from app.db import db, init_db
 from app.paths import DATA_DIR
 
 from app.routers import (
+from app.routers import admin_tools
     mysets,
     wishlist,
     buildability,
@@ -102,6 +103,7 @@ def health():
 
 # Auth routes (public)
 app.include_router(
+app.include_router(admin_tools.router)
     auth_router.router,
     prefix="/api/auth",
     tags=["auth"],

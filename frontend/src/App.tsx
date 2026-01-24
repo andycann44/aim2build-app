@@ -16,6 +16,7 @@ import InventoryAddBrickPage from "./pages/InventoryAddBrickPage";
 import InventoryPickColourPage from "./pages/InventoryPickColourPage";
 import InventoryEditPage from "./pages/InventoryEditPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import AdminPage from "./pages/AdminPage";
 import DebugCatalogImagesPage from "./pages/DebugCatalogImagesPage";
 import InstructionsSearchPage from "./pages/InstructionsSearchPage";
 import SetPartsPage from "./pages/SetPartsPage";
@@ -144,6 +145,7 @@ export default function App() {
             {import.meta.env.DEV && (
           <Route path="/debug/catalog-images" element={<DebugCatalogImagesPage />} />
         )}
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
           </div>
         </main>
