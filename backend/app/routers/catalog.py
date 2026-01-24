@@ -147,7 +147,7 @@ def list_top_part_categories() -> List[Dict[str, Any]]:
                 JOIN element_images ei ON ei.part_num = p.part_num
                 WHERE ei.img_url IS NOT NULL
                   AND TRIM(ei.img_url) <> ''
-                ORDER BY RANDOM()
+                ORDER BY p.part_num ASC
                 LIMIT 1
                 """,
                 (cat_id,),
