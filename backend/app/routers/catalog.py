@@ -19,17 +19,15 @@ def _resolve_part_img_url_from_db(
     - if not found -> None
     """
     cur = con.execute(
-        """
-        SELECT ei.img_url
-        FROM element_images ei
-        WHERE ei.part_num = ?
-          AND ei.color_id = ?
-          AND ei.img_url IS NOT NULL
-          AND TRIM(ei.img_url) <> ''
-        LIMIT 1
-        """,
-        (part_num, color_id),
-    )
+    """
+    SELECT bi.img_url
+    FROM element_best_image bi
+    WHERE bi.part_num = ?
+      AND bi.color_id = ?
+    LIMIT 1
+    """,
+    (part_num, color_id),
+)
     row = cur.fetchone()
     if not row:
         return None
