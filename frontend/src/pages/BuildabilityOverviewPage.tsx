@@ -17,51 +17,71 @@ const MODE_OPTIONS: { id: Mode; label: string }[] = [
   { id: "search", label: "Search" },
 ];
 
-async function hydrateSetImages(sets: SetSummary[]): Promise<SetSummary[]> {
-  const results: SetSummary[] = [];
-  for (const s of sets) {
-    if (s.img_url && s.img_url.trim().length > 0) {
-      results.push(s);
-      continue;
-    }
-    try {
-      const searchResults = await searchSets(s.set_num);
-      const first = (searchResults || [])[0];
-      if (first && first.img_url) {
-        results.push({
-          ...s,
-          img_url: first.img_url,
-          name: s.name ?? first.name,
-          year: s.year ?? first.year,
-        });
-      } else {
-        results.push(s);
-      }
-    } catch {
-      results.push(s);
-    }
-  }
-  return results;
-}
-
-// Cache buildability results per set_num for this session
+// ----------------------------
+// CACHES (session lifetime)
+// ----------------------------
 const buildabilityCache = new Map<string, BuildabilityCard>();
+const setSearchCache = new Map<string, SetSummary>();
 
-async function runWithLimit<T>(tasks: Array<() => Promise<T>>, limit = 4): Promise<T[]> {
-  const results: T[] = new Array(tasks.length);
+// ----------------------------
+// Concurrency helper (no Promise.all storm)
+// ----------------------------
+async function runWithLimit(tasks: Array<() => Promise<void>>, limit = 6): Promise<void> {
   let next = 0;
-
   async function worker() {
     while (true) {
       const i = next++;
       if (i >= tasks.length) return;
-      results[i] = await tasks[i]();
+      await tasks[i]();
     }
   }
+  await Promise.all(Array.from({ length: Math.max(1, limit) }, () => worker()));
+}
 
-  const workers = Array.from({ length: Math.max(1, limit) }, () => worker());
-  await Promise.all(workers);
-  return results;
+// ----------------------------
+// Wishlist image hydration (was serial/slow)
+// Now: cached + limited concurrency
+// ----------------------------
+async function hydrateSetImages(sets: SetSummary[]): Promise<SetSummary[]> {
+  const out: SetSummary[] = sets.map((s) => ({ ...s }));
+
+  const tasks = out.map((s, idx) => async () => {
+    // Already has an image
+    if (s.img_url && s.img_url.trim().length > 0) return;
+
+    // Cached from earlier
+    const cached = setSearchCache.get(s.set_num);
+    if (cached?.img_url) {
+      out[idx] = {
+        ...s,
+        img_url: cached.img_url,
+        name: s.name ?? cached.name,
+        year: s.year ?? cached.year,
+      };
+      return;
+    }
+
+    try {
+      const searchResults = await searchSets(s.set_num);
+      const first = (searchResults || [])[0];
+      if (first) setSearchCache.set(s.set_num, first);
+
+      if (first && first.img_url) {
+        out[idx] = {
+          ...s,
+          img_url: first.img_url,
+          name: s.name ?? first.name,
+          year: s.year ?? first.year,
+        };
+      }
+    } catch {
+      // leave as-is
+    }
+  });
+
+  // Keep this modest so we don't flood search endpoint
+  await runWithLimit(tasks, 4);
+  return out;
 }
 
 const BuildabilityOverviewPage: React.FC = () => {
@@ -75,64 +95,111 @@ const BuildabilityOverviewPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [lastQuery, setLastQuery] = useState("");
 
+  // STREAMING coverage: show tiles instantly, fill coverage progressively
   const fetchCoverageForSets = useCallback(async (sets: SetSummary[]) => {
-  const tasks = sets.map((s) => async () => {
-    const cached = buildabilityCache.get(s.set_num);
-    if (cached) {
-      // Keep any newer image/name/year from the current list
-      return {
-        ...cached,
-        name: s.name ?? cached.name,
-        year: s.year ?? cached.year,
-        img_url: s.img_url ?? cached.img_url,
-      } as BuildabilityCard;
-    }
-
-    try {
-      const cmp = await getBuildability(s.set_num);
-
-      const coverage =
-        typeof cmp.coverage === "number" && !Number.isNaN(cmp.coverage) ? cmp.coverage : 0;
-
-      const total_needed =
-        typeof cmp.total_needed === "number" ? cmp.total_needed : s.num_parts;
-
-      const total_have =
-        typeof cmp.total_have === "number" ? cmp.total_have : undefined;
-
-      const card: BuildabilityCard = {
-        set_num: s.set_num,
-        name: s.name,
-        year: s.year,
-        img_url: s.img_url ?? undefined,
-        coverage,
-        total_have,
-        total_needed,
-      };
-
-      buildabilityCache.set(s.set_num, card);
-      return card;
-    } catch (err) {
-      console.warn("Failed to load buildability for set", s.set_num, err);
-
-      const card: BuildabilityCard = {
+    // 1) Render immediately with placeholders
+    setItems(
+      sets.map((s) => ({
         set_num: s.set_num,
         name: s.name,
         year: s.year,
         img_url: s.img_url ?? undefined,
         coverage: 0,
-        total_have: 0,
+        total_have: undefined,
         total_needed: s.num_parts,
-      };
+        loading: true,
+      }))
+    );
 
-      buildabilityCache.set(s.set_num, card);
-      return card;
-    }
-  });
+    // 2) Fill in coverage with limited concurrency
+    const tasks = sets.map((s) => async () => {
+      const cached = buildabilityCache.get(s.set_num);
+      if (cached) {
+        setItems((prev) =>
+          prev.map((it) =>
+            it.set_num === s.set_num
+              ? {
+                  ...cached,
+                  // keep newer metadata if present
+                  name: s.name ?? cached.name,
+                  year: s.year ?? cached.year,
+                  img_url: s.img_url ?? cached.img_url,
+                  loading: false,
+                }
+              : it
+          )
+        );
+        return;
+      }
 
-  // 4 concurrent requests max (tweak if you want: 3 on mobile, 6 on desktop)
-  return await runWithLimit(tasks, 4);
-}, []);
+      try {
+        const cmp = await getBuildability(s.set_num);
+
+        const coverage =
+          typeof cmp.coverage === "number" && !Number.isNaN(cmp.coverage) ? cmp.coverage : 0;
+
+        const total_needed = typeof cmp.total_needed === "number" ? cmp.total_needed : s.num_parts;
+
+        const total_have = typeof cmp.total_have === "number" ? cmp.total_have : undefined;
+
+        const card: BuildabilityCard = {
+          set_num: s.set_num,
+          name: s.name,
+          year: s.year,
+          img_url: s.img_url ?? undefined,
+          coverage,
+          total_have,
+          total_needed,
+        };
+
+        buildabilityCache.set(s.set_num, card);
+
+        setItems((prev) =>
+          prev.map((it) => (it.set_num === s.set_num ? { ...card, loading: false } : it))
+        );
+      } catch (err) {
+        console.warn("Failed to load buildability for set", s.set_num, err);
+
+        const card: BuildabilityCard = {
+          set_num: s.set_num,
+          name: s.name,
+          year: s.year,
+          img_url: s.img_url ?? undefined,
+          coverage: 0,
+          total_have: 0,
+          total_needed: s.num_parts,
+        };
+
+        buildabilityCache.set(s.set_num, card);
+
+        setItems((prev) =>
+          prev.map((it) => (it.set_num === s.set_num ? { ...card, loading: false } : it))
+        );
+      }
+    });
+
+    // 6 concurrent compares = good “fast feel” without flooding
+    await runWithLimit(tasks, 6);
+  }, []);
+
+  // NEW: show tiles immediately once sets are fetched, then stream coverage
+  const seedItemsFromSets = useCallback((sets: SetSummary[]) => {
+    setItems(
+      (sets ?? []).map((s) => {
+        const cached = buildabilityCache.get(s.set_num);
+        return {
+          set_num: s.set_num,
+          name: s.name,
+          year: s.year,
+          img_url: s.img_url ?? (cached?.img_url ?? undefined),
+          coverage: cached?.coverage ?? 0,
+          total_have: cached?.total_have,
+          total_needed: typeof cached?.total_needed === "number" ? cached.total_needed : s.num_parts,
+          loading: true,
+        } as BuildabilityCard;
+      })
+    );
+  }, []);
 
   const loadMode = useCallback(
     async (nextMode: Mode) => {
@@ -140,14 +207,25 @@ const BuildabilityOverviewPage: React.FC = () => {
       setError(null);
       try {
         if (nextMode === "mysets") {
-          const sets = await getMySets();
-          const withCoverage = await fetchCoverageForSets(sets ?? []);
-          setItems(withCoverage);
+          const sets = (await getMySets()) ?? [];
+
+          // phase 1: render tiles immediately using whatever we have
+          seedItemsFromSets(sets);
+
+          // phase 2: stream coverage
+          await fetchCoverageForSets(sets);
         } else if (nextMode === "wishlist") {
-          const sets = await getWishlist();
-          const hydrated = await hydrateSetImages(sets ?? []);
-          const withCoverage = await fetchCoverageForSets(hydrated ?? []);
-          setItems(withCoverage);
+          const sets = (await getWishlist()) ?? [];
+
+          // phase 1: render tiles immediately even before hydration
+          seedItemsFromSets(sets);
+
+          // phase 2a: hydrate images (bounded) and re-seed quickly with improved images
+          const hydrated = await hydrateSetImages(sets);
+          seedItemsFromSets(hydrated);
+
+          // phase 2b: stream coverage for hydrated list
+          await fetchCoverageForSets(hydrated);
         } else {
           // search mode: wait for explicit search
           setItems([]);
@@ -159,7 +237,7 @@ const BuildabilityOverviewPage: React.FC = () => {
         setLoading(false);
       }
     },
-    [fetchCoverageForSets]
+    [fetchCoverageForSets, seedItemsFromSets]
   );
 
   useEffect(() => {
@@ -194,8 +272,12 @@ const BuildabilityOverviewPage: React.FC = () => {
           setItems([]);
           return;
         }
-        const withCoverage = await fetchCoverageForSets(results);
-        setItems(withCoverage);
+
+        // phase 1: show tiles immediately
+        seedItemsFromSets(results);
+
+        // phase 2: stream coverage
+        await fetchCoverageForSets(results);
       } catch (err: any) {
         setError(err?.message ?? "Search failed. Please try again.");
         setItems([]);
@@ -203,7 +285,7 @@ const BuildabilityOverviewPage: React.FC = () => {
         setLoading(false);
       }
     },
-    [fetchCoverageForSets, searchTerm]
+    [fetchCoverageForSets, searchTerm, seedItemsFromSets]
   );
 
   const visibleItems = useMemo(() => items, [items]);
@@ -229,7 +311,8 @@ const BuildabilityOverviewPage: React.FC = () => {
       style={{
         opacity: mode === opt.id ? 1 : 0.85,
         borderColor: mode === opt.id ? "#ffffff" : "rgba(148,163,184,0.35)",
-        background: mode === opt.id ? "linear-gradient(135deg, #f97316, #facc15, #22c55e)" : undefined,
+        background:
+          mode === opt.id ? "linear-gradient(135deg, #f97316, #facc15, #22c55e)" : undefined,
         color: mode === opt.id ? "#0f172a" : "#e5e7eb",
         fontWeight: mode === opt.id ? 800 : 600,
       }}
@@ -337,18 +420,13 @@ const BuildabilityOverviewPage: React.FC = () => {
         )}
 
         {visibleItems.length > 0 && (
-          <div
-            className="tile-grid"
-            style={{
-              gap: "1.4rem",
-            }}
-          >
+          <div className="tile-grid" style={{ gap: "1.4rem" }}>
             {visibleItems.map((item) => {
               const coverage = item.coverage ?? 0;
               const traffic = coverage >= 0.9 ? "#22c55e" : coverage >= 0.5 ? "#f59e0b" : "#ef4444";
 
               return (
-                <div key={item.set_num} style={{ position: "relative" }}>
+                <div key={item.set_num} style={{ position: "relative", opacity: item.loading ? 0.85 : 1 }}>
                   <div
                     style={{
                       position: "absolute",
