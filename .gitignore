@@ -75,3 +75,13 @@ backend/app/data/rebrickable/*.csv
 backend/app/data/rebrickable/*.csv.gz
 backend/app/data/rebrickable/*.zip
 csv/
+
+# --- Aim2Build large runtime assets (never commit) ---
+backend/app/data/*.db
+backend/app/static/element_images/
+backend/app/static/element_images/**
+
+# Backend static is deploy-only (nginx serves it); never commit
+backend/app/static/
+backend/app/static/**
+debug_catalog_images.html
