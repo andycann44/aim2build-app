@@ -1,10 +1,42 @@
+from __future__ import annotations
+from pathlib import Path
+import sqlite3
+
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Dict, Any
 import re
 
 from app.catalog_db import db, get_catalog_parts_for_set
 
-router = APIRouter()
+router = APIRouter(tags=["catalog"])
+
+def _is_printed_part_num(part_num: str) -> bool:
+    # Rebrickable-style printed variants often contain 'pr' (e.g. 11477pr0028)
+    return isinstance(part_num, str) and ("pr" in part_num)
+
+def _base_part_num_for_printed(part_num: str) -> str:
+    # 11477pr0028 -> 11477
+    if not isinstance(part_num, str):
+        return part_num
+    m = re.match(r"^(\d+)", part_num)
+    return m.group(1) if m else part_num
+
+def _img_lookup_map(db, keys):
+    # keys: set of (part_num, color_id)
+    # returns dict[(part_num,color_id)] = img_url
+    if not keys:
+        return {}
+    part_nums = sorted({k[0] for k in keys})
+    # Query by part_num only, then filter by color_id in python
+    q_marks = ",".join(["?"] * len(part_nums))
+    rows = db.execute(
+        f"SELECT part_num, color_id, img_url FROM element_images WHERE part_num IN ({q_marks})",
+        part_nums,
+    ).fetchall()
+    out = {}
+    for r in rows:
+        out[(str(r["part_num"]), int(r["color_id"]))] = str(r["img_url"])
+    return out
 
 
 def _resolve_part_img_url_from_db(
@@ -14,20 +46,20 @@ def _resolve_part_img_url_from_db(
 ) -> Optional[str]:
     """
     STRICT image resolution:
-    - element_images is the ONLY source of truth
+    - element_best_image / element_images are our DB truth (NOT Rebrickable HTTP)
     - exact (part_num, color_id) match only
     - if not found -> None
     """
     cur = con.execute(
-    """
-    SELECT bi.img_url
-    FROM element_best_image bi
-    WHERE bi.part_num = ?
-      AND bi.color_id = ?
-    LIMIT 1
-    """,
-    (part_num, color_id),
-)
+        """
+        SELECT bi.img_url
+        FROM element_best_image bi
+        WHERE bi.part_num = ?
+          AND bi.color_id = ?
+        LIMIT 1
+        """,
+        (part_num, color_id),
+    )
     row = cur.fetchone()
     if not row:
         return None
@@ -108,8 +140,7 @@ def get_part_category(part_cat_id: int) -> Dict[str, Any]:
 def list_top_part_categories() -> List[Dict[str, Any]]:
     """
     Return top-level categories (parent_id IS NULL) excluding Duplo/Quatro/Primo.
-    Also include a sample_img_url drawn randomly from any part in this category
-    or its descendants (element_images only, exact part_num match, any colour).
+    Also include a sample_img_url (element_images only).
     """
     with db() as con:
         cur = con.execute(
@@ -129,7 +160,6 @@ def list_top_part_categories() -> List[Dict[str, Any]]:
         for row in top_rows:
             cat_id = int(row["part_cat_id"])
 
-            # Recursive CTE to gather descendants for this top category
             img_cur = con.execute(
                 """
                 WITH RECURSIVE cats(id) AS (
@@ -247,7 +277,7 @@ def get_catalog_parts(
         for row in base_parts:
             part_num = str(row["part_num"])
             color_id = int(row["color_id"])
-            quantity = int(row["quantity"])
+            qty = int(row["quantity"])
 
             img = _resolve_part_img_url_from_db(con, part_num, color_id)
 
@@ -267,32 +297,10 @@ def get_catalog_parts(
 def search_parts(
     q: Optional[str] = Query(None, description="Search term for part_num or name"),
     category_id: Optional[int] = Query(None, description="Filter by part_cat_id"),
-    color_id: Optional[int] = Query(
-        None,
-        description="If provided, image lookup is STRICT to that colour.",
-    ),
+    color_id: Optional[int] = Query(None, description="If provided, image lookup is STRICT to that colour."),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> List[Dict[str, Any]]:
-    """
-    PART SEARCH (parts only, not set search)
-
-    Search rules:
-    - If q has NO spaces:
-        - digits only (e.g. '3001'): treat as FAMILY prefix -> p.part_num LIKE '3001%'
-          order: exact first, then short suffixes, then longer
-        - otherwise: treat as PREFIX -> p.part_num LIKE '<term>%'
-    - If q HAS spaces/words (e.g. 'brick 2 x 4'):
-        - search by NAME tokens (AND-match) against lower(p.name)
-        - ignore stopwords like brick/plate/tile/x/by/and/the/etc.
-        - if dims like '2 x 4' present, require that substring too
-
-    Image rules:
-    - element_images is the ONLY truth source
-    - If color_id provided: STRICT (part_num, color_id)
-    - If color_id NOT provided: pick lowest available element_images.color_id
-    - Sticker categories => NULL image always
-    """
     term = (q or "").strip()
     if not term:
         return []
@@ -312,12 +320,7 @@ def search_parts(
         params.append(f"{term}%")
     else:
         ql = term.lower().strip()
-
-        stop = {
-            "brick", "bricks", "plate", "plates", "tile", "tiles",
-            "with", "and", "or", "the", "a", "an", "of",
-            "x", "by",
-        }
+        stop = {"brick", "bricks", "plate", "plates", "tile", "tiles", "with", "and", "or", "the", "a", "an", "of", "x", "by"}
 
         m = re.search(r"(\d+)\s*[xX]\s*(\d+)", ql)
         dims: List[str] = []
@@ -436,13 +439,6 @@ def search_parts(
 def get_elements_by_part(
     part_num: str = Query(..., description="Canonical part number (e.g. 3005 for 1x1 brick)"),
 ) -> List[Dict[str, Any]]:
-    """
-    Single-brick flow:
-    - Given canonical part_num (e.g. 3005), return ONE row per colour_id.
-    - Images-first ordering.
-    - Source of truth for images is element_images (part_num, color_id).
-    - Also returns an example element_id (useful for debugging / future expansion).
-    """
     pn = (part_num or "").strip()
     if not pn:
         raise HTTPException(status_code=400, detail="part_num is required")
@@ -501,20 +497,21 @@ def get_elements_by_part(
         for r in rows
     ]
 
+
 @router.get("/images/stats")
 def catalog_image_stats():
-    con = get_catalog_db()
-    row = con.execute(
-        """
-        SELECT
-          COUNT(*) AS total,
-          SUM(is_dead=1) AS dead,
-          SUM(is_dead=0) AS live,
-          SUM(last_checked IS NULL OR last_checked=0) AS unchecked
-        FROM element_images
-        """
-    ).fetchone()
-    return dict(row)
+    with db() as con:
+        row = con.execute(
+            """
+            SELECT
+              COUNT(*) AS total,
+              SUM(is_dead=1) AS dead,
+              SUM(is_dead=0) AS live,
+              SUM(last_checked IS NULL OR last_checked=0) AS unchecked
+            FROM element_images
+            """
+        ).fetchone()
+        return dict(row) if row else {"total": 0, "dead": 0, "live": 0, "unchecked": 0}
 
 
 @router.get("/images/sample")
@@ -524,33 +521,121 @@ def catalog_image_sample(
     limit: int = 100,
     offset: int = 0,
 ):
-    con = get_catalog_db()
+    with db() as con:
+        if mode == "best":
+            base = """
+            SELECT part_num, color_id, img_url
+            FROM element_best_image
+            """
+            where = ""
+            params: List[Any] = []
+        else:
+            base = """
+            SELECT part_num, color_id, img_url
+            FROM element_images
+            """
+            where = "WHERE img_url IS NOT NULL AND TRIM(img_url) <> ''"
+            params = []
 
-    if mode == "best":
-        base = """
-        SELECT part_num, color_id, img_url
-        FROM element_best_image
+            if filter == "live":
+                where += " AND is_dead=0"
+            elif filter == "dead":
+                where += " AND is_dead=1"
+            elif filter == "unchecked":
+                where += " AND (last_checked IS NULL OR last_checked=0)"
+            elif filter == "all":
+                pass
+
+        sql = f"""
+        {base}
+        {where}
+        ORDER BY part_num ASC, color_id ASC, img_url ASC
+        LIMIT ? OFFSET ?
         """
-        where = ""
-    else:
-        base = """
-        SELECT part_num, color_id, img_url
-        FROM element_images
+        rows = con.execute(sql, (int(limit), int(offset), *params)).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ------------------------------------------------------------
+# V2: BuildabilityDetails-safe parts endpoint (local images only)
+# - No remote URLs
+# - display_img_url resolves to /static/element_images/<part>/<color>.jpg if present
+# - Printed variants (..pr....) fall back to base part image for display only
+# ------------------------------------------------------------
+@router.get("/parts-v2")
+def get_parts_v2(set: str = None, set_num: str = None, id: str = None):
+    set_id = (set or set_num or id or "").strip()
+    if not set_id:
+        return []
+
+    # Normalize set number: allow plain "21330" -> "21330-1"
+    if "-" not in set_id and set_id.isdigit():
+        set_id = f"{set_id}-1"
+
+    # Local-only V2: open catalog DB directly (avoid _db() dependency)
+
+    db_path = (Path(__file__).resolve().parent.parent / 'data' / 'lego_catalog.db')
+
+    con = sqlite3.connect(str(db_path))
+
+    con.row_factory = sqlite3.Row
+    # Get requirements/parts for the set (same as /parts uses)
+    rows = con.execute(
         """
-        where = "WHERE img_url IS NOT NULL AND TRIM(img_url) <> ''"
+        SELECT
+          set_num,
+          part_num,
+          color_id,
+          qty_per_set as quantity
+        FROM set_parts
+        WHERE set_num = ?
+        """,
+        (set_id,),
+    ).fetchall()
 
-        if filter == "live":
-            where += " AND is_dead=0"
-        elif filter == "dead":
-            where += " AND is_dead=1"
-        elif filter == "unchecked":
-            where += " AND (last_checked IS NULL OR last_checked=0)"
+    static_root = Path(__file__).resolve().parent.parent / "static" / "element_images"
 
-    sql = f"""
-    {base}
-    {where}
-    ORDER BY part_num ASC, color_id ASC, img_url ASC
-    LIMIT ? OFFSET ?
-    """
-    rows = con.execute(sql, (limit, offset)).fetchall()
-    return [dict(r) for r in rows]
+    def is_printed(pn: str) -> bool:
+        return isinstance(pn, str) and ("pr" in pn)
+
+    def base_part(pn: str) -> str:
+        m = re.match(r"^(\d+)", pn or "")
+        return m.group(1) if m else pn
+
+    def local_img_url(pn: str, cid: int):
+        # Files on disk are: backend/app/static/element_images/<part_num>/<color_id>.jpg
+        # Try jpg then png then webp.
+        for ext in (".jpg", ".png", ".webp"):
+            fp = static_root / pn / f"{cid}{ext}"
+            if fp.exists():
+                return f"/static/element_images/{pn}/{cid}{ext}"
+        return None
+
+    out = []
+    for r in rows:
+        pn = str(r["part_num"])
+        cid = int(r["color_id"])
+
+        disp = local_img_url(pn, cid)
+        printed = is_printed(pn)
+        if not disp and printed:
+            disp = local_img_url(base_part(pn), cid)
+
+        disp = disp or "/img/missing.png"
+
+        out.append(
+            {
+                "set_num": str(r["set_num"]),
+                "part_num": pn,
+                "color_id": cid,
+                "quantity": int(r["quantity"]),
+                "part_img_url": disp,          # keep existing name so old UI still works
+                "display_img_url": disp,       # explicit v2 field
+                "is_printed": bool(printed),
+                "is_sticker": False,
+            }
+        )
+
+    con.close()
+
+    return out

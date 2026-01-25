@@ -1,10 +1,9 @@
-from typing import List, Dict, Any
-
 from fastapi import FastAPI, Depends
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
 
-from app.db import db, init_db
-from app.paths import DATA_DIR
+from app.db import init_db
 
 from app.routers import (
     admin_tools,
@@ -13,7 +12,7 @@ from app.routers import (
     buildability,
     catalog,
     search,
-    inventory,   # IMPORTANT: inventory router
+    inventory,
     top_common_parts,
     top_common_parts_by_color,
 )
@@ -21,8 +20,12 @@ from app.routers import buildability_discover
 from app.routers import auth as auth_router
 from app.routers.auth import get_current_user
 
-
 app = FastAPI(title="Aim2Build API")
+
+
+# Serve local static assets (element_images, etc.)
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # -----------------------
 # CORS (open for local dev)
@@ -36,58 +39,9 @@ app.add_middleware(
 )
 
 # -----------------------
-# Catalog helper (used elsewhere)
-# -----------------------
-def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
-    """
-    Return canonical parts for a set from the SQLite catalog.
-
-    Shape:
-      [{ "part_num": "...", "color_id": 0, "quantity": 4 }, ...]
-
-    Uses:
-      inventories (inventory_id, set_num, ...)
-      inventory_parts (inventory_id, part_num, color_id, quantity, ...)
-    """
-    set_id = (set_num or "").strip()
-    if not set_id:
-        return []
-
-    # Normalise: allow "70618" or "70618-1"
-    if "-" not in set_id:
-        set_id = f"{set_id}-1"
-
-    with db() as con:
-        cur = con.execute(
-            """
-            SELECT
-                p.part_num,
-                p.color_id,
-                p.quantity
-            FROM inventories i
-            JOIN inventory_parts p
-              ON p.inventory_id = i.inventory_id
-            WHERE i.set_num = ?
-            """,
-            (set_id,),
-        )
-        rows = cur.fetchall()
-
-    return [
-        {
-            "part_num": row["part_num"],
-            "color_id": row["color_id"],
-            "quantity": row["quantity"],
-        }
-        for row in rows
-    ]
-
-
-# -----------------------
 # Initialise DB on startup
 # -----------------------
 init_db()
-
 
 # -----------------------
 # Health (public)
@@ -95,7 +49,6 @@ init_db()
 @app.get("/api/health")
 def health():
     return {"ok": True}
-
 
 # =======================
 # ROUTERS
@@ -108,22 +61,18 @@ app.include_router(
     tags=["auth"],
 )
 
-# Admin tools (key-gated)
+# Admin tools (key-gated, handles its own auth via X-Admin-Key)
 app.include_router(admin_tools.router)
 
-# -----------------------
-# INVENTORY (AUTH REQUIRED)
-# THIS WAS THE BUG
-# -----------------------
+# Inventory (AUTH REQUIRED)
 app.include_router(
     inventory.router,
     prefix="/api/inventory",
     tags=["inventory"],
+    dependencies=[Depends(get_current_user)],
 )
 
-# -----------------------
-# My Sets / Wishlist (AUTH REQUIRED)
-# -----------------------
+# My Sets (AUTH REQUIRED)
 app.include_router(
     mysets.router,
     prefix="/api/mysets",
@@ -131,6 +80,7 @@ app.include_router(
     dependencies=[Depends(get_current_user)],
 )
 
+# Wishlist (AUTH REQUIRED)
 app.include_router(
     wishlist.router,
     prefix="/api/wishlist",
@@ -138,9 +88,7 @@ app.include_router(
     dependencies=[Depends(get_current_user)],
 )
 
-# -----------------------
-# Buildability / Catalog / Search
-# -----------------------
+# Buildability (AUTH REQUIRED)
 app.include_router(
     buildability.router,
     prefix="/api/buildability",
@@ -148,20 +96,36 @@ app.include_router(
     dependencies=[Depends(get_current_user)],
 )
 
+# Buildability Discover (AUTH REQUIRED if the router itself expects auth; otherwise remove this dependency inside that router)
+app.include_router(
+    buildability_discover.router,
+    prefix="/api/buildability",
+    tags=["buildability-discover"],
+    dependencies=[Depends(get_current_user)],
+)
+
+# Search (public)
 app.include_router(
     search.router,
     prefix="/api",
     tags=["search"],
 )
 
+# Catalog (public)
 app.include_router(
     catalog.router,
     prefix="/api/catalog",
     tags=["catalog"],
 )
 
+# Optional: other public endpoints
 app.include_router(
-    buildability_discover.router,
-    prefix="/api/buildability",
-    tags=["buildability-discover"],
+    top_common_parts.router,
+    prefix="/api",
+    tags=["top-common-parts"],
+)
+app.include_router(
+    top_common_parts_by_color.router,
+    prefix="/api",
+    tags=["top-common-parts-by-color"],
 )

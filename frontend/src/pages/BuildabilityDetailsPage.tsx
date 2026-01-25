@@ -28,6 +28,9 @@ type CompareResult = {
 };
 
 type CatalogPart = {
+  display_img_url?: string | null;
+  is_printed?: boolean | null;
+  is_sticker?: boolean | null;
   set_num: string;
   part_num: string;
   color_id: number;
@@ -40,105 +43,163 @@ type BuildabilityDetailsInnerProps = {
   demo: boolean;
 };
 
-// Tune: first paint count for parts grid (improves perceived speed massively)
-const INITIAL_PARTS_RENDER = 60;
-const PARTS_RENDER_CHUNK = 120;
-const PARTS_RENDER_DELAY_MS = 0;
+function _is401(res: Response) {
+  return res.status === 401 || res.status === 403;
+}
 
 const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ demo }) => {
   const { setNum } = useParams<{ setNum: string }>();
-  const setId = setNum;
+  const setId = (setNum || "").trim();
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Phase states
+  const [loadingCompare, setLoadingCompare] = useState(true);
+  const [loadingParts, setLoadingParts] = useState(true);
+
+  const [errorCompare, setErrorCompare] = useState<string | null>(null);
+  const [errorParts, setErrorParts] = useState<string | null>(null);
+
   const [summary, setSummary] = useState<CompareResult | null>(null);
-
-  // full list from API
   const [parts, setParts] = useState<CatalogPart[]>([]);
-  // progressive list for rendering
-  const [visibleParts, setVisibleParts] = useState<CatalogPart[]>([]);
-
   const [setImgUrl, setSetImgUrl] = useState<string | null>(null);
 
+  // -----------------------
+  // Progressive parts rendering (scroll-driven)
+  // -----------------------
+  const INITIAL_RENDER = 60;
+  const STEP = 40;
+
+  const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER);
+  const sentinelRef = React.useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_RENDER);
+  }, [parts.length]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((v) => Math.min(parts.length, v + STEP));
+        }
+      },
+      { root: null, rootMargin: "800px 0px", threshold: 0.01 }
+    );
+
+    io.observe(el);
+    return () => io.disconnect();
+  }, [parts.length]);
+
+  const visibleParts = useMemo(() => parts.slice(0, visibleCount), [parts, visibleCount]);
+
+  // -----------------------
+  // Phase 0: validate route param (instant)
+  // -----------------------
   useEffect(() => {
     if (!setId) {
-      setError("No set selected.");
-      setLoading(false);
+      setErrorCompare("No set selected.");
+      setLoadingCompare(false);
+      setLoadingParts(false);
       return;
     }
+    // reset for new set
+    setSummary(null);
+    setParts([]);
+    setSetImgUrl(null);
+    setErrorCompare(null);
+    setErrorParts(null);
+    setLoadingCompare(true);
+    setLoadingParts(true);
+  }, [setId]);
+
+  // -----------------------
+  // Phase 1: compare first (fast)
+  // -----------------------
+  useEffect(() => {
+    if (!setId) return;
 
     const controller = new AbortController();
     const headers = authHeaders();
 
-    const base = (setId || "").trim();
-
-    async function fetchMetaNonBlocking() {
+    async function loadCompare() {
       try {
-        const searchUrl = `${API_BASE}/api/search?q=${encodeURIComponent(base)}`;
-        const r = await fetch(searchUrl, { headers, signal: controller.signal });
-        if (!r.ok) return;
+        setLoadingCompare(true);
+        setErrorCompare(null);
 
-        const list = (await r.json()) as any[];
-        const hit = list.find((x) => x?.set_num === base) || list[0] || null;
-
-        setSetImgUrl((hit?.img_url ?? null) as any);
-
-        // Only enrich summary fields; do not block rendering
-        if (hit) {
-          setSummary((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  name: hit?.name ?? hit?.set_name ?? prev.name ?? prev.set_name ?? null,
-                  year: hit?.year ?? hit?.set_year ?? prev.year ?? prev.set_year ?? null,
-                }
-              : prev
-          );
+        if (demo) {
+          setSummary({
+            set_num: setId,
+            coverage: 0,
+            total_needed: 0,
+            total_have: 0,
+            missing_parts: [],
+          });
+          return;
         }
+
+        const compareUrl = `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(setId)}`;
+        const res = await fetch(compareUrl, { headers, signal: controller.signal });
+
+        if (_is401(res)) {
+          navigate(`/account?mode=login`, { replace: true });
+          return;
+        }
+
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`Compare failed (${res.status}): ${txt || res.statusText}`);
+        }
+
+        const compareJson = (await res.json()) as CompareResult;
+        setSummary(compareJson);
       } catch (err: any) {
         if (err?.name === "AbortError") return;
-        // ignore meta failures
+        console.error("Compare load failed:", err);
+        setErrorCompare(err?.message ?? "Failed to load buildability compare.");
+      } finally {
+        setLoadingCompare(false);
       }
     }
 
-    async function load() {
+    loadCompare();
+    return () => controller.abort();
+  }, [setId, demo, navigate]);
+
+  // -----------------------
+  // Phase 2: parts after compare (heavy grid)
+  // -----------------------
+  useEffect(() => {
+    if (!setId) return;
+
+    const controller = new AbortController();
+    const headers = authHeaders();
+
+    async function loadParts() {
       try {
-        setLoading(true);
-        setError(null);
-        setSetImgUrl(null);
-        setSummary(null);
-        setParts([]);
-        setVisibleParts([]);
+        setLoadingParts(true);
+        setErrorParts(null);
+
+        const partsUrl = `${API_BASE}/api/catalog/parts-v2?set=${encodeURIComponent(setId)}`;
+        const res = await fetch(partsUrl, { headers, signal: controller.signal });
+
+        if (_is401(res)) {
+          navigate(`/account?mode=login`, { replace: true });
+          return;
+        }
+
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`Parts lookup failed (${res.status}): ${txt || res.statusText}`);
+        }
+
+        const partsJson = (await res.json()) as CatalogPart[];
+        const safeParts = Array.isArray(partsJson) ? partsJson : [];
+        setParts(safeParts);
 
         if (demo) {
-          // Demo: parts only, no compare
-          const partsUrl = `${API_BASE}/api/catalog/parts?set=${encodeURIComponent(setId)}`;
-          const partsRes = await fetch(partsUrl, { headers, signal: controller.signal });
-
-          if (!partsRes.ok) {
-            const txt = await partsRes.text();
-            throw new Error(`Parts lookup failed (${partsRes.status}): ${txt || partsRes.statusText}`);
-          }
-
-          const partsJson = (await partsRes.json()) as CatalogPart[];
-          const safeParts = Array.isArray(partsJson) ? partsJson : [];
-
-          setParts(safeParts);
-
-          // Progressive render
-          setVisibleParts(safeParts.slice(0, INITIAL_PARTS_RENDER));
-          if (safeParts.length > INITIAL_PARTS_RENDER) {
-            let idx = INITIAL_PARTS_RENDER;
-            const pump = () => {
-              if (controller.signal.aborted) return;
-              idx = Math.min(idx + PARTS_RENDER_CHUNK, safeParts.length);
-              setVisibleParts(safeParts.slice(0, idx));
-              if (idx < safeParts.length) setTimeout(pump, PARTS_RENDER_DELAY_MS);
-            };
-            setTimeout(pump, PARTS_RENDER_DELAY_MS);
-          }
-
           const totalNeeded = safeParts.reduce((sum, p) => sum + (p.quantity ?? 0), 0);
           const missingParts = safeParts.map((p) => ({
             part_num: p.part_num,
@@ -148,71 +209,79 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
             short: p.quantity ?? 0,
           }));
 
-          setSummary({
+          setSummary((prev) => ({
             set_num: setId,
             coverage: 0,
             total_needed: totalNeeded,
             total_have: 0,
             missing_parts: missingParts,
-          });
-
-          // Important: meta does NOT block
-          void fetchMetaNonBlocking();
-          return;
+            name: prev?.name ?? null,
+            year: prev?.year ?? null,
+          }));
         }
-
-        const compareUrl = `${API_BASE}/api/buildability/compare?set=${encodeURIComponent(setId)}`;
-        const partsUrl = `${API_BASE}/api/catalog/parts?set=${encodeURIComponent(setId)}`;
-
-        // Phase A: fetch compare+parts (fast)
-        const [compareRes, partsRes] = await Promise.all([
-          fetch(compareUrl, { headers, signal: controller.signal }),
-          fetch(partsUrl, { headers, signal: controller.signal }),
-        ]);
-
-        if (!compareRes.ok) {
-          const txt = await compareRes.text();
-          throw new Error(`Compare failed (${compareRes.status}): ${txt || compareRes.statusText}`);
-        }
-        if (!partsRes.ok) {
-          const txt = await partsRes.text();
-          throw new Error(`Parts lookup failed (${partsRes.status}): ${txt || partsRes.statusText}`);
-        }
-
-        const compareJson = (await compareRes.json()) as CompareResult;
-        const partsJson = (await partsRes.json()) as CatalogPart[];
-
-        setSummary(compareJson);
-        setParts(partsJson);
-
-        // Progressive render of tiles (major UI win)
-        setVisibleParts(partsJson.slice(0, INITIAL_PARTS_RENDER));
-        if (partsJson.length > INITIAL_PARTS_RENDER) {
-          let idx = INITIAL_PARTS_RENDER;
-          const pump = () => {
-            if (controller.signal.aborted) return;
-            idx = Math.min(idx + PARTS_RENDER_CHUNK, partsJson.length);
-            setVisibleParts(partsJson.slice(0, idx));
-            if (idx < partsJson.length) setTimeout(pump, PARTS_RENDER_DELAY_MS);
-          };
-          setTimeout(pump, PARTS_RENDER_DELAY_MS);
-        }
-
-        // Phase B: meta fetch does NOT block UI
-        void fetchMetaNonBlocking();
       } catch (err: any) {
         if (err?.name === "AbortError") return;
-        console.error("Failed to load buildability details:", err);
-        setError(err?.message || "Failed to load buildability details.");
+        console.error("Parts load failed:", err);
+        setErrorParts(err?.message ?? "Failed to load catalog parts.");
       } finally {
-        setLoading(false);
+        setLoadingParts(false);
       }
     }
 
-    void load();
-    return () => controller.abort();
+    // tiny delay so hero paints first
+    const t = window.setTimeout(loadParts, 50);
+    return () => {
+      window.clearTimeout(t);
+      controller.abort();
+    };
+  }, [setId, demo, navigate]);
+
+  // -----------------------
+  // Phase 3: optional meta image/name (lowest priority)
+  // -----------------------
+  useEffect(() => {
+    if (!setId) return;
+
+    const controller = new AbortController();
+    const headers = authHeaders();
+
+    async function loadMeta() {
+      try {
+        const searchUrl = `${API_BASE}/api/search?q=${encodeURIComponent(setId)}`;
+        const r = await fetch(searchUrl, { headers, signal: controller.signal });
+        if (!r.ok) return;
+
+        const list = (await r.json()) as any[];
+        const hit = list.find((x) => x?.set_num === setId) || list[0] || null;
+
+        setSetImgUrl((hit?.img_url ?? null) as any);
+
+        if (demo && hit) {
+          setSummary((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  name: hit?.name ?? hit?.set_name ?? null,
+                  year: hit?.year ?? hit?.set_year ?? null,
+                }
+              : prev
+          );
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const t = window.setTimeout(loadMeta, 250);
+    return () => {
+      window.clearTimeout(t);
+      controller.abort();
+    };
   }, [setId, demo]);
 
+  // -----------------------
+  // Derived maps
+  // -----------------------
   const missingMap = useMemo(() => {
     const map = new Map<string, MissingPart>();
 
@@ -237,11 +306,14 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
   }, [demo, parts, summary]);
 
   const missingPiecesTotal = useMemo(() => {
-    if (demo) return parts.reduce((total, p) => total + (p.quantity ?? 0), 0);
+    if (demo) {
+      return parts.reduce((total, p) => total + (p.quantity ?? 0), 0);
+    }
     if (!summary?.missing_parts) return 0;
 
     return summary.missing_parts.reduce((total, m) => {
-      const short = typeof m.short === "number" ? m.short : Math.max((m.need ?? 0) - (m.have ?? 0), 0);
+      const short =
+        typeof m.short === "number" ? m.short : Math.max((m.need ?? 0) - (m.have ?? 0), 0);
       return total + short;
     }, 0);
   }, [demo, parts, summary]);
@@ -251,7 +323,8 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
 
   const setName = summary?.name ?? summary?.set_name ?? null;
   const setYearValue = summary?.year ?? summary?.set_year;
-  const setYear = typeof setYearValue === "number" || typeof setYearValue === "string" ? String(setYearValue) : null;
+  const setYear =
+    typeof setYearValue === "number" || typeof setYearValue === "string" ? String(setYearValue) : null;
 
   const setLine = [setId ? `Set ${setId}` : "Buildability details", setName ? String(setName) : null, setYear]
     .filter(Boolean)
@@ -259,80 +332,6 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
 
   return (
     <div className="page buildability-details">
-      <style>{`
-        .demo-banner {
-          z-index: 5;
-          position: relative;
-          border-radius: 16px;
-          padding: 12px 16px;
-          margin: 14px auto 0;
-          max-width: 1600px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          color: #f8fafc;
-          background: linear-gradient(135deg, #0b1120 0%, #1d4ed8 35%, #fbbf24 70%, #dc2626 100%);
-          box-shadow:
-            0 18px 40px rgba(0, 0, 0, 0.45),
-            inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-          overflow: visible;
-        }
-
-        .demo-banner strong { color: #f8fafc; }
-
-        .demo-banner::before {
-          content: "";
-          position: absolute;
-          inset: -3px;
-          border-radius: calc(16px + 3px);
-          border: 2px solid #22c55e;
-          box-shadow: 0 0 0 rgba(34, 197, 94, 0);
-          animation: xmasFlash 1.2s linear infinite;
-          pointer-events: auto;
-        }
-
-        .demo-banner button {
-          border-radius: 10px;
-          border: 1px solid rgba(255, 255, 255, 0.55);
-          background: rgba(15, 23, 42, 0.55);
-          color: #f8fafc;
-          font-weight: 700;
-          font-size: 0.82rem;
-          padding: 0.3rem 0.75rem;
-          cursor: pointer;
-          box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
-          transition:
-            background 0.12s ease,
-            border-color 0.12s ease,
-            transform 0.12s ease;
-        }
-
-        .demo-banner button:hover {
-          background: rgba(15, 23, 42, 0.7);
-          border-color: rgba(255, 255, 255, 0.7);
-          transform: translateY(-1px);
-        }
-
-        .demo-banner button:focus-visible {
-          outline: 2px solid rgba(255, 255, 255, 0.7);
-          outline-offset: 2px;
-        }
-
-        @keyframes xmasFlash {
-          0%   { border-color: #22c55e; box-shadow: 0 0 0 rgba(34,197,94,0); }
-          25%  { border-color: #ef4444; box-shadow: 0 0 18px rgba(239,68,68,0.45); }
-          50%  { border-color: #facc15; box-shadow: 0 0 18px rgba(250,204,21,0.45); }
-          75%  { border-color: #3b82f6; box-shadow: 0 0 18px rgba(59,130,246,0.45); }
-          100% { border-color: #22c55e; box-shadow: 0 0 0 rgba(34,197,94,0); }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .demo-banner::before { animation: none; }
-        }
-      `}</style>
-
       <PageHero title="Buildability details" subtitle={setLine || "Compare what this set needs with what you already own."}>
         <div className="heroTwoCol">
           <div className="heroLeft">
@@ -346,7 +345,7 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
                   fontWeight: 700,
                 }}
               >
-                Coverage: {coveragePct !== null ? `${coveragePct}%` : "—"}
+                Coverage: {loadingCompare ? "Loading…" : coveragePct !== null ? `${coveragePct}%` : "—"}
               </span>
 
               <span
@@ -358,11 +357,12 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
                   fontWeight: 700,
                 }}
               >
-                Have: {summary?.total_have !== undefined ? summary.total_have.toLocaleString() : "—"} / Need:{" "}
-                {summary?.total_needed !== undefined ? summary.total_needed.toLocaleString() : "—"}
+                Have:{" "}
+                {loadingCompare ? "…" : summary?.total_have !== undefined ? summary.total_have.toLocaleString() : "—"} / Need:{" "}
+                {loadingCompare ? "…" : summary?.total_needed !== undefined ? summary.total_needed.toLocaleString() : "—"}
               </span>
 
-              {missingPiecesTotal > 0 && (
+              {!loadingCompare && missingPiecesTotal > 0 && (
                 <span
                   className="hero-pill hero-pill--sort"
                   style={{
@@ -372,14 +372,14 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
                     fontWeight: 700,
                     cursor: "pointer",
                   }}
-                  onClick={() => {
-                    if (setId) navigate(`/buildability/${encodeURIComponent(setId)}/missing`);
-                  }}
+                  onClick={() => navigate(`/buildability/${encodeURIComponent(setId)}/missing`)}
                 >
                   Missing pieces: {missingPiecesTotal.toLocaleString()}
                 </span>
               )}
             </div>
+
+            {errorCompare && <div style={{ marginTop: 10, color: "#fecaca", fontSize: "0.9rem" }}>{errorCompare}</div>}
           </div>
 
           <div className="heroRight">
@@ -390,36 +390,17 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
         </div>
       </PageHero>
 
-      {demo && (
-        <div className="demo-banner">
-          <div>
-            <strong>Demo mode</strong>
-            <div style={{ fontSize: 13, opacity: 0.9 }}>Viewing this set with zero inventory.</div>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" onClick={() => navigate("/account?mode=login")}>
-              Sign in
-            </button>
-            <button type="button" onClick={() => navigate("/account?mode=signup")}>
-              Create account
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* parts grid */}
       <div style={{ maxWidth: "none", margin: "0 0 2.5rem", padding: "0" }}>
-        {!setId && !error && <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>No set selected.</p>}
+        {errorParts && <p style={{ color: "#ef4444", fontSize: "0.92rem" }}>{errorParts}</p>}
 
-        {loading && <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>Loading buildability details…</p>}
+        {loadingParts && <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>Loading parts…</p>}
 
-        {error && <p style={{ color: "#ef4444", fontSize: "0.92rem" }}>{error}</p>}
-
-        {!loading && !error && setId && parts.length === 0 && (
+        {!loadingParts && !errorParts && setId && parts.length === 0 && (
           <p style={{ fontSize: "0.92rem", color: "#94a3b8" }}>No parts to display.</p>
         )}
 
-        {!loading && !error && setId && visibleParts.length > 0 && (
+        {!loadingParts && !errorParts && setId && parts.length > 0 && (<>
           <div className="parts-grid" style={{ gap: "1.1rem", alignItems: "stretch", marginTop: "0.5rem" }}>
             {visibleParts.map((p) => {
               const key = `${p.part_num}-${p.color_id}`;
@@ -442,6 +423,8 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
               );
             })}
           </div>
+          <div ref={sentinelRef} style={{ height: 1 }} />
+        </>
         )}
       </div>
     </div>

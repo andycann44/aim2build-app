@@ -26,32 +26,35 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
   showInfoButton = false,
   infoText,
 }) => {
-  const missing = Math.max(need - have, 0);
+  const missing = React.useMemo(() => Math.max((need ?? 0) - (have ?? 0), 0), [need, have]);
 
-  const canDec = editableQty && !!onChangeQty && have > 0;
-  const canInc = editableQty && !!onChangeQty;
+  const canDec = React.useMemo(() => editableQty && !!onChangeQty && have > 0, [editableQty, onChangeQty, have]);
+  const canInc = React.useMemo(() => editableQty && !!onChangeQty, [editableQty, onChangeQty]);
 
   const [infoOpen, setInfoOpen] = React.useState(false);
   const infoRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
+    if (!showInfoButton) return;
     const handler = (e: MouseEvent) => {
       if (!infoRef.current) return;
       if (!infoRef.current.contains(e.target as Node)) setInfoOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  }, [showInfoButton]);
 
   const BOTTOM_SLOT_MIN_HEIGHT = 18;
-  const showBottomSlot = mode !== "inventory" && showBottomLine;
-
+  const showBottomSlot = React.useMemo(() => mode !== "inventory" && showBottomLine, [mode, showBottomLine]);
   const bottomLineIsMissingMode = mode === "missing";
 
-  const showColour =
-    typeof part.color_id === "number" && Number.isFinite(part.color_id) && part.color_id >= 0
+  const showColour = React.useMemo(() => {
+    return typeof part.color_id === "number" && Number.isFinite(part.color_id) && part.color_id >= 0
       ? String(part.color_id)
       : "—";
+  }, [part.color_id]);
+
+  const imgSrc = part.part_img_url ?? undefined;
 
   return (
     <div
@@ -67,6 +70,8 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
         height: "100%",
         minWidth: 0,
         position: "relative",
+        contentVisibility: "auto" as any, // lets the browser skip offscreen paint work
+        containIntrinsicSize: "260px 220px" as any,
       }}
     >
       <div
@@ -126,8 +131,10 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
           }}
         >
           <SafeImg
-            src={part.part_img_url ?? undefined}
+            src={imgSrc}
             alt={part.part_num}
+            loading="lazy"
+            decoding="async"
             style={{
               maxWidth: "100%",
               maxHeight: "100%",
@@ -303,4 +310,5 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
   );
 };
 
-export default BuildabilityPartsTile;
+// BIG WIN: stops re-render storms in huge grids
+export default React.memo(BuildabilityPartsTile);

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import SafeImg from "./SafeImg";
 
 export type BuildabilityItem = {
   set_num: string;
@@ -15,18 +16,12 @@ type BuildabilityTileProps = {
   onOpenDetails?: (setNum: string) => void; // double-click handler
 };
 
-const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
-  item,
-  onOpenDetails,
-}) => {
-  const { set_num, name, year, img_url, coverage, total_have, total_needed } =
-    item;
+const BuildabilityTile: React.FC<BuildabilityTileProps> = ({ item, onOpenDetails }) => {
+  const { set_num, name, year, img_url, coverage, total_have, total_needed } = item;
 
   const [hovered, setHovered] = useState(false);
-  const [imageError, setImageError] = useState(false);
 
-  const safeCoverage =
-    typeof coverage === "number" && !Number.isNaN(coverage) ? coverage : 0;
+  const safeCoverage = typeof coverage === "number" && !Number.isNaN(coverage) ? coverage : 0;
   const percent = Math.max(0, Math.min(100, Math.round(safeCoverage * 100)));
 
   const have = typeof total_have === "number" ? total_have : 0;
@@ -59,11 +54,8 @@ const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
       style={{
         borderRadius: 28,
         padding: 2,
-        background:
-          "linear-gradient(135deg,#f97316,#facc15,#22c55e,#38bdf8,#6366f1)",
-        boxShadow: hovered
-          ? "0 18px 40px rgba(15,23,42,0.55)"
-          : "0 12px 28px rgba(15,23,42,0.35)",
+        background: "linear-gradient(135deg,#f97316,#facc15,#22c55e,#38bdf8,#6366f1)",
+        boxShadow: hovered ? "0 18px 40px rgba(15,23,42,0.55)" : "0 12px 28px rgba(15,23,42,0.35)",
         transform: hovered ? "translateY(-4px)" : "translateY(0)",
         transition: "transform 150ms ease, box-shadow 150ms ease",
       }}
@@ -83,7 +75,7 @@ const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
           height: "100%",
         }}
       >
-        {/* IMAGE – same white box look as SetTile */}
+        {/* IMAGE – stable + safe */}
         <div
           style={{
             borderRadius: 22,
@@ -96,10 +88,11 @@ const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
             width: "100%",
           }}
         >
-          {img_url && !imageError ? (
-            <img
+          {img_url && img_url.trim().length > 0 ? (
+            <SafeImg
               src={img_url}
-              alt={name}
+              alt={name || set_num}
+              loading="lazy"
               style={{
                 maxWidth: "100%",
                 maxHeight: "100%",
@@ -108,7 +101,6 @@ const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
                 objectFit: "contain",
                 display: "block",
               }}
-              onError={() => setImageError(true)}
             />
           ) : (
             <div
@@ -172,9 +164,7 @@ const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
             }}
           >
             Set&nbsp;
-            <span style={{ fontWeight: 600, color: "#111827" }}>
-              {set_num}
-            </span>
+            <span style={{ fontWeight: 600, color: "#111827" }}>{set_num}</span>
           </div>
         </div>
 
@@ -211,11 +201,7 @@ const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
               flex: 1,
             }}
           >
-            {percent >= 100
-              ? "Ready to build!"
-              : percent <= 0
-              ? "No parts yet"
-              : "On your way"}
+            {percent >= 100 ? "Ready to build!" : percent <= 0 ? "No parts yet" : "On your way"}
           </div>
         </div>
 
@@ -228,8 +214,7 @@ const BuildabilityTile: React.FC<BuildabilityTileProps> = ({
               marginTop: "0.15rem",
             }}
           >
-            {have.toLocaleString()} / {needed.toLocaleString()} pieces
-            available
+            {have.toLocaleString()} / {needed.toLocaleString()} pieces available
           </div>
         )}
       </div>

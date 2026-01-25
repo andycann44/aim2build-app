@@ -1,10 +1,11 @@
 import React from "react";
+import { API_BASE } from "../api/client";
 
 type SafeImgProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   fallbackSrc?: string;
 };
 
-const DEFAULT_FALLBACK = "/branding/missing.png";
+const DEFAULT_FALLBACK = "/img/missing.png";
 
 const SafeImg: React.FC<SafeImgProps> = ({
   src,
@@ -12,30 +13,32 @@ const SafeImg: React.FC<SafeImgProps> = ({
   onError,
   ...rest
 }) => {
-  const [currentSrc, setCurrentSrc] = React.useState(() => {
-    const trimmed = typeof src === "string" ? src.trim() : "";
-    return trimmed ? trimmed : fallbackSrc;
-  });
-  const fallbackTried = React.useRef(false);
-
-  React.useEffect(() => {
-    const trimmed = typeof src === "string" ? src.trim() : "";
-    const next = trimmed ? trimmed : fallbackSrc;
-    setCurrentSrc(next);
-    fallbackTried.current = next === fallbackSrc;
+  const resolvedSrc = src;
+  const initialSrc = React.useMemo(() => {
+    const s = typeof src === "string" ? src.trim() : "";
+    return s || fallbackSrc;
   }, [src, fallbackSrc]);
 
-  const handleError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    if (!fallbackTried.current && fallbackSrc && currentSrc !== fallbackSrc) {
-      fallbackTried.current = true;
-      setCurrentSrc(fallbackSrc);
-    }
-    if (onError) {
-      onError(event);
-    }
-  };
+  const [currentSrc, setCurrentSrc] = React.useState(initialSrc);
 
-  return <img {...rest} src={currentSrc} onError={handleError} />;
+  React.useEffect(() => {
+    setCurrentSrc(initialSrc);
+  }, [initialSrc]);
+
+  return (
+    <img
+      {...rest}
+      src={currentSrc}
+      loading={rest.loading ?? "lazy"}
+      decoding={rest.decoding ?? "async"}
+      onError={(e) => {
+        if (currentSrc !== fallbackSrc) {
+          setCurrentSrc(fallbackSrc);
+        }
+        onError?.(e);
+      }}
+    />
+  );
 };
 
 export default SafeImg;
