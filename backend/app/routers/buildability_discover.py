@@ -1,5 +1,6 @@
 from typing import Dict, List, Any, Set
 
+from app.core.exclusions import load_excludes
 from fastapi import APIRouter, Depends, Query
 
 from app.catalog_db import db
@@ -265,4 +266,63 @@ def discover_buildability(
     if include_counts and scanned_sets is not None:
         return [{"scanned_sets": scanned_sets, "returned_sets": len(results)}] + results
 
-    return results
+    # --- A2B_EXCLUSIONS_FILTER_DISCOVER ---
+    # Remove excluded sets/themes from Discover results
+    _excl_sets, _excl_themes = load_excludes()
+    try:
+        _items = locals().get("out") or locals().get("results") or locals().get("rows") or None
+        if isinstance(_items, list):
+            _filtered = []
+            for _r in _items:
+                try:
+                    _set_num = (_r.get("set_num") if isinstance(_r, dict) else None)
+                    _theme_id = (_r.get("theme_id") if isinstance(_r, dict) else None)
+                    if _set_num:
+                        # normalize digits -> -1
+                        _sn = str(_set_num).strip()
+                        if _sn.isdigit():
+                            _sn = _sn + "-1"
+                        if _sn in _excl_sets:
+                            continue
+                        if _theme_id is not None:
+                            try:
+                                if int(_theme_id) in _excl_themes:
+                                    continue
+                            except Exception:
+                                pass
+                    _filtered.append(_r)
+                except Exception:
+                    _filtered.append(_r)
+            # write back to the same variable name we found
+            if "out" in locals():
+                out = _filtered
+            elif "results" in locals():
+                results = _filtered
+            elif "rows" in locals():
+                rows = _filtered
+    except Exception:
+        pass
+    # --- /A2B_EXCLUSIONS_FILTER_DISCOVER ---
+
+    # --- A2B_DISCOVER_EXCLUDE_FILTER ---
+    _ex_sets, _ex_themes = load_excludes()
+    _ret = results
+    if isinstance(_ret, list):
+        _filtered = []
+        for _r in _ret:
+            try:
+                _sn = _r.get("set_num") if isinstance(_r, dict) else None
+                if _sn:
+                    _sn = str(_sn).strip()
+                    if _sn.isdigit():
+                        _sn = _sn + "-1"
+                    if _sn in _ex_sets:
+                        continue
+                _filtered.append(_r)
+            except Exception:
+                _filtered.append(_r)
+        _ret = _filtered
+    # --- /A2B_DISCOVER_EXCLUDE_FILTER ---
+    return _ret
+
+

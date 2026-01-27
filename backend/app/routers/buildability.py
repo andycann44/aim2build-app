@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Tuple, Set
 
+from app.core.exclusions import check_set_allowed
+from app.routers.search import _a2b_apply_excludes
+
 from app.catalog_db import db, get_catalog_parts_for_set, get_set_num_parts
 from app.routers.auth import get_current_user, User
 from app.routers.inventory import load_inventory_parts
@@ -84,6 +87,15 @@ def compare_buildability(
     id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
 ):
+    # --- A2B_EXCLUSION_ENFORCED ---
+    _raw = (locals().get('set_num') or locals().get('set') or locals().get('id') or locals().get('set_id'))
+    if _raw:
+        with db() as con:
+            _ex = check_set_allowed(str(_raw), con)
+        if not _ex.get('allowed', True):
+            _src = _ex.get('source') or 'set'
+            raise HTTPException(status_code=404, detail=f"Excluded ({_src})")
+    # --- /A2B_EXCLUSION_ENFORCED ---
     """
     Compare inventory vs a single set.
 
@@ -196,6 +208,15 @@ def batch_compare_buildability(
     payload: BatchCompareRequest,
     current_user: User = Depends(get_current_user),
 ):
+    # --- A2B_EXCLUSION_ENFORCED ---
+    _raw = (locals().get('set_num') or locals().get('set') or locals().get('id') or locals().get('set_id'))
+    if _raw:
+        with db() as con:
+            _ex = check_set_allowed(str(_raw), con)
+        if not _ex.get('allowed', True):
+            _src = _ex.get('source') or 'set'
+            raise HTTPException(status_code=404, detail=f"Excluded ({_src})")
+    # --- /A2B_EXCLUSION_ENFORCED ---
     """
     Compare inventory against multiple sets in one call.
 
@@ -270,7 +291,7 @@ def batch_compare_buildability(
                 }
             )
 
-    return results
+    return _a2b_apply_excludes(results)
 
 
 # Backwards-compatible helper retained for any older code that imports it.
