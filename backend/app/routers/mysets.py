@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from app.user_db import user_db
 from app.catalog_db import db as catalog_db
 from app.routers.auth import get_current_user, User
+from app.core.image_resolver import resolve_image_url
 
 router = APIRouter()
 
@@ -52,15 +53,13 @@ def _catalog_set_meta(set_num: str) -> Dict[str, Any]:
                 return {"set_num": sn}
 
             set_img_url = (row[4] or "").strip()
-            if not set_img_url:
-                set_img_url = f"https://cdn.rebrickable.com/media/sets/{sn}.jpg"
 
             return {
                 "set_num": row[0] or sn,
                 "name": row[1],
                 "year": int(row[2]) if row[2] is not None else None,
                 "num_parts": int(row[3] or 0),
-                "img_url": set_img_url,
+                "img_url": resolve_image_url(set_img_url),
             }
     except Exception:
         return {"set_num": sn}

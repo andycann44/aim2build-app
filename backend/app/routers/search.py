@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from rapidfuzz import fuzz
 
 from app.paths import DATA_DIR
+from app.core.image_resolver import resolve_image_url
 
 router = APIRouter()
 
@@ -158,7 +159,7 @@ def _row_to_set(row: sqlite3.Row) -> Dict:
         "name": name,
         "year": int(row["year"]) if row["year"] is not None else None,
         "num_parts": int(row["num_parts"] or 0),
-        "img_url": img,
+        "img_url": resolve_image_url(img),
     }
 
 
