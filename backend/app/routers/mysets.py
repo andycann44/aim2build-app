@@ -52,14 +52,14 @@ def _catalog_set_meta(set_num: str) -> Dict[str, Any]:
             if not row:
                 return {"set_num": sn}
 
-            set_img_url = (row[4] or "").strip()
+            set_img_url = resolve_image_url((row[4] or "").strip())
 
             return {
                 "set_num": row[0] or sn,
                 "name": row[1],
                 "year": int(row[2]) if row[2] is not None else None,
                 "num_parts": int(row[3] or 0),
-                "img_url": resolve_image_url(set_img_url),
+                "img_url": set_img_url,
             }
     except Exception:
         return {"set_num": sn}

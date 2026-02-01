@@ -5,6 +5,8 @@ from typing import List, Optional, Dict, Any, Tuple
 from app.user_db import user_db
 from app.routers.auth import get_current_user, User
 from app.catalog_db import db as catalog_db
+from app.core.image_resolver import resolve_image_url
+
 
 router = APIRouter()
 
@@ -254,7 +256,7 @@ def has_any_inventory(current_user: User = Depends(get_current_user)):
 def get_parts(current_user: User = Depends(get_current_user)):
     parts = _load_db_parts(current_user.id)
     for p in parts:
-        p["part_img_url"] = _img_for(p["part_num"], int(p["color_id"]))
+        p["part_img_url"] = resolve_image_url(_img_for(p["part_num"], int(p["color_id"])) )
     return parts
 
 
@@ -262,7 +264,7 @@ def get_parts(current_user: User = Depends(get_current_user)):
 def get_parts_with_images(current_user: User = Depends(get_current_user)):
     parts = _load_db_parts(current_user.id)
     for p in parts:
-        p["part_img_url"] = _img_for(p["part_num"], int(p["color_id"]))
+        p["part_img_url"] = resolve_image_url(_img_for(p["part_num"], int(p["color_id"])) )
     return parts
 
 

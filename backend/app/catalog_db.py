@@ -3,6 +3,8 @@ from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 import sqlite3
 
+from app.core.image_resolver import resolve_image_url
+
 # Path to lego_catalog.db
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "data" / "lego_catalog.db"
@@ -136,9 +138,9 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
             "color_id": int(row["color_id"]),
             "quantity": int(row["quantity"] or 0),
             # keep legacy key too (some callers still expect it)
-            "part_img_url": row["img_url"],
+            "part_img_url": resolve_image_url(row["img_url"]),
             # preferred key
-            "img_url": row["img_url"],
+            "img_url": resolve_image_url(row["img_url"]),
         }
         for row in rows
     ]

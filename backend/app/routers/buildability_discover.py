@@ -6,6 +6,7 @@ from app.catalog_db import db
 from app.routers.auth import get_current_user, User
 from app.routers.buildability import load_inventory_map
 from app.user_db import user_db
+from app.core.image_resolver import resolve_image_url
 
 router = APIRouter()
 
@@ -256,7 +257,7 @@ def discover_buildability(
         if row["year"] is not None:
             item["year"] = int(row["year"])
         if row["img_url"] is not None:
-            item["img_url"] = row["img_url"]
+            item["img_url"] = resolve_image_url(row["img_url"])
         if row["num_parts"] is not None:
             item["num_parts"] = int(row["num_parts"])
 

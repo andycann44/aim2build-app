@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any
 import re
 
 from app.catalog_db import db, get_catalog_parts_for_set
+from app.core.image_resolver import resolve_image_url
 
 router = APIRouter(tags=["catalog"])
 
@@ -181,7 +182,7 @@ def list_top_part_categories() -> List[Dict[str, Any]]:
                 (cat_id,),
             )
             img_row = img_cur.fetchone()
-            sample_img = img_row["img_url"] if img_row else None
+            sample_img = resolve_image_url(img_row["img_url"]) if img_row else None
 
             out.append(
                 {
@@ -244,7 +245,7 @@ def parts_by_category(
             "part_num": r["part_num"],
             "part_name": r["part_name"],
             "part_cat_id": r["part_cat_id"],
-            "part_img_url": r["part_img_url"],
+            "part_img_url": resolve_image_url(r["part_img_url"]),
         }
         for r in rows
     ]
@@ -286,7 +287,7 @@ def get_catalog_parts(
                     "part_num": part_num,
                     "color_id": color_id,
                     "quantity": quantity,
-                    "part_img_url": img,
+                    "part_img_url": resolve_image_url(img),
                 }
             )
 
@@ -428,7 +429,7 @@ def search_parts(
         {
             "part_num": r["part_num"],
             "name": r["name"],
-            "part_img_url": r["part_img_url"],
+            "part_img_url": resolve_image_url(r["part_img_url"]),
             "image_exists": int(r["image_exists"]) if r["image_exists"] is not None else 0,
         }
         for r in rows
@@ -491,7 +492,7 @@ def get_elements_by_part(
             "part_num": r["part_num"],
             "color_id": int(r["color_id"]) if r["color_id"] is not None else None,
             "color_name": r["color_name"],
-            "img_url": r["img_url"],
+            "img_url": resolve_image_url(r["img_url"]),
             "element_id": r["element_id"],
         }
         for r in rows
@@ -553,7 +554,10 @@ def catalog_image_sample(
         LIMIT ? OFFSET ?
         """
         rows = con.execute(sql, (int(limit), int(offset), *params)).fetchall()
-        return [dict(r) for r in rows]
+        out = [dict(r) for r in rows]
+        for item in out:
+            item["img_url"] = resolve_image_url(item.get("img_url"))
+        return out
 
 
 # ------------------------------------------------------------
@@ -608,7 +612,7 @@ def get_parts_v2(set: str = None, set_num: str = None, id: str = None):
         for ext in (".jpg", ".png", ".webp"):
             fp = static_root / pn / f"{cid}{ext}"
             if fp.exists():
-                return f"/static/element_images/{pn}/{cid}{ext}"
+                return resolve_image_url(f"/static/element_images/{pn}/{cid}{ext}")
         return None
 
     out = []
@@ -622,6 +626,7 @@ def get_parts_v2(set: str = None, set_num: str = None, id: str = None):
             disp = local_img_url(base_part(pn), cid)
 
         disp = disp or "/img/missing.png"
+        disp = resolve_image_url(disp)
 
         out.append(
             {

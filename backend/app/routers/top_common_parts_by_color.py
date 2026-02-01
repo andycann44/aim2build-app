@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from app.catalog_db import db
+from app.core.image_resolver import resolve_image_url
+
 
 
 router = APIRouter()

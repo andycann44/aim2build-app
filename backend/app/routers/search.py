@@ -153,13 +153,17 @@ def _allow_small_sets(q_norm: str) -> bool:
 def _row_to_set(row: sqlite3.Row) -> Dict:
     set_num = (row["set_num"] or "").strip()
     name = (row["name"] or "").strip()
-    img = (row["set_img_url"] or "").strip() if "set_img_url" in row.keys() else ""
+    img = (
+        resolve_image_url((row["set_img_url"] or "").strip())
+        if "set_img_url" in row.keys()
+        else ""
+    )
     return {
         "set_num": set_num,
         "name": name,
         "year": int(row["year"]) if row["year"] is not None else None,
         "num_parts": int(row["num_parts"] or 0),
-        "img_url": resolve_image_url(img),
+        "img_url": img,
     }
 
 

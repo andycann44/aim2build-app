@@ -6,6 +6,7 @@ import json
 from app.catalog_db import db as catalog_db
 from app.paths import DATA_DIR
 from app.routers.auth import get_current_user, User
+from app.core.image_resolver import resolve_image_url
 
 router = APIRouter()
 
@@ -54,7 +55,40 @@ def _resolve_set_num(raw: str) -> str:
 
 @router.get("")
 def list_wishlist(current_user: User = Depends(get_current_user)):
-    return _load(current_user.id)
+    data = _load(current_user.id)
+
+    # normalize stored items -> list of set_nums
+    set_nums = []
+    for s in data.get("sets", []):
+        if isinstance(s, str):
+            sn = s
+        elif isinstance(s, dict):
+            sn = s.get("set_num") or ""
+        else:
+            sn = ""
+        if sn:
+            set_nums.append(sn)
+
+    if not set_nums:
+        return {"sets": []}
+
+    # fetch images in one query
+    placeholders = ",".join(["?"] * len(set_nums))
+    img_map = {}
+    with catalog_db() as con:
+        cur = con.execute(
+            f"SELECT set_num, set_img_url FROM sets WHERE set_num IN ({placeholders})",
+            tuple(set_nums),
+        )
+        for row in cur.fetchall():
+            # row[1] might be '/static/set_images/....jpg' or already https://...
+            img_map[row[0]] = resolve_image_url(row[1]) if row[1] else None
+
+    # return enriched objects (safe: keep set_num, add img_url)
+    out = []
+    for sn in set_nums:
+        out.append({"set_num": sn, "img_url": img_map.get(sn)})
+    return {"sets": out}
 
 @router.post("/add")
 def add_wishlist(
