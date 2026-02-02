@@ -8,6 +8,8 @@ import re
 
 from app.catalog_db import db, get_catalog_parts_for_set
 
+
+from app.core.image_resolver import resolve_image_url
 router = APIRouter(tags=["catalog"])
 
 def _is_printed_part_num(part_num: str) -> bool:
@@ -562,80 +564,55 @@ def catalog_image_sample(
 # - display_img_url resolves to /static/element_images/<part>/<color>.jpg if present
 # - Printed variants (..pr....) fall back to base part image for display only
 # ------------------------------------------------------------
+
 @router.get("/parts-v2")
-def get_parts_v2(set: str = None, set_num: str = None, id: str = None):
-    set_id = (set or set_num or id or "").strip()
-    if not set_id:
+def get_parts_v2(
+    set: Optional[str] = Query(None),
+    set_num: Optional[str] = Query(None),
+    id: Optional[str] = Query(None),
+) -> List[Dict[str, Any]]:
+    """
+    Buildability-details parts endpoint.
+
+    Fixes:
+    - DEDUPE: uses get_catalog_parts_for_set() (canonical requirements) to avoid repeated rows.
+    - IMAGES: resolves DB img_url via resolve_image_url() so UI hits img.aim2build.co.uk (R2).
+    - STRICT: no printed-to-base fallback (printed part_nums are distinct).
+    """
+    raw = set_num or set or id
+    if not raw:
         return []
 
-    # Normalize set number: allow plain "21330" -> "21330-1"
-    if "-" not in set_id and set_id.isdigit():
-        set_id = f"{set_id}-1"
+    set_id = _normalize_set_id(raw)
 
-    # Local-only V2: open catalog DB directly (avoid _db() dependency)
+    base_parts = get_catalog_parts_for_set(set_id)
+    if not base_parts:
+        raise HTTPException(status_code=404, detail=f"No catalog parts found for set {set_id}")
 
-    db_path = (Path(__file__).resolve().parent.parent / 'data' / 'lego_catalog.db')
+    out: List[Dict[str, Any]] = []
 
-    con = sqlite3.connect(str(db_path))
+    with db() as con:
+        for row in base_parts:
+            pn = str(row["part_num"])
+            cid = int(row["color_id"])
+            qty = int(row["quantity"])
 
-    con.row_factory = sqlite3.Row
-    # Get requirements/parts for the set (same as /parts uses)
-    rows = con.execute(
-        """
-        SELECT
-          set_num,
-          part_num,
-          color_id,
-          qty_per_set as quantity
-        FROM set_parts
-        WHERE set_num = ?
-        """,
-        (set_id,),
-    ).fetchall()
+            raw_img = _resolve_part_img_url_from_db(con, pn, cid)
+            img = resolve_image_url(raw_img) if raw_img else None
 
-    static_root = Path(__file__).resolve().parent.parent / "static" / "element_images"
-
-    def is_printed(pn: str) -> bool:
-        return isinstance(pn, str) and ("pr" in pn)
-
-    def base_part(pn: str) -> str:
-        m = re.match(r"^(\d+)", pn or "")
-        return m.group(1) if m else pn
-
-    def local_img_url(pn: str, cid: int):
-        # Files on disk are: backend/app/static/element_images/<part_num>/<color_id>.jpg
-        # Try jpg then png then webp.
-        for ext in (".jpg", ".png", ".webp"):
-            fp = static_root / pn / f"{cid}{ext}"
-            if fp.exists():
-                return f"/static/element_images/{pn}/{cid}{ext}"
-        return None
-
-    out = []
-    for r in rows:
-        pn = str(r["part_num"])
-        cid = int(r["color_id"])
-
-        disp = local_img_url(pn, cid)
-        printed = is_printed(pn)
-        if not disp and printed:
-            disp = local_img_url(base_part(pn), cid)
-
-        disp = disp or "/img/missing.png"
-
-        out.append(
-            {
-                "set_num": str(r["set_num"]),
-                "part_num": pn,
-                "color_id": cid,
-                "quantity": int(r["quantity"]),
-                "part_img_url": disp,          # keep existing name so old UI still works
-                "display_img_url": disp,       # explicit v2 field
-                "is_printed": bool(printed),
-                "is_sticker": False,
-            }
-        )
-
-    con.close()
+            out.append(
+                {
+                    "set_num": set_id,
+                    "part_num": pn,
+                    "color_id": cid,
+                    "quantity": qty,
+                    # both fields for compatibility
+                    "part_img_url": img,
+                    "display_img_url": img,
+                    "is_printed": bool(_is_printed_part_num(pn)),
+                    "is_sticker": False,
+                }
+            )
 
     return out
+
