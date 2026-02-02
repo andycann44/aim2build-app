@@ -48,24 +48,50 @@ def _resolve_part_img_url_from_db(
 ) -> Optional[str]:
     """
     STRICT image resolution:
-    - element_best_image / element_images are our DB truth (NOT Rebrickable HTTP)
-    - exact (part_num, color_id) match only
-    - if not found -> None
+    - Return ONE winner per (part_num, color_id).
+    - Prefer element_best_image if the table exists.
+    - Else fall back to element_images.
+    - Exact match only. (Printed parts are distinct part_nums — no fallback.)
     """
-    cur = con.execute(
+    # 1) Try element_best_image (if present)
+    try:
+        row = con.execute(
+            """
+            SELECT img_url
+            FROM element_best_image
+            WHERE part_num = ?
+              AND color_id = ?
+            LIMIT 1
+            """,
+            (part_num, color_id),
+        ).fetchone()
+        if row and row["img_url"]:
+            u = str(row["img_url"]).strip()
+            if u:
+                return u
+    except Exception:
+        # Most common: sqlite3.OperationalError: no such table: element_best_image
+        pass
+
+    # 2) Fall back to element_images (exact match)
+    row = con.execute(
         """
-        SELECT bi.img_url
-        FROM element_best_image bi
-        WHERE bi.part_num = ?
-          AND bi.color_id = ?
+        SELECT img_url
+        FROM element_images
+        WHERE part_num = ?
+          AND color_id = ?
+          AND img_url IS NOT NULL
+          AND TRIM(img_url) <> ''
         LIMIT 1
         """,
         (part_num, color_id),
-    )
-    row = cur.fetchone()
+    ).fetchone()
+
     if not row:
         return None
-    return row["img_url"]
+
+    u = str(row["img_url"]).strip()
+    return u if u else None
 
 
 def _normalize_set_id(raw: str) -> str:
