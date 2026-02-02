@@ -3,6 +3,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
+import os
+import json
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
 from app.db import init_db
 
 from app.routers import (
@@ -21,6 +26,112 @@ from app.routers import auth as auth_router
 from app.routers.auth import get_current_user
 
 app = FastAPI(title="Aim2Build API")
+
+
+# -----------------------
+# Global image URL resolver (JSON responses)
+# -----------------------
+
+IMG_PREFIXES = ("/static/", "/set_images/", "static/", "set_images/")
+IMG_KEYS = {
+    "img_url",
+    "part_img_url",
+    "display_img_url",
+    "set_img_url",
+}
+
+def resolve_image_url(value: str) -> str:
+    """
+    Convert known relative image paths into absolute URLs for the R2 image domain.
+
+    Examples:
+      /static/element_images/3003/3003__5.jpg
+        -> https://img.aim2build.co.uk/static/element_images/3003/3003__5.jpg
+
+      static/element_images/3003/3003__5.jpg
+        -> https://img.aim2build.co.uk/static/element_images/3003/3003__5.jpg
+    """
+    if not isinstance(value, str) or not value:
+        return value
+
+    # already absolute
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+
+    base = os.getenv("AIM2BUILD_IMG_BASE", "https://img.aim2build.co.uk").rstrip("/")
+
+    # normalize
+    if value.startswith("static/") or value.startswith("set_images/"):
+        return f"{base}/{value}"
+
+    if value.startswith("/static/") or value.startswith("/set_images/"):
+        return f"{base}{value}"
+
+    return value
+
+
+def _rewrite_images(obj):
+    """
+    Recursively rewrite image-ish strings in JSON payloads.
+    - If a dict key is one of IMG_KEYS, rewrite its string value.
+    - Also rewrite any string value that starts with known image prefixes.
+    """
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if isinstance(v, str) and (k in IMG_KEYS or v.startswith(IMG_PREFIXES)):
+                out[k] = resolve_image_url(v)
+            else:
+                out[k] = _rewrite_images(v)
+        return out
+
+    if isinstance(obj, list):
+        return [_rewrite_images(x) for x in obj]
+
+    if isinstance(obj, str) and obj.startswith(IMG_PREFIXES):
+        return resolve_image_url(obj)
+
+    return obj
+
+
+class RewriteImageUrlsMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        resp = await call_next(request)
+
+        ctype = resp.headers.get("content-type", "")
+        if "application/json" not in ctype:
+            return resp
+
+        body = b""
+        async for chunk in resp.body_iterator:
+            body += chunk
+
+        try:
+            data = json.loads(body.decode("utf-8"))
+        except Exception:
+            # If we can't parse JSON, return original body unchanged.
+            return Response(
+                content=body,
+                status_code=resp.status_code,
+                headers=dict(resp.headers),
+                media_type=resp.media_type,
+            )
+
+        data2 = _rewrite_images(data)
+        new_body = json.dumps(data2).encode("utf-8")
+
+        headers = dict(resp.headers)
+        headers["content-length"] = str(len(new_body))
+
+        return Response(
+            content=new_body,
+            status_code=resp.status_code,
+            headers=headers,
+            media_type="application/json",
+        )
+
+
+app.add_middleware(RewriteImageUrlsMiddleware)
 
 
 # Serve local static assets (element_images, etc.)
