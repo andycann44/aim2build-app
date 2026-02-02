@@ -1,42 +1,51 @@
-import React from "react";
-import { API_BASE } from "../api/client";
+import React, { useMemo, useState } from "react";
 
 type SafeImgProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   fallbackSrc?: string;
 };
 
-const DEFAULT_FALLBACK = "/img/missing.png";
+const IMG_BASE =
+  (import.meta as any).env?.VITE_IMG_BASE?.replace(/\/+$/, "") ||
+  "https://img.aim2build.co.uk";
+
+function resolveImgSrc(src?: string | null): string | undefined {
+  if (!src) return undefined;
+
+  // already absolute
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    return src;
+  }
+
+  // normalise leading slash
+  let s = src;
+  if (s.startsWith("static/")) s = "/" + s;
+  if (s.startsWith("set_images/")) s = "/" + s;
+
+  // rewrite known image roots to R2
+  if (s.startsWith("/static/") || s.startsWith("/set_images/")) {
+    return `${IMG_BASE}${s}`;
+  }
+
+  return src;
+}
 
 const SafeImg: React.FC<SafeImgProps> = ({
   src,
-  fallbackSrc = DEFAULT_FALLBACK,
-  onError,
-  ...rest
+  fallbackSrc = "/missing.png",
+  ...props
 }) => {
-  const resolvedSrc = src;
-  const initialSrc = React.useMemo(() => {
-    const s = typeof src === "string" ? src.trim() : "";
-    return s || fallbackSrc;
-  }, [src, fallbackSrc]);
+  const [errored, setErrored] = useState(false);
 
-  const [currentSrc, setCurrentSrc] = React.useState(initialSrc);
-
-  React.useEffect(() => {
-    setCurrentSrc(initialSrc);
-  }, [initialSrc]);
+  const finalSrc = useMemo(() => {
+    if (errored) return fallbackSrc;
+    return resolveImgSrc(src) || fallbackSrc;
+  }, [src, errored, fallbackSrc]);
 
   return (
     <img
-      {...rest}
-      src={currentSrc}
-      loading={rest.loading ?? "lazy"}
-      decoding={rest.decoding ?? "async"}
-      onError={(e) => {
-        if (currentSrc !== fallbackSrc) {
-          setCurrentSrc(fallbackSrc);
-        }
-        onError?.(e);
-      }}
+      {...props}
+      src={finalSrc}
+      onError={() => setErrored(true)}
     />
   );
 };
