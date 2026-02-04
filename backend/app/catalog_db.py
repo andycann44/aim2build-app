@@ -2,6 +2,8 @@ from pathlib import Path
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 import sqlite3
+import os
+
 
 # Path to lego_catalog.db
 BASE_DIR = Path(__file__).resolve().parent
@@ -31,6 +33,7 @@ def _normalise_set_id(set_num: str) -> str:
         return f"{set_id}-1"
     return set_id
 
+
 def _apply_color_to_img_url(url: Optional[str], color_id: int) -> Optional[str]:
     """
     Given a Rebrickable part_img_url and a desired color_id,
@@ -50,6 +53,18 @@ def _apply_color_to_img_url(url: Optional[str], color_id: int) -> Optional[str]:
         return "/".join(parts)
     except Exception:
         return url
+
+def _abs_img(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    base = (os.getenv("A2B_STATIC_BASE_URL") or "").rstrip("/")
+    if not base:
+        return url
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if not url.startswith("/"):
+        url = "/" + url
+    return base + url   
 
 def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
     """
@@ -73,7 +88,7 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
         return row is not None
 
     with db() as con:
-        # Prefer instruction-derived requirements if present
+        # Prefer instruction-derived requirements if present (currently disabled)
         if False and _table_exists(con, "instruction_set_requirements"):
             cur = con.execute(
                 """
@@ -91,6 +106,43 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
                 (set_id,),
             )
             rows = cur.fetchall()
+
+        # Otherwise fall back to set_parts
+                # Prefer inventories/inventory_parts (latest version) if present
+        elif _table_exists(con, "inventories") and _table_exists(con, "inventory_parts"):
+            latest = con.execute(
+                """
+                SELECT inventory_id
+                FROM inventories
+                WHERE set_num = ?
+                ORDER BY version DESC, inventory_id DESC
+                LIMIT 1
+                """,
+                (set_id,),
+            ).fetchone()
+
+            if latest is None:
+                rows = []
+            else:
+                inv_id = int(latest["inventory_id"]) if isinstance(latest, sqlite3.Row) else int(latest[0])
+
+                cur = con.execute(
+                    """
+                    SELECT
+                        p.part_num,
+                        p.color_id,
+                        p.quantity AS quantity,
+                        ei.img_url AS img_url
+                    FROM inventory_parts AS p
+                    LEFT JOIN element_images AS ei
+                      ON ei.part_num = p.part_num AND ei.color_id = p.color_id
+                    WHERE p.inventory_id = ?
+                      AND (p.is_spare IS NULL OR p.is_spare = 0)
+                    ORDER BY p.part_num, p.color_id
+                    """,
+                    (inv_id,),
+                )
+                rows = cur.fetchall()
 
         # Otherwise fall back to set_parts
         elif _table_exists(con, "set_parts"):
@@ -135,11 +187,8 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
             "part_num": row["part_num"],
             "color_id": int(row["color_id"]),
             "quantity": int(row["quantity"] or 0),
-            # keep legacy key too (some callers still expect it)
-            "part_img_url": row["img_url"],
-            # preferred key
-            "img_url": row["img_url"],
-        }
+            "part_img_url": _abs_img(row["img_url"]),
+            "img_url": _abs_img(row["img_url"]),        }
         for row in rows
     ]
 

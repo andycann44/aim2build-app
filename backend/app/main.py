@@ -23,10 +23,19 @@ from app.routers.auth import get_current_user
 app = FastAPI(title="Aim2Build API")
 
 
-# Serve local static assets (element_images, etc.)
-STATIC_DIR = Path(__file__).resolve().parent / "static"
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+import os
+from fastapi.responses import RedirectResponse
 
+STATIC_BASE_URL = (os.getenv("A2B_STATIC_BASE_URL") or "").rstrip("/")
+
+if STATIC_BASE_URL:
+    @app.api_route("/static/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+    def static_redirect(path: str):
+        return RedirectResponse(url=f"{STATIC_BASE_URL}/static/{path}", status_code=302)
+else:
+    # keep whatever local static behavior you want here (or leave disabled)
+    pass
+        
 # -----------------------
 # CORS (open for local dev)
 # -----------------------
@@ -129,3 +138,13 @@ app.include_router(
     prefix="/api",
     tags=["top-common-parts-by-color"],
 )
+
+# A2B_STATIC_ALWAYS_R2
+@app.get("/static/{path:path}")
+def a2b_static_r2(path: str):
+    base = os.environ.get("A2B_STATIC_BASE_URL", "").strip().rstrip("/")
+    if not base:
+        # No local fallback by design.
+        return RedirectResponse("/api/health", status_code=302)
+    return RedirectResponse(f"{base}/{path}", status_code=302)
+

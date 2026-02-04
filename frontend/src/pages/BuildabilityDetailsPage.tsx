@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { API_BASE } from "../api/client";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { authHeaders } from "../utils/auth";
@@ -63,6 +63,12 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
   const [parts, setParts] = useState<CatalogPart[]>([]);
   const [setImgUrl, setSetImgUrl] = useState<string | null>(null);
 
+
+    // React 18 StrictMode (dev) runs effects twice. Guard per setId+demo.
+  const compareKeyRef = useRef<string>("");
+  const partsKeyRef = useRef<string>("");
+  const metaKeyRef = useRef<string>("");
+
   // -----------------------
   // Progressive parts rendering (scroll-driven)
   // -----------------------
@@ -106,6 +112,10 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
       return;
     }
     // reset for new set
+    compareKeyRef.current = "";
+    partsKeyRef.current = "";
+    metaKeyRef.current = "";
+    
     setSummary(null);
     setParts([]);
     setSetImgUrl(null);
@@ -120,6 +130,10 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
   // -----------------------
   useEffect(() => {
     if (!setId) return;
+
+    const key = `${setId}|${demo}`;
+    if (compareKeyRef.current === key) return;
+    compareKeyRef.current = key;
 
     const controller = new AbortController();
     const headers = authHeaders();
@@ -173,6 +187,10 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
   // -----------------------
   useEffect(() => {
     if (!setId) return;
+
+    const key = `${setId}|${demo}`;
+    if (partsKeyRef.current === key) return;
+    partsKeyRef.current = key;
 
     const controller = new AbortController();
     const headers = authHeaders();
@@ -241,6 +259,10 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
   // -----------------------
   useEffect(() => {
     if (!setId) return;
+
+    const key = `${setId}|${demo}`;
+    if (metaKeyRef.current === key) return;
+    metaKeyRef.current = key;
 
     const controller = new AbortController();
     const headers = authHeaders();
