@@ -6,6 +6,7 @@ from pathlib import Path
 from app.db import init_db
 
 from app.routers import (
+    ui_assets,
     admin_tools,
     mysets,
     wishlist,
@@ -126,6 +127,13 @@ app.include_router(
     catalog.router,
     prefix="/api/catalog",
     tags=["catalog"],
+)
+
+# UI assets (public)
+app.include_router(
+    ui_assets.router,
+    prefix="/api/ui",
+    tags=["ui-assets"],
 )
 
 # Images (public; R2-only URLs)

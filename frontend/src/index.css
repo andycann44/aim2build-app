@@ -1134,3 +1134,65 @@ body.aim2-root {
   flex-direction: column;
   gap: 2px;
 }
+
+/* ---- Brick Category Strip (under hero) ---- */
+.brickCatStrip{
+  display:flex;
+  gap:0.75rem;
+  overflow-x:auto;
+  padding: 0.75rem 0 0.9rem;
+  margin: 0.25rem 0 0.75rem;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+.brickCatStrip::-webkit-scrollbar{ height: 8px; }
+.brickCatStrip::-webkit-scrollbar-thumb{ background: rgba(15,23,42,0.18); border-radius: 999px; }
+
+.brickCatPill{
+  flex: 0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:0.6rem;
+  border-radius: 16px;
+  padding: 0.55rem 0.85rem;
+  background: rgba(255,255,255,0.92);
+  border: 2px solid rgba(255,255,255,0.55);
+  box-shadow: 0 10px 24px rgba(2,6,23,0.12);
+  cursor:pointer;
+  scroll-snap-align: start;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+.brickCatPill--active{
+  border-color: rgba(59,130,246,0.65);
+  box-shadow: 0 14px 36px rgba(2,6,23,0.18);
+}
+
+.brickCatIcon{
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  overflow:hidden;
+  background: rgba(15,23,42,0.06);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.brickCatIcon img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.brickCatLabel{
+  font-weight: 900;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.brickCatBlank{
+  border-radius: 18px;
+  padding: 1.1rem 1rem;
+  background: rgba(255,255,255,0.86);
+  border: 2px dashed rgba(15,23,42,0.18);
+  color: rgba(15,23,42,0.7);
+  font-weight: 800;
+}

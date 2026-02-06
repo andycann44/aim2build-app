@@ -7,6 +7,8 @@ import { searchParts, API_BASE } from "../api/client";
 import { authHeaders } from "../utils/auth";
 import PageHero from "../components/PageHero";
 
+type BrickCategory = { key: string; label: string; img_url: string; sort_order?: number };
+
 type PartSummary = {
   part_num: string;
   part_name?: string | null;
@@ -181,6 +183,8 @@ const InventoryAddBrickInner: React.FC = () => {
 
   const [term, setTerm] = useState("");
   const [categoryParts, setCategoryParts] = useState<PartSummary[]>([]);
+  const [brickCats, setBrickCats] = useState<BrickCategory[]>([]);
+  const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [searchPartsList, setSearchPartsList] = useState<PartSummary[]>([]);
   const [selectedPart, setSelectedPart] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -333,7 +337,27 @@ const InventoryAddBrickInner: React.FC = () => {
     [owned]
   );
 
+  
+  // Brick category strip (public; DB-backed; icons are R2 URLs)
   useEffect(() => {
+    let cancelled = false;
+    async function loadCats() {
+      try {
+        const res = await fetch(`${API_BASE}/api/ui/brick-categories`);
+        if (!res.ok) return;
+        const json = (await res.json()) as BrickCategory[];
+        if (!cancelled) setBrickCats(Array.isArray(json) ? json : []);
+      } catch {
+        // ignore
+      }
+    }
+    loadCats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+useEffect(() => {
     void loadInventory();
   }, [loadInventory]);
 
@@ -405,6 +429,35 @@ const InventoryAddBrickInner: React.FC = () => {
           />
         </div>
       </PageHero>
+
+
+      {/* Brick category strip (under hero) */}
+      <div className="brickCatStrip" aria-label="Brick categories">
+        {brickCats.map((c) => {
+          const active = selectedCat === c.key;
+          return (
+            <button
+              key={c.key}
+              className={"brickCatPill" + (active ? " brickCatPill--active" : "")}
+              onClick={() => setSelectedCat(c.key)}
+              type="button"
+            >
+              <span className="brickCatIcon">
+                <img src={c.img_url} alt={c.label} loading="lazy" />
+              </span>
+              <span className="brickCatLabel">{c.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Blank grid overlay until a category is selected */}
+      {!selectedCat && (
+        <div className="brickCatBlank">
+          Pick a category above to start.
+        </div>
+      )}
+
 
       {/* Part selection tiles */}
       <div
