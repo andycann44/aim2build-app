@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { API_BASE } from "../api/client";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { authHeaders } from "../utils/auth";
@@ -63,6 +63,12 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
   const [parts, setParts] = useState<CatalogPart[]>([]);
   const [setImgUrl, setSetImgUrl] = useState<string | null>(null);
 
+
+  // React 18 StrictMode (dev) runs effects twice. Guard per setId+demo.
+  const compareKeyRef = useRef<string>("");
+  const partsKeyRef = useRef<string>("");
+  const metaKeyRef = useRef<string>("");
+
   // -----------------------
   // Progressive parts rendering (scroll-driven)
   // -----------------------
@@ -106,6 +112,10 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
       return;
     }
     // reset for new set
+    compareKeyRef.current = "";
+    partsKeyRef.current = "";
+    metaKeyRef.current = "";
+
     setSummary(null);
     setParts([]);
     setSetImgUrl(null);
@@ -120,6 +130,10 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
   // -----------------------
   useEffect(() => {
     if (!setId) return;
+
+    const key = `${setId}|${demo}`;
+    if (compareKeyRef.current === key) return;
+    compareKeyRef.current = key;
 
     const controller = new AbortController();
     const headers = authHeaders();
@@ -174,8 +188,35 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
   useEffect(() => {
     if (!setId) return;
 
+    const key = `${setId}|${demo}`;
+    if (partsKeyRef.current === key) return;
+    partsKeyRef.current = key;
+
     const controller = new AbortController();
     const headers = authHeaders();
+
+    function groupPartsV2(rows: CatalogPart[]): CatalogPart[] {
+      const m = new Map<string, CatalogPart>();
+
+      for (const r of rows || []) {
+        const part_num = String(r.part_num || "").trim();
+        const color_id = Number(r.color_id ?? 0);
+        if (!part_num) continue;
+
+        const k = `${part_num}-${color_id}`;
+        const prev = m.get(k);
+
+        if (!prev) {
+          m.set(k, { ...r, part_num, color_id, quantity: Number(r.quantity ?? 0) });
+        } else {
+          prev.quantity = Number(prev.quantity ?? 0) + Number(r.quantity ?? 0);
+          if (!prev.part_img_url && r.part_img_url) prev.part_img_url = r.part_img_url;
+          if (!prev.part_name && r.part_name) prev.part_name = r.part_name;
+          if (!prev.display_img_url && r.display_img_url) prev.display_img_url = r.display_img_url;
+        }
+      }
+      return Array.from(m.values());
+    }
 
     async function loadParts() {
       try {
@@ -197,7 +238,7 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
 
         const partsJson = (await res.json()) as CatalogPart[];
         const safeParts = Array.isArray(partsJson) ? partsJson : [];
-        setParts(safeParts);
+        setParts(groupPartsV2(safeParts));
 
         if (demo) {
           const totalNeeded = safeParts.reduce((sum, p) => sum + (p.quantity ?? 0), 0);
@@ -242,6 +283,10 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
   useEffect(() => {
     if (!setId) return;
 
+    const key = `${setId}|${demo}`;
+    if (metaKeyRef.current === key) return;
+    metaKeyRef.current = key;
+
     const controller = new AbortController();
     const headers = authHeaders();
 
@@ -260,10 +305,10 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
           setSummary((prev) =>
             prev
               ? {
-                  ...prev,
-                  name: hit?.name ?? hit?.set_name ?? null,
-                  year: hit?.year ?? hit?.set_year ?? null,
-                }
+                ...prev,
+                name: hit?.name ?? hit?.set_name ?? null,
+                year: hit?.year ?? hit?.set_year ?? null,
+              }
               : prev
           );
         }

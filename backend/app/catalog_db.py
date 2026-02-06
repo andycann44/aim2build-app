@@ -2,6 +2,8 @@ from pathlib import Path
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 import sqlite3
+import os
+
 
 # Path to lego_catalog.db
 BASE_DIR = Path(__file__).resolve().parent
@@ -31,6 +33,7 @@ def _normalise_set_id(set_num: str) -> str:
         return f"{set_id}-1"
     return set_id
 
+
 def _apply_color_to_img_url(url: Optional[str], color_id: int) -> Optional[str]:
     """
     Given a Rebrickable part_img_url and a desired color_id,
@@ -50,6 +53,18 @@ def _apply_color_to_img_url(url: Optional[str], color_id: int) -> Optional[str]:
         return "/".join(parts)
     except Exception:
         return url
+
+def _abs_img(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    base = (os.getenv("A2B_STATIC_BASE_URL") or "").rstrip("/")
+    if not base:
+        return url
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if not url.startswith("/"):
+        url = "/" + url
+    return base + url   
 
 def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
     """
@@ -73,7 +88,7 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
         return row is not None
 
     with db() as con:
-        # Prefer instruction-derived requirements if present
+        # Prefer instruction-derived requirements if present (currently disabled)
         if False and _table_exists(con, "instruction_set_requirements"):
             cur = con.execute(
                 """
@@ -93,23 +108,48 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
             rows = cur.fetchall()
 
         # Otherwise fall back to set_parts
-        elif _table_exists(con, "set_parts"):
+                # Prefer inventories/inventory_parts (latest version) if present
+        elif _table_exists(con, "inventories") and _table_exists(con, "inventory_parts"):
+            # Prefer v_inventory_parts_latest when present (dedupes by latest inventory version)
+            if _table_exists(con, "v_inventory_parts_latest"):
+                cur = con.execute(
+                    """
+                    SELECT part_num, color_id, SUM(quantity) AS quantity
+                    FROM v_inventory_parts_latest
+                    WHERE set_num = ? AND COALESCE(is_spare,0)=0
+                    GROUP BY part_num, color_id
+                    """,
+                    (set_num,),
+                )
+                rows = cur.fetchall()
+                return [
+                    {"set_num": set_num, "part_num": r[0], "color_id": r[1], "quantity": r[2]}
+                    for r in rows
+                ]
+
+            # Fallback: choose latest inventory_id by max(version) for this set_num
+            cur = con.execute(
+                "SELECT inventory_id FROM inventories WHERE set_num=? ORDER BY version DESC LIMIT 1",
+                (set_num,),
+            )
+            hit = cur.fetchone()
+            if not hit:
+                return []
+            inv_id = hit[0]
             cur = con.execute(
                 """
-                SELECT
-                    sp.part_num,
-                    sp.color_id,
-                    sp.qty_per_set AS quantity,
-                    ei.img_url AS img_url
-                FROM set_parts AS sp
-                LEFT JOIN element_images AS ei
-                  ON ei.part_num = sp.part_num AND ei.color_id = sp.color_id
-                WHERE sp.set_num = ?
-                ORDER BY sp.part_num, sp.color_id
+                SELECT part_num, color_id, SUM(quantity) AS quantity
+                FROM inventory_parts
+                WHERE inventory_id = ? AND COALESCE(is_spare,0)=0
+                GROUP BY part_num, color_id
                 """,
-                (set_id,),
+                (inv_id,),
             )
             rows = cur.fetchall()
+            return [
+                {"set_num": set_num, "part_num": r[0], "color_id": r[1], "quantity": r[2]}
+                for r in rows
+            ]
 
         else:
             # Last resort: inventory_parts_summary, but keep the same contract
@@ -135,11 +175,8 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
             "part_num": row["part_num"],
             "color_id": int(row["color_id"]),
             "quantity": int(row["quantity"] or 0),
-            # keep legacy key too (some callers still expect it)
-            "part_img_url": row["img_url"],
-            # preferred key
-            "img_url": row["img_url"],
-        }
+            "part_img_url": _abs_img(row["img_url"]),
+            "img_url": _abs_img(row["img_url"]),        }
         for row in rows
     ]
 

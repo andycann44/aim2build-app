@@ -1,18 +1,28 @@
 from __future__ import annotations
+
 from pathlib import Path
 import sqlite3
+import re
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Dict, Any
-import re
 
 from app.catalog_db import db, get_catalog_parts_for_set
 
 router = APIRouter(tags=["catalog"])
 
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def _normalize_set_id(raw: str) -> str:
+    return (raw or "").strip()
+
+
 def _is_printed_part_num(part_num: str) -> bool:
     # Rebrickable-style printed variants often contain 'pr' (e.g. 11477pr0028)
     return isinstance(part_num, str) and ("pr" in part_num)
+
 
 def _base_part_num_for_printed(part_num: str) -> str:
     # 11477pr0028 -> 11477
@@ -21,15 +31,15 @@ def _base_part_num_for_printed(part_num: str) -> str:
     m = re.match(r"^(\d+)", part_num)
     return m.group(1) if m else part_num
 
-def _img_lookup_map(db, keys):
+
+def _img_lookup_map(dbcon, keys):
     # keys: set of (part_num, color_id)
     # returns dict[(part_num,color_id)] = img_url
     if not keys:
         return {}
     part_nums = sorted({k[0] for k in keys})
-    # Query by part_num only, then filter by color_id in python
     q_marks = ",".join(["?"] * len(part_nums))
-    rows = db.execute(
+    rows = dbcon.execute(
         f"SELECT part_num, color_id, img_url FROM element_images WHERE part_num IN ({q_marks})",
         part_nums,
     ).fetchall()
@@ -45,31 +55,58 @@ def _resolve_part_img_url_from_db(
     color_id: int,
 ) -> Optional[str]:
     """
-    STRICT image resolution:
-    - element_best_image / element_images are our DB truth (NOT Rebrickable HTTP)
-    - exact (part_num, color_id) match only
-    - if not found -> None
+    Image resolution (YOUR RULE):
+      elements has columns: img_custom, img_rebrick, img_ldraw
+      Priority: custom -> rebrick -> ldraw
+      Elements can have multiple rows per (part_num,color_id) (multiple element_id),
+      so we group and select the best non-empty string across the group.
+
+    Returns:
+      string URL or None
     """
-    cur = con.execute(
+    # Use NULLIF/TRIM to treat empty strings as NULL.
+    row = con.execute(
         """
-        SELECT bi.img_url
-        FROM element_best_image bi
-        WHERE bi.part_num = ?
-          AND bi.color_id = ?
+        SELECT
+          COALESCE(
+            MAX(NULLIF(TRIM(img_custom),  '')),
+            MAX(NULLIF(TRIM(img_rebrick), '')),
+            MAX(NULLIF(TRIM(img_ldraw),   ''))
+          ) AS img_url
+        FROM elements
+        WHERE part_num = ?
+          AND color_id = ?
+        """,
+        (part_num, int(color_id)),
+    ).fetchone()
+
+    if row and row["img_url"]:
+        return str(row["img_url"])
+
+    # Optional fallback: if elements table has no image fields populated for that key,
+    # fall back to element_images.img_url if it exists.
+    row2 = con.execute(
+        """
+        SELECT img_url
+        FROM element_images
+        WHERE part_num = ?
+          AND color_id = ?
+          AND img_url IS NOT NULL
+          AND TRIM(img_url) <> ''
         LIMIT 1
         """,
-        (part_num, color_id),
-    )
-    row = cur.fetchone()
-    if not row:
-        return None
-    return row["img_url"]
+        (part_num, int(color_id)),
+    ).fetchone()
+
+    if row2 and row2["img_url"]:
+        return str(row2["img_url"])
+
+    return None
 
 
-def _normalize_set_id(raw: str) -> str:
-    return (raw or "").strip()
-
-
+# -----------------------------
+# Part categories
+# -----------------------------
 @router.get("/part-categories")
 def list_part_categories(parent_id: Optional[int] = Query(None)) -> List[Dict[str, Any]]:
     """
@@ -195,6 +232,9 @@ def list_top_part_categories() -> List[Dict[str, Any]]:
     return out
 
 
+# -----------------------------
+# Parts by category
+# -----------------------------
 @router.get("/parts/by-category")
 def parts_by_category(
     category_id: int = Query(..., description="part_cat_id to browse (includes descendants)"),
@@ -250,6 +290,9 @@ def parts_by_category(
     ]
 
 
+# -----------------------------
+# Parts for a set (uses catalog_db contract)
+# -----------------------------
 @router.get("/parts")
 def get_catalog_parts(
     set: Optional[str] = Query(None, description="LEGO set number (alias: set_num, id)"),
@@ -285,14 +328,16 @@ def get_catalog_parts(
                 {
                     "part_num": part_num,
                     "color_id": color_id,
-                    "quantity": quantity,
+                    "quantity": qty,
                     "part_img_url": img,
                 }
             )
-
     return enriched
 
 
+# -----------------------------
+# Search parts
+# -----------------------------
 @router.get("/parts/search")
 def search_parts(
     q: Optional[str] = Query(None, description="Search term for part_num or name"),
@@ -320,7 +365,23 @@ def search_parts(
         params.append(f"{term}%")
     else:
         ql = term.lower().strip()
-        stop = {"brick", "bricks", "plate", "plates", "tile", "tiles", "with", "and", "or", "the", "a", "an", "of", "x", "by"}
+        stop = {
+            "brick",
+            "bricks",
+            "plate",
+            "plates",
+            "tile",
+            "tiles",
+            "with",
+            "and",
+            "or",
+            "the",
+            "a",
+            "an",
+            "of",
+            "x",
+            "by",
+        }
 
         m = re.search(r"(\d+)\s*[xX]\s*(\d+)", ql)
         dims: List[str] = []
@@ -435,6 +496,9 @@ def search_parts(
     ]
 
 
+# -----------------------------
+# Elements by part
+# -----------------------------
 @router.get("/elements/by-part")
 def get_elements_by_part(
     part_num: str = Query(..., description="Canonical part number (e.g. 3005 for 1x1 brick)"),
@@ -498,6 +562,9 @@ def get_elements_by_part(
     ]
 
 
+# -----------------------------
+# Image stats/sample
+# -----------------------------
 @router.get("/images/stats")
 def catalog_image_stats():
     with db() as con:
@@ -516,8 +583,8 @@ def catalog_image_stats():
 
 @router.get("/images/sample")
 def catalog_image_sample(
-    mode: str = "best",          # best | raw
-    filter: str = "live",        # live | dead | unchecked | all
+    mode: str = "best",  # best | raw
+    filter: str = "live",  # live | dead | unchecked | all
     limit: int = 100,
     offset: int = 0,
 ):
@@ -557,10 +624,10 @@ def catalog_image_sample(
 
 
 # ------------------------------------------------------------
-# V2: BuildabilityDetails-safe parts endpoint (local images only)
-# - No remote URLs
-# - display_img_url resolves to /static/element_images/<part>/<color>.jpg if present
-# - Printed variants (..pr....) fall back to base part image for display only
+# V2: BuildabilityDetails-safe parts endpoint (NOW DB-DRIVEN)
+# - No local filesystem checks
+# - Uses elements image priority: custom -> rebrick -> ldraw
+# - Falls back to /static/missing.png
 # ------------------------------------------------------------
 @router.get("/parts-v2")
 def get_parts_v2(set: str = None, set_num: str = None, id: str = None):
@@ -568,74 +635,32 @@ def get_parts_v2(set: str = None, set_num: str = None, id: str = None):
     if not set_id:
         return []
 
-    # Normalize set number: allow plain "21330" -> "21330-1"
     if "-" not in set_id and set_id.isdigit():
         set_id = f"{set_id}-1"
 
-    # Local-only V2: open catalog DB directly (avoid _db() dependency)
-
-    db_path = (Path(__file__).resolve().parent.parent / 'data' / 'lego_catalog.db')
-
-    con = sqlite3.connect(str(db_path))
-
-    con.row_factory = sqlite3.Row
-    # Get requirements/parts for the set (same as /parts uses)
-    rows = con.execute(
-        """
-        SELECT
-          set_num,
-          part_num,
-          color_id,
-          qty_per_set as quantity
-        FROM set_parts
-        WHERE set_num = ?
-        """,
-        (set_id,),
-    ).fetchall()
-
-    static_root = Path(__file__).resolve().parent.parent / "static" / "element_images"
-
-    def is_printed(pn: str) -> bool:
-        return isinstance(pn, str) and ("pr" in pn)
-
-    def base_part(pn: str) -> str:
-        m = re.match(r"^(\d+)", pn or "")
-        return m.group(1) if m else pn
-
-    def local_img_url(pn: str, cid: int):
-        # Files on disk are: backend/app/static/element_images/<part_num>/<color_id>.jpg
-        # Try jpg then png then webp.
-        for ext in (".jpg", ".png", ".webp"):
-            fp = static_root / pn / f"{cid}{ext}"
-            if fp.exists():
-                return f"/static/element_images/{pn}/{cid}{ext}"
-        return None
+    base_parts = get_catalog_parts_for_set(set_id) or []
 
     out = []
-    for r in rows:
-        pn = str(r["part_num"])
-        cid = int(r["color_id"])
+    with db() as con:
+        for r in base_parts:
+            pn = str(r["part_num"])
+            cid = int(r["color_id"])
 
-        disp = local_img_url(pn, cid)
-        printed = is_printed(pn)
-        if not disp and printed:
-            disp = local_img_url(base_part(pn), cid)
+            disp = _resolve_part_img_url_from_db(con, pn, cid)
+            if not disp:
+                disp = "/static/missing.png"
 
-        disp = disp or "/img/missing.png"
-
-        out.append(
-            {
-                "set_num": str(r["set_num"]),
-                "part_num": pn,
-                "color_id": cid,
-                "quantity": int(r["quantity"]),
-                "part_img_url": disp,          # keep existing name so old UI still works
-                "display_img_url": disp,       # explicit v2 field
-                "is_printed": bool(printed),
-                "is_sticker": False,
-            }
-        )
-
-    con.close()
+            out.append(
+                {
+                    "set_num": set_id,
+                    "part_num": pn,
+                    "color_id": cid,
+                    "quantity": int(r.get("quantity") or 0),
+                    "part_img_url": disp,
+                    "display_img_url": disp,
+                    "is_printed": bool(_is_printed_part_num(pn)),
+                    "is_sticker": False,
+                }
+            )
 
     return out

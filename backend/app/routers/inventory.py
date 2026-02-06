@@ -94,7 +94,8 @@ def _normalise_set_id(set_num: str) -> str:
 def _get_catalog_recipe_parts(set_num: str) -> List[Dict[str, Any]]:
     """
     LOCKED SPINE:
-    Set recipe comes ONLY from lego_catalog set_parts.
+    Set recipe comes ONLY from lego_catalog v_set_requirements
+    (latest inventory only, deduped).
     Identity is strict (part_num, color_id). color_id=0 is valid.
     """
     sid = _normalise_set_id(set_num)
@@ -104,8 +105,8 @@ def _get_catalog_recipe_parts(set_num: str) -> List[Dict[str, Any]]:
     with catalog_db() as con:
         cur = con.execute(
             """
-            SELECT part_num, color_id, qty_per_set
-            FROM set_parts
+            SELECT part_num, color_id, quantity
+            FROM v_set_requirements
             WHERE set_num = ?
             ORDER BY part_num, color_id
             """,
@@ -115,10 +116,9 @@ def _get_catalog_recipe_parts(set_num: str) -> List[Dict[str, Any]]:
 
     out: List[Dict[str, Any]] = []
     for r in rows:
-        # sqlite Row or tuple tolerant
         if hasattr(r, "keys"):
             part_num = str(r["part_num"] or "").strip()
-            qty = int(r["qty_per_set"] or 0)
+            qty = int(r["quantity"] or 0)
             color_id = int(r["color_id"])
         else:
             part_num = str(r[0] or "").strip()
@@ -136,7 +136,6 @@ def _get_catalog_recipe_parts(set_num: str) -> List[Dict[str, Any]]:
             }
         )
     return out
-
 
 # -----------------------
 # Inventory read helpers
