@@ -6,7 +6,6 @@ import RequireAuth from "../components/RequireAuth";
 import BuildabilityPartsTile from "../components/BuildabilityPartsTile";
 import PageHero from "../components/PageHero";
 import InstructionsTile from "../components/InstructionsTile";
-
 type MissingPart = {
   part_num: string;
   color_id: number;
@@ -434,6 +433,20 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
           </div>
         </div>
       </PageHero>
+
+      {demo && (
+        <div className="demo-banner tile-style">
+          <strong>DEMO MODE</strong>
+          <div style={{ marginTop: 4 }}>
+            You're viewing a demo. Sign in or create an account to use your real inventory and save progress.
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <a href="/account?mode=login">Sign in</a>{" "}
+            &middot;{" "}
+            <a href="/account?mode=signup">Create account</a>
+          </div>
+        </div>
+      )}
 
       {/* parts grid */}
       <div style={{ maxWidth: "none", margin: "0 0 2.5rem", padding: "0" }}>
