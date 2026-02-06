@@ -19,6 +19,7 @@ from app.routers import (
 from app.routers import buildability_discover
 from app.routers import auth as auth_router
 from app.routers.auth import get_current_user
+from app.image_resolver import router as image_resolver_router
 
 app = FastAPI(title="Aim2Build API")
 
@@ -126,6 +127,9 @@ app.include_router(
     prefix="/api/catalog",
     tags=["catalog"],
 )
+
+# Images (public; R2-only URLs)
+app.include_router(image_resolver_router, prefix="/api/images", tags=["images"])
 
 # Optional: other public endpoints
 app.include_router(

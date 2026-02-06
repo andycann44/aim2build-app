@@ -110,58 +110,46 @@ def get_catalog_parts_for_set(set_num: str) -> List[Dict[str, Any]]:
         # Otherwise fall back to set_parts
                 # Prefer inventories/inventory_parts (latest version) if present
         elif _table_exists(con, "inventories") and _table_exists(con, "inventory_parts"):
-            latest = con.execute(
-                """
-                SELECT inventory_id
-                FROM inventories
-                WHERE set_num = ?
-                ORDER BY version DESC, inventory_id DESC
-                LIMIT 1
-                """,
-                (set_id,),
-            ).fetchone()
-
-            if latest is None:
-                rows = []
-            else:
-                inv_id = int(latest["inventory_id"]) if isinstance(latest, sqlite3.Row) else int(latest[0])
-
+            # Prefer v_inventory_parts_latest when present (dedupes by latest inventory version)
+            if _table_exists(con, "v_inventory_parts_latest"):
                 cur = con.execute(
                     """
-                    SELECT
-                        p.part_num,
-                        p.color_id,
-                        p.quantity AS quantity,
-                        ei.img_url AS img_url
-                    FROM inventory_parts AS p
-                    LEFT JOIN element_images AS ei
-                      ON ei.part_num = p.part_num AND ei.color_id = p.color_id
-                    WHERE p.inventory_id = ?
-                      AND (p.is_spare IS NULL OR p.is_spare = 0)
-                    ORDER BY p.part_num, p.color_id
+                    SELECT part_num, color_id, SUM(quantity) AS quantity
+                    FROM v_inventory_parts_latest
+                    WHERE set_num = ? AND COALESCE(is_spare,0)=0
+                    GROUP BY part_num, color_id
                     """,
-                    (inv_id,),
+                    (set_num,),
                 )
                 rows = cur.fetchall()
+                return [
+                    {"set_num": set_num, "part_num": r[0], "color_id": r[1], "quantity": r[2]}
+                    for r in rows
+                ]
 
-        # Otherwise fall back to set_parts
-        elif _table_exists(con, "set_parts"):
+            # Fallback: choose latest inventory_id by max(version) for this set_num
+            cur = con.execute(
+                "SELECT inventory_id FROM inventories WHERE set_num=? ORDER BY version DESC LIMIT 1",
+                (set_num,),
+            )
+            hit = cur.fetchone()
+            if not hit:
+                return []
+            inv_id = hit[0]
             cur = con.execute(
                 """
-                SELECT
-                    sp.part_num,
-                    sp.color_id,
-                    sp.qty_per_set AS quantity,
-                    ei.img_url AS img_url
-                FROM set_parts AS sp
-                LEFT JOIN element_images AS ei
-                  ON ei.part_num = sp.part_num AND ei.color_id = sp.color_id
-                WHERE sp.set_num = ?
-                ORDER BY sp.part_num, sp.color_id
+                SELECT part_num, color_id, SUM(quantity) AS quantity
+                FROM inventory_parts
+                WHERE inventory_id = ? AND COALESCE(is_spare,0)=0
+                GROUP BY part_num, color_id
                 """,
-                (set_id,),
+                (inv_id,),
             )
             rows = cur.fetchall()
+            return [
+                {"set_num": set_num, "part_num": r[0], "color_id": r[1], "quantity": r[2]}
+                for r in rows
+            ]
 
         else:
             # Last resort: inventory_parts_summary, but keep the same contract

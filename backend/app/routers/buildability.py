@@ -8,6 +8,23 @@ from app.routers.inventory import load_inventory_parts
 
 router = APIRouter()
 
+
+def _get_strict_requirements(set_id: str) -> list[dict]:
+    """
+    Strict requirements: one row per (part_num, color_id) from v_set_requirements.
+    This MUST NOT use raw inventories joins (avoids doubling when multiple inventories exist).
+    """
+    with db() as con:
+        cur = con.execute(
+            "SELECT part_num, color_id, quantity "
+            "FROM v_set_requirements "
+            "WHERE set_num = ?",
+            (set_id,),
+        )
+        return [
+            {"part_num": str(r[0]), "color_id": int(r[1]), "quantity": int(r[2])}
+            for r in cur.fetchall()
+        ]
 # -----------------------
 # Internal helpers
 # -----------------------
@@ -112,7 +129,7 @@ def compare_buildability(
     set_id = _normalize_set_id(raw)
 
     # Get canonical parts for this set from the SQLite catalog
-    parts = get_catalog_parts_for_set(set_id)
+    parts = _get_strict_requirements(set_id)
     if not parts:
         # Either the set doesn't exist in the catalog, or there are no parts
         raise HTTPException(
@@ -232,7 +249,7 @@ def batch_compare_buildability(
                 )
                 continue
 
-            parts = get_catalog_parts_for_set(set_id)
+            parts = _get_strict_requirements(set_id)
             if not parts:
                 # Set not in catalog
                 results.append(
