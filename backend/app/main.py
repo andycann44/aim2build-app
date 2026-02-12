@@ -14,6 +14,7 @@ from app.routers import (
     catalog,
     search,
     inventory,
+    brick,
     top_common_parts,
     top_common_parts_by_color,
 )
@@ -21,6 +22,7 @@ from app.routers import buildability_discover
 from app.routers import auth as auth_router
 from app.routers.auth import get_current_user
 from app.image_resolver import router as image_resolver_router
+from app.routers import brick_ui
 
 app = FastAPI(title="Aim2Build API")
 
@@ -80,6 +82,13 @@ app.include_router(
     inventory.router,
     prefix="/api/inventory",
     tags=["inventory"],
+    dependencies=[Depends(get_current_user)],
+)
+
+app.include_router(
+    brick.router,
+    prefix="/api/brick",
+    tags=["brick"],
     dependencies=[Depends(get_current_user)],
 )
 
@@ -159,4 +168,10 @@ def a2b_static_r2(path: str):
         # No local fallback by design.
         return RedirectResponse("/api/health", status_code=302)
     return RedirectResponse(f"{base}/{path}", status_code=302)
-
+# Brick UI (AUTH REQUIRED)
+app.include_router(
+    brick_ui.router,
+    prefix="/api",
+    tags=["brick-ui"],
+    dependencies=[Depends(get_current_user)],
+)

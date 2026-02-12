@@ -2,9 +2,12 @@
 import React from "react";
 import SafeImg from "./SafeImg";
 import { InventoryPart } from "./PartsTile";
+import { API_BASE } from "../api/client";
+import { authHeaders } from "../utils/auth";
 
 type BuildabilityPartsTileProps = {
   part: InventoryPart;
+  partName?: string | null;
   need: number;
   have: number;
   mode?: "inventory" | "buildability" | "missing";
@@ -15,8 +18,39 @@ type BuildabilityPartsTileProps = {
   infoText?: string;
 };
 
+const randomImgCache = new Map<string, string | null>();
+const inflightRequests = new Map<string, Promise<string | null>>();
+
+async function fetchRandomImage(partNum: string): Promise<string | null> {
+  if (randomImgCache.has(partNum)) return randomImgCache.get(partNum) ?? null;
+  if (inflightRequests.has(partNum)) return inflightRequests.get(partNum) ?? null;
+
+  const p = (async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/catalog/part-image-random?part_num=${encodeURIComponent(partNum)}`,
+        { headers: { ...authHeaders() } }
+      );
+      if (!res.ok) return null;
+      const data = (await res.json()) as { img_url?: string | null };
+      const url = typeof data?.img_url === "string" ? data.img_url : null;
+      randomImgCache.set(partNum, url);
+      return url;
+    } catch {
+      randomImgCache.set(partNum, null);
+      return null;
+    } finally {
+      inflightRequests.delete(partNum);
+    }
+  })();
+
+  inflightRequests.set(partNum, p);
+  return p;
+}
+
 const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
   part,
+  partName = null,
   need,
   have,
   mode = "buildability",
@@ -54,7 +88,24 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
       : "—";
   }, [part.color_id]);
 
-  const imgSrc = part.part_img_url ?? undefined;
+  const [fallbackImg, setFallbackImg] = React.useState<string | null>(null);
+  const colorMissing = part.color_id === null || part.color_id === undefined;
+  const baseImg = part.part_img_url ?? undefined;
+  const imgSrc = baseImg ?? fallbackImg ?? undefined;
+
+  React.useEffect(() => {
+    if (!colorMissing) return;
+    if (!part.part_num) return;
+    if (baseImg) return;
+    let alive = true;
+    void fetchRandomImage(part.part_num).then((url) => {
+      if (!alive) return;
+      setFallbackImg(url);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [colorMissing, part.part_num, baseImg]);
 
   return (
     <div
@@ -251,6 +302,22 @@ const BuildabilityPartsTile: React.FC<BuildabilityPartsTileProps> = ({
               </div>
             )}
           </div>
+
+          {partName ? (
+            <div
+              style={{
+                fontSize: "0.78rem",
+                color: "#64748b",
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+              title={partName}
+            >
+              {partName}
+            </div>
+          ) : null}
 
           {/* Colour line */}
           <div style={{ fontSize: "0.78rem", color: "#6b7280" }}>

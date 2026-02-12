@@ -1,26 +1,34 @@
 import React from "react";
 import { Routes, Route, NavLink, Navigate, useNavigate } from "react-router-dom";
 import StagingBanner from "./components/StagingBanner";
+
+
+import Footer from "./components/Footer";import HomePage from "./pages/HomePage";
 import SearchPage from "./pages/SearchPage";
-import BuildabilityOverviewPage from "./pages/BuildabilityOverviewPage";
-import InventoryPage from "./pages/InventoryPage";
 import MySetsPage from "./pages/MySetsPage";
-import WishlistPage from "./pages/WishlistPage";
-import SettingsPage from "./pages/SettingsPage";
-import BuildabilityDetailsPage from "./pages/BuildabilityDetailsPage";
-import MissingPartsPage from "./pages/MissingPartsPage";
-import HomePage from "./pages/HomePage";
-import AccountPage from "./pages/AccountPage";
+import InventoryPage from "./pages/InventoryPage";
 import InventoryAddCategoriesPage from "./pages/InventoryAddCategoriesPage";
 import InventoryAddBrickPage from "./pages/InventoryAddBrickPage";
 import InventoryPickColourPage from "./pages/InventoryPickColourPage";
 import InventoryEditPage from "./pages/InventoryEditPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
-import AdminPage from "./pages/AdminPage";
-import DebugCatalogImagesPage from "./pages/DebugCatalogImagesPage";
+
+import BuildabilityOverviewPage from "./pages/BuildabilityOverviewPage";
+import BuildabilityDiscoverPage from "./pages/BuildabilityDiscoverPage";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import BuildabilityDetailsPage from "./pages/BuildabilityDetailsPage";
+import MissingPartsPage from "./pages/MissingPartsPage";
+
+import WishlistPage from "./pages/WishlistPage";
 import InstructionsSearchPage from "./pages/InstructionsSearchPage";
 import SetPartsPage from "./pages/SetPartsPage";
-import BuildabilityDiscoverPage from "./pages/BuildabilityDiscoverPage";
+
+import AccountPage from "./pages/AccountPage";
+import SettingsPage from "./pages/SettingsPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+
+import AdminPage from "./pages/AdminPage";
+import DebugCatalogImagesPage from "./pages/DebugCatalogImagesPage";
 
 export default function App() {
   const navigate = useNavigate();
@@ -116,38 +124,49 @@ export default function App() {
 
           <div className="app-main-body">
             <Routes>
+              {/* Core */}
               <Route path="/" element={<HomePage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/my-sets" element={<MySetsPage />} />
+              <Route path="/wishlist" element={<WishlistPage />} />
+              <Route path="/instructions" element={<InstructionsSearchPage />} />
+              <Route path="/instructions/:setNum/parts" element={<SetPartsPage />} />
+              <Route path="/account" element={<AccountPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+
+              {/* Inventory */}
               <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/inventory/add" element={<InventoryAddCategoriesPage />} />
-              <Route path="/inventory/add/brick" element={<InventoryAddBrickPage />} />
-              <Route path="/inventory/pick-colour/:partNum" element={<InventoryPickColourPage />} />
               <Route path="/inventory/edit" element={<InventoryEditPage />} />
+              <Route path="/inventory/add" element={<InventoryAddCategoriesPage />} />
               <Route path="/inventory/add/bricks" element={<InventoryAddBrickPage />} />
+              <Route path="/inventory/add/bricks/category/:catKey" element={<InventoryAddBrickPage />} />
               <Route path="/inventory/add/bricks/part/:partNum" element={<InventoryPickColourPage />} />
+
+              {/* Back-compat redirects */}
               <Route path="/inventory/add/brick" element={<Navigate to="/inventory/add/bricks" replace />} />
+
+              {/* Buildability */}
               <Route path="/buildability" element={<BuildabilityOverviewPage />} />
               <Route path="/buildability/discover" element={<BuildabilityDiscoverPage />} />
               <Route path="/buildability/:setNum/missing" element={<MissingPartsPage />} />
               <Route path="/buildability/:setNum" element={<BuildabilityDetailsPage />} />
 
-              <Route path="/wishlist" element={<WishlistPage />} />
+              {/* Admin / Debug */}
+              <Route path="/admin" element={<AdminPage />} />
+              {import.meta.env.DEV && (
+                <Route path="/debug/catalog-images" element={<DebugCatalogImagesPage />} />
+              )}
 
-              <Route path="/instructions" element={<InstructionsSearchPage />} />
-              <Route path="/instructions/:setNum/parts" element={<SetPartsPage />} />
-
-              <Route path="/account" element={<AccountPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-
+              {/* Catch-all */}
               <Route path="*" element={<Navigate to="/" replace />} />
-            {import.meta.env.DEV && (
-          <Route path="/debug/catalog-images" element={<DebugCatalogImagesPage />} />
-        )}
-        <Route path="/admin" element={<AdminPage />} />
-      </Routes>
+            </Routes>
           </div>
+
+          <Footer />
         </main>
       </div>
     </div>

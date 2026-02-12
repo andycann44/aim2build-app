@@ -85,3 +85,6 @@ backend/app/static/element_images/**
 backend/app/static/
 backend/app/static/**
 debug_catalog_images.html
+
+# Local dev DB (do not commit)
+aim2build_app.db
