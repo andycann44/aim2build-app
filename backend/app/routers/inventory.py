@@ -77,6 +77,101 @@ def _ensure_user_inventory_tables(con) -> None:
     )
 
 
+@router.get("/brick-quickfilters")
+def brick_quickfilters(
+    category_key: str = Query(..., description="Category key from brick_category_images"),
+    current_user: User = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    """
+    UI source: aim2build_app.db brick_quickfilter_images
+    """
+    key = (category_key or "").strip()
+    if not key:
+        raise HTTPException(status_code=422, detail="Missing category")
+
+    with user_db() as con:
+        cur = con.execute(
+            """
+            SELECT filter_key, label, img_url, sort_order
+            FROM brick_quickfilter_images
+            WHERE key = ? AND is_enabled = 1
+            ORDER BY sort_order ASC, filter_key ASC
+            """,
+            (key,),
+        )
+        rows = cur.fetchall()
+
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        if hasattr(r, "keys"):
+            out.append(
+                {
+                    "filter_key": r["filter_key"],
+                    "label": r["label"],
+                    "img_url": r["img_url"],
+                    "sort_order": int(r["sort_order"] or 0),
+                }
+            )
+        else:
+            out.append(
+                {
+                    "filter_key": r[0],
+                    "label": r[1],
+                    "img_url": r[2],
+                    "sort_order": int(r[3] or 0),
+                }
+            )
+
+    return out
+
+
+# -----------------------
+# Brick categories (UI)
+# -----------------------
+
+
+@router.get("/brick-categories")
+def brick_categories(current_user: User = Depends(get_current_user)) -> List[Dict[str, Any]]:
+    """
+    UI source: aim2build_app.db brick_category_images
+    """
+    with user_db() as con:
+        cur = con.execute(
+            """
+            SELECT key, label, sort_order, img_url, part_cat_id
+            FROM brick_category_images
+            WHERE is_enabled = 1
+            ORDER BY sort_order ASC, key ASC
+            """
+        )
+        rows = cur.fetchall()
+
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        if hasattr(r, "keys"):
+            out.append(
+                {
+                    "key": r["key"],
+                    "label": r["label"],
+                    "sort_order": int(r["sort_order"] or 0),
+                    "img_url": r["img_url"],
+                    "part_cat_id": int(r["part_cat_id"] or 0),
+                }
+            )
+        else:
+            out.append(
+                {
+                    "key": r[0],
+                    "label": r[1],
+                    "sort_order": int(r[2] or 0),
+                    "img_url": r[3],
+                    "part_cat_id": int(r[4] or 0),
+                }
+            )
+
+    return out
+
+
 # -----------------------
 # Catalog spine helpers (READ ONLY)
 # -----------------------

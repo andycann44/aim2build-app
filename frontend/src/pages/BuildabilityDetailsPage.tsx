@@ -402,8 +402,7 @@ const BuildabilityDetailsInner: React.FC<BuildabilityDetailsInnerProps> = ({ dem
                 }}
               >
                 Have:{" "}
-                {loadingCompare ? "…" : summary?.total_have !== undefined ? summary.total_have.toLocaleString() : "—"} / Need:{" "}
-                {loadingCompare ? "…" : summary?.total_needed !== undefined ? summary.total_needed.toLocaleString() : "—"}
+                {loadingCompare ? "…" : summary?.total_have !== undefined ? summary.total_have.toLocaleString() : "—"}
               </span>
 
               {!loadingCompare && missingPiecesTotal > 0 && (

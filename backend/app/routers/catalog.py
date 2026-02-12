@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Dict, Any
 
 from app.catalog_db import db, get_catalog_parts_for_set
+from app.user_db import user_db
 
 router = APIRouter(tags=["catalog"])
 
@@ -17,6 +18,255 @@ router = APIRouter(tags=["catalog"])
 # -----------------------------
 def _normalize_set_id(raw: str) -> str:
     return (raw or "").strip()
+
+
+def _safe_int_from_db(v: object) -> Optional[int]:
+    """
+    Defensive int parser for DB values.
+    - Accepts ints, numeric strings (with whitespace).
+    - Rejects None, "", "   ", non-digits, "cat:123", etc.
+    - Never raises.
+    """
+    if v is None:
+        return None
+    if isinstance(v, int):
+        return v
+    s = str(v).strip()
+    if not s:
+        return None
+    if not s.isdigit():
+        return None
+    try:
+        return int(s)
+    except Exception:
+        return None
+
+
+def _safe_int_or_zero(v: object) -> int:
+    parsed = _safe_int_from_db(v)
+    return parsed if parsed is not None else 0
+
+
+def _load_category_overrides() -> Dict[int, Dict[str, Any]]:
+    """
+    Load category image overrides from aim2build_app.db brick_category_images.
+
+    HARD RULE:
+    - Must never crash due to bad helper table data.
+    """
+    overrides: Dict[int, Dict[str, Any]] = {}
+    with user_db() as con:
+        cur = con.execute(
+            """
+            SELECT key, label, img_url, sort_order, part_cat_id, is_enabled
+            FROM brick_category_images
+            """
+        )
+        rows = cur.fetchall()
+
+    for r in rows:
+        if hasattr(r, "keys"):
+            part_cat_id = _safe_int_from_db(r["part_cat_id"])
+            if part_cat_id is None:
+                continue
+            overrides[part_cat_id] = {
+                "label": r["label"],
+                "img_url": r["img_url"],
+                "sort_order": _safe_int_or_zero(r["sort_order"]),
+                "is_enabled": _safe_int_or_zero(r["is_enabled"]),
+            }
+        else:
+            part_cat_id = _safe_int_from_db(r[4])
+            if part_cat_id is None:
+                continue
+            overrides[part_cat_id] = {
+                "label": r[1],
+                "img_url": r[2],
+                "sort_order": _safe_int_or_zero(r[3]),
+                "is_enabled": _safe_int_or_zero(r[5]),
+            }
+
+    return overrides
+
+
+def _load_parent_overrides() -> Dict[str, Dict[str, Any]]:
+    """
+    Load parent category overrides keyed by brick_category_images.key.
+    """
+    overrides: Dict[str, Dict[str, Any]] = {}
+    with user_db() as con:
+        cur = con.execute(
+            """
+            SELECT key, label, img_url, sort_order, is_enabled
+            FROM brick_category_images
+            WHERE part_cat_id IS NULL
+            """
+        )
+        rows = cur.fetchall()
+    for r in rows:
+        if hasattr(r, "keys"):
+            key = str(r["key"]).strip()
+            overrides[key] = {
+                "label": r["label"],
+                "img_url": r["img_url"],
+                "sort_order": _safe_int_or_zero(r["sort_order"]),
+                "is_enabled": _safe_int_or_zero(r["is_enabled"]),
+            }
+        else:
+            key = str(r[0]).strip()
+            overrides[key] = {
+                "label": r[1],
+                "img_url": r[2],
+                "sort_order": _safe_int_or_zero(r[3]),
+                "is_enabled": _safe_int_or_zero(r[4]),
+            }
+    return overrides
+
+
+@router.get("/categories/parents")
+def catalog_category_parents() -> List[Dict[str, Any]]:
+    """
+    UI parent categories for Inventory Add flow.
+    Source: aim2build_app.db brick_category_images (parent_key IS NULL)
+    """
+    out: List[Dict[str, Any]] = []
+    with user_db() as con:
+        rows = con.execute(
+            """
+            SELECT key, label, img_url, sort_order, is_enabled
+            FROM brick_category_images
+            WHERE parent_key IS NULL
+            """
+        ).fetchall()
+
+    for r in rows:
+        if hasattr(r, "keys"):
+            key = (str(r["key"]) if r["key"] is not None else "").strip()
+            if not key:
+                continue
+            is_enabled = int(str(r["is_enabled"]).strip() or "0") if r["is_enabled"] is not None else 0
+            if not is_enabled:
+                continue
+            out.append(
+                {
+                    "key": key,
+                    "label": (r["label"] or key),
+                    "img_url": r["img_url"],
+                    "sort_order": int(str(r["sort_order"]).strip() or "0") if r["sort_order"] is not None else 0,
+                }
+            )
+        else:
+            key = (str(r[0]) if r[0] is not None else "").strip()
+            if not key:
+                continue
+            is_enabled = int(str(r[4]).strip() or "0") if r[4] is not None else 0
+            if not is_enabled:
+                continue
+            out.append(
+                {
+                    "key": key,
+                    "label": (r[1] or key),
+                    "img_url": r[2],
+                    "sort_order": int(str(r[3]).strip() or "0") if r[3] is not None else 0,
+                }
+            )
+
+    out.sort(key=lambda x: (x.get("sort_order", 0), str(x.get("label") or "").lower()))
+    return out
+
+
+@router.get("/categories/children")
+def catalog_category_children(
+    parent_key: Optional[str] = Query(None, description="UI parent key (e.g. brick/technic)"),
+    parent_id: Optional[str] = Query(None, description="Legacy parent id"),
+) -> List[Dict[str, Any]]:
+    """
+    UI children for Inventory Add flow.
+    Source: aim2build_app.db brick_category_images WHERE parent_key = ?
+    """
+    pk = (parent_key or "").strip()
+    pid = _safe_int_from_db(parent_id)
+    if not pk and not pid:
+        raise HTTPException(status_code=422, detail="Provide parent_key or parent_id")
+
+    if pk:
+        out: List[Dict[str, Any]] = []
+        with user_db() as con:
+            rows = con.execute(
+                """
+                SELECT label, img_url, sort_order, part_cat_id, is_enabled
+                FROM brick_category_images
+                WHERE parent_key = ?
+                """,
+                (pk,),
+            ).fetchall()
+
+        for r in rows:
+            if hasattr(r, "keys"):
+                is_enabled = _safe_int_or_zero(r["is_enabled"])
+                if not is_enabled:
+                    continue
+                # part_cat_id must be an int; skip bad rows safely
+                part_cat_id = _safe_int_from_db(r["part_cat_id"])
+                if part_cat_id is None:
+                    continue
+                out.append(
+                    {
+                        "part_cat_id": part_cat_id,
+                        "label": (r["label"] or str(part_cat_id)),
+                        "img_url": r["img_url"],
+                        "sort_order": _safe_int_or_zero(r["sort_order"]),
+                    }
+                )
+            else:
+                is_enabled = _safe_int_or_zero(r[4])
+                if not is_enabled:
+                    continue
+                part_cat_id = _safe_int_from_db(r[3])
+                if part_cat_id is None:
+                    continue
+                out.append(
+                    {
+                        "part_cat_id": part_cat_id,
+                        "label": (r[0] or str(part_cat_id)),
+                        "img_url": r[1],
+                        "sort_order": _safe_int_or_zero(r[2]),
+                    }
+                )
+
+        out.sort(key=lambda x: (x.get("sort_order", 0), str(x.get("label") or "").lower()))
+        return out
+
+    if not pid:
+        return []
+
+    out: List[Dict[str, Any]] = []
+    with db() as con:
+        rows = con.execute(
+            """
+            SELECT part_cat_id, name
+            FROM part_categories
+            WHERE parent_id = ?
+            ORDER BY name
+            """,
+            (pid,),
+        ).fetchall()
+
+    for r in rows:
+        part_cat_id = _safe_int_from_db(r["part_cat_id"] if hasattr(r, "keys") else r[0])
+        if part_cat_id is None:
+            continue
+        label = r["name"] if hasattr(r, "keys") else r[1]
+        out.append(
+            {
+                "part_cat_id": part_cat_id,
+                "label": label,
+                "img_url": None,
+                "sort_order": 0,
+            }
+        )
+
+    return out
 
 
 def _is_printed_part_num(part_num: str) -> bool:
@@ -173,6 +423,83 @@ def get_part_category(part_cat_id: int) -> Dict[str, Any]:
     }
 
 
+# -----------------------------
+# Themes (for Minifig by Theme)
+# -----------------------------
+@router.get("/themes")
+def list_themes(limit: int = Query(120, ge=1, le=500)) -> List[Dict[str, Any]]:
+    """
+    Return top themes with optional img_url.
+    Uses themes + sets tables if present; otherwise distinct sets.theme_id.
+    """
+    with db() as con:
+        has_themes = (
+            con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='themes' LIMIT 1"
+            ).fetchone()
+            is not None
+        )
+
+        if has_themes:
+            rows = con.execute(
+                """
+                SELECT
+                  t.theme_id AS theme_id,
+                  t.name AS name,
+                  COUNT(s.set_num) AS set_count,
+                  (
+                    SELECT s2.set_img_url
+                    FROM sets s2
+                    WHERE s2.theme_id = t.theme_id
+                      AND s2.set_img_url IS NOT NULL
+                      AND TRIM(s2.set_img_url) <> ''
+                    ORDER BY s2.year DESC, s2.set_num DESC
+                    LIMIT 1
+                  ) AS img_url
+                FROM themes t
+                LEFT JOIN sets s ON s.theme_id = t.theme_id
+                WHERE t.theme_id IS NOT NULL
+                GROUP BY t.theme_id, t.name
+                ORDER BY set_count DESC, LOWER(COALESCE(t.name, '')) ASC
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT
+                  s.theme_id AS theme_id,
+                  NULL AS name,
+                  COUNT(s.set_num) AS set_count,
+                  (
+                    SELECT s2.set_img_url
+                    FROM sets s2
+                    WHERE s2.theme_id = s.theme_id
+                      AND s2.set_img_url IS NOT NULL
+                      AND TRIM(s2.set_img_url) <> ''
+                    ORDER BY s2.year DESC, s2.set_num DESC
+                    LIMIT 1
+                  ) AS img_url
+                FROM sets s
+                WHERE s.theme_id IS NOT NULL
+                GROUP BY s.theme_id
+                ORDER BY set_count DESC, s.theme_id ASC
+                LIMIT ?
+                """,
+                (int(limit),),
+            ).fetchall()
+
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        theme_id = int(r["theme_id"] if hasattr(r, "keys") else r[0])
+        name = (r["name"] if hasattr(r, "keys") else r[1]) or f"Theme {theme_id}"
+        img_url = r["img_url"] if hasattr(r, "keys") else r[3]
+        out.append({"theme_id": theme_id, "name": name, "img_url": img_url})
+
+    return out
+
+
 @router.get("/part-categories/top")
 def list_top_part_categories() -> List[Dict[str, Any]]:
     """
@@ -260,6 +587,27 @@ def parts_by_category(
               p.name AS part_name,
               p.part_cat_id,
               (
+                SELECT COUNT(DISTINCT ei.color_id)
+                FROM element_images ei
+                WHERE ei.part_num = p.part_num
+              ) AS color_count,
+              (
+                SELECT ei.color_id
+                FROM element_images ei
+                WHERE ei.part_num = p.part_num
+                ORDER BY ei.color_id
+                LIMIT 1
+              ) AS default_color_id,
+              (
+                SELECT ei.img_url
+                FROM element_images ei
+                WHERE ei.part_num = p.part_num
+                  AND ei.img_url IS NOT NULL
+                  AND TRIM(ei.img_url) <> ''
+                ORDER BY ei.color_id
+                LIMIT 1
+              ) AS default_img_url,
+              (
                 SELECT ei.img_url
                 FROM element_images ei
                 WHERE ei.part_num = p.part_num
@@ -284,10 +632,64 @@ def parts_by_category(
             "part_num": r["part_num"],
             "part_name": r["part_name"],
             "part_cat_id": r["part_cat_id"],
+            "color_count": r["color_count"],
+            "default_color_id": r["default_color_id"],
+            "default_img_url": r["default_img_url"],
             "part_img_url": r["part_img_url"],
         }
         for r in rows
     ]
+
+
+@router.get("/part-image-random")
+def part_image_random(
+    part_num: str = Query(..., description="Part number to fetch a random image for"),
+) -> Dict[str, Any]:
+    """
+    Return a random image URL for a part_num from element_images.
+    """
+    pn = (part_num or "").strip()
+    if not pn:
+        raise HTTPException(status_code=422, detail="Missing part_num")
+
+    with db() as con:
+        cur = con.execute(
+            """
+            SELECT eic.url
+            FROM element_image_candidates eic
+            JOIN elements e ON e.element_id = eic.element_id
+            WHERE e.part_num = ?
+              AND eic.url IS NOT NULL
+              AND TRIM(eic.url) <> ''
+            ORDER BY CASE WHEN eic.http_status = 200 THEN 0 ELSE 1 END, RANDOM()
+            LIMIT 1
+            """,
+            (pn,),
+        )
+        row = cur.fetchone()
+
+        if not row:
+            cur = con.execute(
+                """
+                SELECT img_url
+                FROM element_images
+                WHERE part_num = ?
+                  AND img_url IS NOT NULL
+                  AND TRIM(img_url) <> ''
+                ORDER BY RANDOM()
+                LIMIT 1
+                """,
+                (pn,),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="No image found")
+
+    img_url = row["url"] if hasattr(row, "keys") and "url" in row.keys() else (
+        row["img_url"] if hasattr(row, "keys") else row[0]
+    )
+    return {"img_url": img_url}
 
 
 # -----------------------------
