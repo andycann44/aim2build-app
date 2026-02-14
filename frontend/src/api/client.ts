@@ -76,7 +76,7 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 401) {
     // global auth fail => drop token and force login
     clearToken();
-    if (typeof window !== "undefined") window.location.href = "/account?mode=login";
+    if (typeof window !== "undefined") window.location.href = "/account?mode=login&reason=expired";
     throw new Error("401 Unauthorized");
   }
 
