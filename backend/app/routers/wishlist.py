@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from pathlib import Path
 import json
 
 from app.catalog_db import db as catalog_db
+from app.user_db import user_db
 from app.paths import DATA_DIR
 from app.routers.auth import get_current_user, User
 
@@ -12,7 +13,7 @@ router = APIRouter()
 def _wishlist_file(user_id: int) -> Path:
     return DATA_DIR / f"wishlist_user_{user_id}.json"
 
-def _load(user_id: int):
+def _load_json(user_id: int):
     path = _wishlist_file(user_id)
     if not path.exists(): return {"sets":[]}
     with path.open("r", encoding="utf-8") as f:
@@ -23,12 +24,6 @@ def _load(user_id: int):
             return d
         except json.JSONDecodeError:
             raise HTTPException(status_code=500, detail="wishlist.json is invalid")
-
-def _save(user_id: int, obj):
-    path = _wishlist_file(user_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(obj, f)
 
 def _normalize_set_id(raw: str) -> str:
     sn = (raw or "").strip()
@@ -52,9 +47,52 @@ def _resolve_set_num(raw: str) -> str:
     if not row: raise HTTPException(status_code=404, detail=f"Set {raw} not found in catalog")
     return row[0]
 
+def _list_wishlist(user_id: int) -> List[Dict[str, Any]]:
+    with user_db() as con:
+        rows = con.execute(
+            "SELECT set_num FROM wishlist WHERE user_id = ? ORDER BY id ASC",
+            (int(user_id),),
+        ).fetchall()
+    return [{"set_num": (r["set_num"] if hasattr(r, "keys") else r[0])} for r in rows]
+
+def _import_json_if_present(user_id: int) -> None:
+    path = _wishlist_file(user_id)
+    if not path.exists():
+        return
+
+    data = _load_json(user_id)
+    sets = data.get("sets") or []
+    normalized: List[str] = []
+    for s in sets:
+        if isinstance(s, dict):
+            raw = s.get("set_num") or s.get("set") or s.get("id")
+        else:
+            raw = s
+        sn = _normalize_set_id(str(raw or "").strip())
+        if sn:
+            normalized.append(sn)
+
+    if not normalized:
+        return
+
+    with user_db() as con:
+        inserted = 0
+        for sn in normalized:
+            cur = con.execute(
+                "INSERT OR IGNORE INTO wishlist (user_id, set_num) VALUES (?, ?)",
+                (int(user_id), sn),
+            )
+            if cur.rowcount:
+                inserted += 1
+        con.commit()
+
+    if inserted:
+        print(f"[wishlist] imported {inserted} item(s) for user {user_id} from {path.name}")
+
 @router.get("")
 def list_wishlist(current_user: User = Depends(get_current_user)):
-    return _load(current_user.id)
+    _import_json_if_present(current_user.id)
+    return {"sets": _list_wishlist(current_user.id)}
 
 @router.post("/add")
 def add_wishlist(
@@ -66,12 +104,29 @@ def add_wishlist(
     raw = set_num or set or id
     if not raw: raise HTTPException(status_code=422, detail="Provide set, set_num, or id")
     sn = _resolve_set_num(raw)
-    data = _load(current_user.id)
-    if any(s == sn or (isinstance(s,dict) and s.get("set_num")==sn) for s in data["sets"]):
-        return {"ok": True, "duplicate": True, "count": len(data["sets"])}
-    data["sets"].append({"set_num": sn})
-    _save(current_user.id, data)
-    return {"ok": True, "count": len(data["sets"])}
+    _import_json_if_present(current_user.id)
+    with user_db() as con:
+        exists = con.execute(
+            "SELECT 1 FROM wishlist WHERE user_id = ? AND set_num = ? LIMIT 1",
+            (int(current_user.id), sn),
+        ).fetchone()
+        if exists:
+            count = con.execute(
+                "SELECT COUNT(*) AS c FROM wishlist WHERE user_id = ?",
+                (int(current_user.id),),
+            ).fetchone()
+            return {"ok": True, "duplicate": True, "count": int(count["c"] if hasattr(count, "keys") else count[0])}
+
+        con.execute(
+            "INSERT OR IGNORE INTO wishlist (user_id, set_num) VALUES (?, ?)",
+            (int(current_user.id), sn),
+        )
+        con.commit()
+        count = con.execute(
+            "SELECT COUNT(*) AS c FROM wishlist WHERE user_id = ?",
+            (int(current_user.id),),
+        ).fetchone()
+    return {"ok": True, "count": int(count["c"] if hasattr(count, "keys") else count[0])}
 
 @router.delete("/remove")
 def remove_wishlist(
@@ -83,10 +138,17 @@ def remove_wishlist(
     raw = set_num or set or id
     if not raw: raise HTTPException(status_code=422, detail="Provide set, set_num, or id")
     sn = _resolve_set_num(raw)
-    data = _load(current_user.id)
-    before = len(data["sets"])
-    data["sets"] = [s for s in data["sets"] if (s != sn and (not isinstance(s,dict) or s.get("set_num") != sn))]
-    if len(data["sets"]) == before:
-        raise HTTPException(status_code=404, detail=f"{sn} not in wishlist")
-    _save(current_user.id, data)
-    return {"ok": True, "removed": sn, "count": len(data["sets"])}
+    _import_json_if_present(current_user.id)
+    with user_db() as con:
+        cur = con.execute(
+            "DELETE FROM wishlist WHERE user_id = ? AND set_num = ?",
+            (int(current_user.id), sn),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"{sn} not in wishlist")
+        con.commit()
+        count = con.execute(
+            "SELECT COUNT(*) AS c FROM wishlist WHERE user_id = ?",
+            (int(current_user.id),),
+        ).fetchone()
+    return {"ok": True, "removed": sn, "count": int(count["c"] if hasattr(count, "keys") else count[0])}
