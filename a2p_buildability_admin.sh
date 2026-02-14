@@ -31,7 +31,7 @@ set -euo pipefail
 # -------------------------------
 # DB LOCATION
 # -------------------------------
-DB="backend/app/data/lego_catalog.db"
+DB="${A2B_CATALOG_DB:-backend/app/data/lego_catalog.db}"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
