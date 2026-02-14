@@ -13,7 +13,7 @@ def brick_ui_categories(current_user: User = Depends(get_current_user)) -> List[
         cur = con.execute(
             """
             SELECT key, label, img_url, sort_order
-            FROM brick_category_images
+            FROM cfg.brick_category_images
             WHERE is_enabled = 1
             ORDER BY sort_order ASC, label ASC
             """

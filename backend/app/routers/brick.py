@@ -35,7 +35,7 @@ def brick_parents(current_user: User = Depends(get_current_user)) -> List[Dict[s
         cur = con.execute(
             """
             SELECT key, label, img_url, sort_order, part_cat_id
-            FROM brick_category_images
+            from cfg.brick_category_images
             WHERE part_cat_id IS NULL AND is_enabled = 1
             ORDER BY sort_order ASC, key ASC
             """
@@ -83,7 +83,7 @@ def brick_children(
         cur = con.execute(
             """
             SELECT label
-            FROM brick_category_images
+            FROM cfg.brick_category_images
             WHERE key = ? AND part_cat_id IS NULL AND is_enabled = 1
             LIMIT 1
             """,
@@ -133,7 +133,7 @@ def brick_children(
         cur = con.execute(
             """
             SELECT part_cat_id, label, img_url, sort_order
-            FROM brick_category_images
+            FROM cfg.brick_category_images      
             WHERE part_cat_id IS NOT NULL AND is_enabled = 1
             """
         )
@@ -200,7 +200,7 @@ def brick_filters(
         cur = con.execute(
             """
             SELECT filter_key, label, img_url, sort_order, scope_id
-            FROM brick_quickfilter_images
+            FROM cfg.brick_quickfilter_images
             WHERE key = ? AND is_enabled = 1
               AND scope_kind = ?
               AND scope_id IN (-1, ?)

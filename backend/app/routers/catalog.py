@@ -59,7 +59,7 @@ def _load_category_overrides() -> Dict[int, Dict[str, Any]]:
         cur = con.execute(
             """
             SELECT key, label, img_url, sort_order, part_cat_id, is_enabled
-            FROM brick_category_images
+            FROM cfg.brick_category_images
             """
         )
         rows = cur.fetchall()
@@ -98,7 +98,7 @@ def _load_parent_overrides() -> Dict[str, Dict[str, Any]]:
         cur = con.execute(
             """
             SELECT key, label, img_url, sort_order, is_enabled
-            FROM brick_category_images
+            FROM cfg.brick_category_images
             WHERE part_cat_id IS NULL
             """
         )
@@ -134,7 +134,7 @@ def catalog_category_parents() -> List[Dict[str, Any]]:
         rows = con.execute(
             """
             SELECT key, label, img_url, sort_order, is_enabled
-            FROM brick_category_images
+            FROM cfg.brick_category_images
             WHERE parent_key IS NULL
             """
         ).fetchall()
@@ -195,7 +195,7 @@ def catalog_category_children(
             rows = con.execute(
                 """
                 SELECT label, img_url, sort_order, part_cat_id, is_enabled
-                FROM brick_category_images
+                FROM cfg.brick_category_images
                 WHERE parent_key = ?
                 """,
                 (pk,),

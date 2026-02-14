@@ -93,7 +93,7 @@ def brick_quickfilters(
         cur = con.execute(
             """
             SELECT filter_key, label, img_url, sort_order
-            FROM brick_quickfilter_images
+            FROM cfg.brick_quickfilter_images
             WHERE key = ? AND is_enabled = 1
             ORDER BY sort_order ASC, filter_key ASC
             """,
@@ -139,7 +139,7 @@ def brick_categories(current_user: User = Depends(get_current_user)) -> List[Dic
         cur = con.execute(
             """
             SELECT key, label, sort_order, img_url, part_cat_id
-            FROM brick_category_images
+            FROM cfg.brick_category_images
             WHERE is_enabled = 1
             ORDER BY sort_order ASC, key ASC
             """
