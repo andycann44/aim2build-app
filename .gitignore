@@ -88,3 +88,10 @@ debug_catalog_images.html
 
 # Local dev DB (do not commit)
 aim2build_app.db
+
+# --- local db / swap artifacts (never commit) ---
+backend/app/data/*.db
+backend/app/data/*.db-*
+backend/app/data/lego_catalog.db.*
+backend/app/data/<BACKUP_DB>
+backend/app/routers/search.py.bak_*
