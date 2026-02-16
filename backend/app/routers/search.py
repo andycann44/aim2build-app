@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
 from rapidfuzz import fuzz
+from datetime import datetime
 
 from app.paths import DATA_DIR
 
@@ -210,6 +211,8 @@ def _theme_includes_clause(con: sqlite3.Connection, theme_id: int, eff_theme_sql
 
     clause = f"(({eff_theme_sql} = ?) {include_sql} {set_sql})"
     return clause, [int(theme_id), *params]
+
+
 # -------------------------
 # Normalization helpers
 # -------------------------
@@ -226,7 +229,7 @@ def _norm_q(s: str) -> str:
 def _base_set_num(s: str) -> Optional[str]:
     if not s:
         return None
-    m = re.match(r"^(\d{3,6})(?:-\d+)?$", s.strip())
+    m = re.match(r"^(\d{5,})(?:-\d+)?$", s.strip())
     return m.group(1) if m else None
 
 
@@ -346,6 +349,52 @@ _THEME_ALIASES: Dict[str, str] = {
 def _alias_theme_phrase(phrase_norm: str) -> str:
     p = (phrase_norm or "").strip().lower()
     return _THEME_ALIASES.get(p, p)
+
+
+# -------------------------
+# Year filtering
+# -------------------------
+
+_YEAR_TOKEN_RE = re.compile(r"\b(?:year|y)\s*[:=]\s*(\d{4})\b", re.IGNORECASE)
+
+def _normalize_year(y: int) -> Optional[int]:
+    try:
+        y2 = int(y)
+    except Exception:
+        return None
+    this_year = datetime.utcnow().year
+    if 1950 <= y2 <= (this_year + 2):
+        return y2
+    return None
+
+def _parse_year_token(q_raw: str) -> Tuple[Optional[int], str]:
+    """
+    Returns (year, rest_query).
+    Supports:
+      - "2026"  (pure year query)
+      - "year:2026" / "y:2026"
+    Does NOT treat "2026-1" as a year.
+    """
+    s = (q_raw or "").strip()
+    if not s:
+        return None, s
+
+    m = _YEAR_TOKEN_RE.search(s)
+    if m:
+        y = _normalize_year(int(m.group(1)))
+        if y is None:
+            return None, s
+        rest = (s[: m.start()] + " " + s[m.end():]).strip()
+        rest = re.sub(r"\s+", " ", rest)
+        return y, rest
+
+    if re.fullmatch(r"\d{4}", s):
+        y = _normalize_year(int(s))
+        if y is None:
+            return None, s
+        return y, ""
+
+    return None, s
 
 
 # -------------------------
@@ -554,7 +603,13 @@ def search_paged(
     sort: str = Query("recent"),
 ):
     q_raw_full = _trim_q((q or "").strip())
-    if not q_raw_full:
+    q_raw_full_orig = q_raw_full
+
+    year_filter, q_raw_full2 = _parse_year_token(q_raw_full)
+    q_raw_full = q_raw_full2
+
+    # allow year-only searches
+    if (not q_raw_full) and (year_filter is None):
         return {"results": [], "page": 1, "page_size": 0, "total": 0, "has_more": False}
 
     page = _clamp_page(page)
@@ -563,7 +618,7 @@ def search_paged(
 
     # ---------- NUMERIC SET SEARCH (no theme interference) ----------
     base = _base_set_num(q_raw_full)
-    if base:
+    if base and year_filter is None:
         con = _db()
         cur = con.cursor()
         join_filters_sql, where_filters_sql = _filters_sql(con)
@@ -588,7 +643,7 @@ def search_paged(
 
     # True pagination: exact search only (fuzzy slices a precomputed candidate list).
     if fuzzy:
-        rows = fuzzy_search_sets(q_raw_full, limit=2500)
+        rows = fuzzy_search_sets(q_raw_full_orig, limit=2500)
         total = len(rows)
         start = (page - 1) * page_size
         end = start + page_size
@@ -614,8 +669,6 @@ def search_paged(
     # ---------- PURE THEME MODE ----------
     q_rest_norm = _norm_q(q_rest_raw)
     if theme_ids and not q_rest_norm:
-        # If multiple theme_ids detected (descendants), keep simple IN() on eff theme
-        # (theme_includes applies only for single-theme root browsing)
         if len(theme_ids) == 1:
             theme_clause, theme_clause_params = _theme_includes_clause(con, theme_ids[0], eff_theme_sql)
         else:
@@ -623,11 +676,13 @@ def search_paged(
             theme_clause = f"({eff_theme_sql} IN ({placeholders}))"
             theme_clause_params = [int(x) for x in theme_ids]
 
+        # IMPORTANT: year placeholder comes AFTER theme placeholders
         where_sql = f"""
             ({_base_where_clause(min_parts)})
             {_theme_noise_clause()}
             {" " if (wants_figures or theme_forced) else _no_figures_clause()}
             AND {theme_clause}
+            {"AND s.year = ?" if year_filter is not None else ""}
             {where_filters_sql}
         """
 
@@ -640,7 +695,12 @@ def search_paged(
             {join_filters_sql}
             WHERE {where_sql}
         """
-        total = int(cur.execute(count_sql, (*theme_clause_params,)).fetchone()["n"])
+        total = int(
+            cur.execute(
+                count_sql,
+                (*theme_clause_params, *((year_filter,) if year_filter is not None else ())),
+            ).fetchone()["n"]
+        )
 
         page_sql = f"""
             SELECT
@@ -655,7 +715,10 @@ def search_paged(
             {_order_by(sort)}
             LIMIT ? OFFSET ?
         """
-        cur.execute(page_sql, (*theme_clause_params, int(page_size), int(offset)))
+        cur.execute(
+            page_sql,
+            (*theme_clause_params, *((year_filter,) if year_filter is not None else ()), int(page_size), int(offset)),
+        )
         results = [_row_to_set(r) for r in cur.fetchall()]
         con.close()
         return {"results": results, "page": page, "page_size": page_size, "total": total, "has_more": (offset + len(results)) < total}
@@ -668,7 +731,6 @@ def search_paged(
         generic = {"house", "set", "lego", "kit", "model"}
         q_tokens = [t for t in q_tokens if t not in generic]
 
-    # If nothing meaningful remains, treat it as a theme-only PAGED search
     if not q_tokens:
         if theme_ids:
             if len(theme_ids) == 1:
@@ -683,11 +745,13 @@ def search_paged(
             theme_filter_sql = ""
             theme_params = []
 
+        # IMPORTANT: year placeholder comes AFTER theme placeholders
         where_sql = f"""
             ({_base_where_clause(min_parts)})
             {_theme_noise_clause()}
             {" " if (wants_figures or theme_forced) else _no_figures_clause()}
             {theme_filter_sql}
+            {"AND s.year = ?" if year_filter is not None else ""}
             {where_filters_sql}
         """
 
@@ -700,7 +764,12 @@ def search_paged(
             {join_filters_sql}
             WHERE {where_sql}
         """
-        total = int(cur.execute(count_sql, (*theme_params,)).fetchone()["n"])
+        total = int(
+            cur.execute(
+                count_sql,
+                (*theme_params, *((year_filter,) if year_filter is not None else ())),
+            ).fetchone()["n"]
+        )
 
         page_sql = f"""
             SELECT
@@ -715,7 +784,10 @@ def search_paged(
             {_order_by(sort)}
             LIMIT ? OFFSET ?
         """
-        cur.execute(page_sql, (*theme_params, int(page_size), int(offset)))
+        cur.execute(
+            page_sql,
+            (*theme_params, *((year_filter,) if year_filter is not None else ()), int(page_size), int(offset)),
+        )
         results = [_row_to_set(r) for r in cur.fetchall()]
         con.close()
         return {"results": results, "page": page, "page_size": page_size, "total": total, "has_more": (offset + len(results)) < total}
@@ -742,7 +814,6 @@ def search_paged(
     q2_esc = _like_escape(q2)
     set_like_2 = f"%{q2_esc}%" if q2 != q_rest_raw else set_like_1
 
-    # Theme filter for NORMAL MODE
     theme_params: List[int] = []
     theme_filter_sql = ""
     if theme_ids:
@@ -755,12 +826,14 @@ def search_paged(
             theme_filter_sql = f" AND {eff_theme_sql} IN ({placeholders}) "
             theme_params = [int(x) for x in theme_ids]
 
+    # IMPORTANT: year placeholder comes AFTER theme placeholders and BEFORE set_like/token placeholders
     where_sql = f"""
         ({_base_where_clause(min_parts)})
         {_theme_noise_clause()}
         {" " if (wants_figures or theme_forced) else _no_figures_clause()}
         {where_filters_sql}
         {theme_filter_sql}
+        {"AND s.year = ?" if year_filter is not None else ""}
         AND (
             s.set_num LIKE ? ESCAPE '\\'
             OR s.set_num LIKE ? ESCAPE '\\'
@@ -780,7 +853,7 @@ def search_paged(
     total = int(
         cur.execute(
             count_sql,
-            (*theme_params, set_like_1, set_like_2, *token_params),
+            (*theme_params, *((year_filter,) if year_filter is not None else ()), set_like_1, set_like_2, *token_params),
         ).fetchone()["n"]
     )
 
@@ -799,7 +872,7 @@ def search_paged(
     """
     cur.execute(
         page_sql,
-        (*theme_params, set_like_1, set_like_2, *token_params, int(page_size), int(offset)),
+        (*theme_params, *((year_filter,) if year_filter is not None else ()), set_like_1, set_like_2, *token_params, int(page_size), int(offset)),
     )
     results = [_row_to_set(r) for r in cur.fetchall()]
     con.close()
@@ -809,7 +882,10 @@ def search_paged(
 
 def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List[Dict]:
     q_raw_full = _trim_q((q or "").strip())
-    if not q_raw_full:
+    year_filter, q_raw_full2 = _parse_year_token(q_raw_full)
+    q_raw_full = q_raw_full2
+
+    if (not q_raw_full) and (year_filter is None):
         return []
 
     con = _db()
@@ -853,10 +929,11 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
                 {" " if (wants_figures or theme_forced) else _no_figures_clause()}
                 {where_filters_sql}
                 {theme_filter_sql}
+                {"AND s.year = ?" if year_filter is not None else ""}
             {_order_by(sort)}
             LIMIT ?
         """
-        cur.execute(sql, (*theme_params, int(limit)))
+        cur.execute(sql, (*theme_params, *((year_filter,) if year_filter is not None else ()), int(limit)))
         out: List[Dict] = [_row_to_set(r) for r in cur.fetchall()]
         con.close()
         return out
@@ -879,10 +956,11 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
                 {_theme_noise_clause()}
                 {_no_figures_clause()}
                 {where_filters_sql}
+                {"AND s.year = ?" if year_filter is not None else ""}
             {_order_by(sort)}
             LIMIT ?
         """
-        cur.execute(sql, (int(limit),))
+        cur.execute(sql, (*((year_filter,) if year_filter is not None else ()), int(limit)))
         out: List[Dict] = [_row_to_set(r) for r in cur.fetchall()]
         con.close()
         return out
@@ -908,7 +986,6 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
     q2_esc = _like_escape(q2)
     set_like_2 = f"%{q2_esc}%" if q2 != q_rest_raw else set_like_1
 
-    # Theme filter for NORMAL MODE
     theme_params: List[int] = []
     theme_filter_sql = ""
     if theme_ids:
@@ -936,6 +1013,7 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
             {" " if (wants_figures or theme_forced) else _no_figures_clause()}
             {where_filters_sql}
             {theme_filter_sql}
+            {"AND s.year = ?" if year_filter is not None else ""}
             AND (
                 s.set_num LIKE ? ESCAPE '\\'
                 OR s.set_num LIKE ? ESCAPE '\\'
@@ -944,7 +1022,7 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
         {_order_by(sort)}
         LIMIT ?
     """
-    cur.execute(sql, (*theme_params, set_like_1, set_like_2, *token_params, int(limit)))
+    cur.execute(sql, (*theme_params, *((year_filter,) if year_filter is not None else ()), set_like_1, set_like_2, *token_params, int(limit)))
     out: List[Dict] = [_row_to_set(r) for r in cur.fetchall()]
     con.close()
     return out
@@ -952,7 +1030,10 @@ def _do_search(q: str, limit: int = DEFAULT_LIMIT, sort: str = "recent") -> List
 
 def fuzzy_search_sets(q: str, limit: int = 80, min_score: int = 70) -> List[Dict]:
     q_raw_full = _trim_q((q or "").strip())
-    if not q_raw_full:
+    year_filter, q_raw_full2 = _parse_year_token(q_raw_full)
+    q_raw_full = q_raw_full2
+
+    if (not q_raw_full) and (year_filter is None):
         return []
 
     con = _db()
@@ -972,7 +1053,6 @@ def fuzzy_search_sets(q: str, limit: int = 80, min_score: int = 70) -> List[Dict
 
     q_norm = _norm_q(q_rest_raw)
 
-    # Build theme filter for fuzzy candidate pull
     theme_params: List[int] = []
     theme_filter_sql = ""
     if theme_ids:
@@ -1002,9 +1082,10 @@ def fuzzy_search_sets(q: str, limit: int = 80, min_score: int = 70) -> List[Dict
                 {" " if (wants_figures or theme_forced) else _no_figures_clause()}
                 {where_filters_sql}
                 {theme_filter_sql}
+                {"AND s.year = ?" if year_filter is not None else ""}
             LIMIT 2500
             """,
-            (*theme_params,),
+            (*theme_params, *((year_filter,) if year_filter is not None else ())),
         )
     else:
         like = f"%{q_norm}%"
@@ -1024,6 +1105,7 @@ def fuzzy_search_sets(q: str, limit: int = 80, min_score: int = 70) -> List[Dict
                 {" " if (wants_figures or theme_forced) else _no_figures_clause()}
                 {where_filters_sql}
                 {theme_filter_sql}
+                {"AND s.year = ?" if year_filter is not None else ""}
                 AND (
                     LOWER(REPLACE(s.name, '-', ' ')) LIKE ?
                     OR s.set_num LIKE ? ESCAPE '\\'
@@ -1032,7 +1114,7 @@ def fuzzy_search_sets(q: str, limit: int = 80, min_score: int = 70) -> List[Dict
                 )
             LIMIT 2500
             """,
-            (*theme_params, like, like, like, like),
+            (*theme_params, *((year_filter,) if year_filter is not None else ()), like, like, like, like),
         )
 
     rows = cur.fetchall()
@@ -1048,33 +1130,28 @@ def fuzzy_search_sets(q: str, limit: int = 80, min_score: int = 70) -> List[Dict
         hay = _norm_q(f"{set_num} {name} {theme_name}")
 
         if theme_ids and not q_norm:
-                score = 100
+            score = 100
         else:
-                # Base fuzzy score
-                base_score = fuzz.token_set_ratio(q_norm, hay)
+            base_score = fuzz.token_set_ratio(q_norm, hay)
 
-                # Strong boost for exact / near-exact set number queries
-                q_base = _base_set_num(q_norm)  # works for "11370" or "11370-1"
-                if q_base:
-                    sn_base = _base_set_num(set_num) or ""
-                    if q_base == sn_base:
-                        base_score += 40
+            q_base = _base_set_num(q_norm)
+            if q_base:
+                sn_base = _base_set_num(set_num) or ""
+                if q_base == sn_base:
+                    base_score += 40
 
-                # Boost if query appears directly in set name
-                name_norm = _norm_q(name)
-                if q_norm and q_norm in name_norm:
-                    base_score += 25
+            name_norm = _norm_q(name)
+            if q_norm and q_norm in name_norm:
+                base_score += 25
 
-                # Boost if query appears directly in resolved theme name
-                theme_norm = _norm_q(theme_name)
-                if theme_norm and q_norm in theme_norm:
-                    base_score += 15
+            theme_norm = _norm_q(theme_name)
+            if theme_norm and q_norm in theme_norm:
+                base_score += 15
 
-                # Prefix boost (helps short queries like "creel")
-                if q_norm and name_norm.startswith(q_norm):
-                    base_score += 10
+            if q_norm and name_norm.startswith(q_norm):
+                base_score += 10
 
-                score = min(int(base_score), 100)
+            score = min(int(base_score), 100)
 
         if score >= int(min_score):
             item = _row_to_set(row)
