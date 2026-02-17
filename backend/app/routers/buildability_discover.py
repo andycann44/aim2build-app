@@ -71,7 +71,15 @@ def discover_buildability(
         )
 
         sql = """
-        WITH agg AS (
+        WITH candidate_sets AS (
+            SELECT DISTINCT r.set_num
+            FROM v_set_requirements r
+            JOIN temp_inv i
+            ON i.part_num = r.part_num
+            AND i.color_id = r.color_id
+            WHERE COALESCE(r.quantity, 0) > 0
+        ),
+        agg AS (
             SELECT
                 r.set_num AS set_num,
                 SUM(r.quantity) AS total_needed,
@@ -82,9 +90,11 @@ def discover_buildability(
                     )
                 ) AS total_have
             FROM v_set_requirements r
+            JOIN candidate_sets cs
+            ON cs.set_num = r.set_num
             LEFT JOIN temp_inv i
-                ON i.part_num = r.part_num
-               AND i.color_id = r.color_id
+            ON i.part_num = r.part_num
+            AND i.color_id = r.color_id
             WHERE COALESCE(r.quantity, 0) > 0
             GROUP BY r.set_num
         )
@@ -98,32 +108,29 @@ def discover_buildability(
             a.total_needed AS total_needed,
             a.total_have AS total_have,
             CASE
-                WHEN a.total_needed > 0 THEN (1.0 * a.total_have) / a.total_needed
-                ELSE 0.0
+            WHEN a.total_needed > 0 THEN (1.0 * a.total_have) / a.total_needed
+            ELSE 0.0
             END AS coverage
         FROM agg a
         JOIN sets s
-          ON s.set_num = a.set_num
-        WHERE a.total_needed > 0
-          AND a.total_needed >= 50
-          AND (CASE
+        ON s.set_num = a.set_num
+        WHERE a.total_needed >= 50
+        AND (CASE
                 WHEN a.total_needed > 0 THEN (1.0 * a.total_have) / a.total_needed
                 ELSE 0.0
-              END) >= ?
-          AND LOWER(s.name) NOT LIKE '%minifig%'
-          AND LOWER(s.name) NOT LIKE '%minifigure%'
-          AND NOT EXISTS (
+            END) >= ?
+        AND NOT EXISTS (
                 SELECT 1
                 FROM set_filters sf
                 WHERE sf.enabled = 1
-                  AND sf.set_num = a.set_num
-              )
-          AND NOT EXISTS (
+                AND sf.set_num = a.set_num
+            )
+        AND NOT EXISTS (
                 SELECT 1
                 FROM theme_filters tf
                 WHERE tf.enabled = 1
-                  AND tf.theme_id = s.theme_id
-              )
+                AND tf.theme_id = s.theme_id
+            )
         ORDER BY coverage DESC, a.total_needed DESC, a.set_num ASC
         LIMIT ?
         """
