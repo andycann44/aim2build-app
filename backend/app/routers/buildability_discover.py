@@ -69,32 +69,40 @@ def discover_buildability(
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_temp_inv_pc ON temp_inv(part_num, color_id)"
         )
-
+    
         sql = """
-        WITH candidate_sets AS (
-            SELECT DISTINCT r.set_num
+        WITH common_parts AS (
+            SELECT sp.part_num
+            FROM set_parts sp
+            GROUP BY sp.part_num
+            HAVING COUNT(DISTINCT sp.set_num) > 1000
+        ),
+        filtered_inv AS (
+            SELECT part_num, color_id, qty
+            FROM temp_inv
+            WHERE part_num NOT IN (SELECT part_num FROM common_parts)
+        ),
+        candidate_sets AS (
+            SELECT r.set_num
             FROM v_set_requirements r
-            JOIN temp_inv i
+            JOIN filtered_inv i
             ON i.part_num = r.part_num
             AND i.color_id = r.color_id
             WHERE COALESCE(r.quantity, 0) > 0
+            GROUP BY r.set_num
+            HAVING COUNT(*) >= 3
         ),
         agg AS (
             SELECT
                 r.set_num AS set_num,
                 SUM(r.quantity) AS total_needed,
-                SUM(
-                    MIN(
-                        COALESCE(i.qty, 0),
-                        r.quantity
-                    )
-                ) AS total_have
+                SUM(MIN(COALESCE(ti.qty, 0), r.quantity)) AS total_have
             FROM v_set_requirements r
             JOIN candidate_sets cs
             ON cs.set_num = r.set_num
-            LEFT JOIN temp_inv i
-            ON i.part_num = r.part_num
-            AND i.color_id = r.color_id
+            LEFT JOIN temp_inv ti
+            ON ti.part_num = r.part_num
+            AND ti.color_id = r.color_id
             WHERE COALESCE(r.quantity, 0) > 0
             GROUP BY r.set_num
         )
@@ -120,14 +128,12 @@ def discover_buildability(
                 ELSE 0.0
             END) >= ?
         AND NOT EXISTS (
-                SELECT 1
-                FROM set_filters sf
+                SELECT 1 FROM set_filters sf
                 WHERE sf.enabled = 1
                 AND sf.set_num = a.set_num
             )
         AND NOT EXISTS (
-                SELECT 1
-                FROM theme_filters tf
+                SELECT 1 FROM theme_filters tf
                 WHERE tf.enabled = 1
                 AND tf.theme_id = s.theme_id
             )
