@@ -12,105 +12,60 @@ type DiscoverRow = {
   coverage: number;
   total_needed: number;
   total_have: number;
-  name?: string;
-  year?: number;
-  img_url?: string;
-  num_parts?: number;
+  name?: string | null;
+  year?: number | null;
+  img_url?: string | null;
+  num_parts?: number | null;
 };
 
-const API = API_BASE;
-const DISCOVER_LIMIT = 200;
-const CACHE_PREFIX = "a2b-discover:v1";
-
-function apiUrl(path: string): string {
-  if (!API) return path;
-  return `${API}${path}`;
-}
-
-function toBuildabilityItem(r: DiscoverRow): BuildabilityItem {
-  return {
-    set_num: r.set_num,
-    coverage: r.coverage,
-    total_needed: r.total_needed,
-    total_have: r.total_have,
-    name: r.name,
-    year: r.year,
-    img_url: r.img_url,
-    num_parts: r.num_parts,
-  } as BuildabilityItem;
-}
-
-async function fetchText(
-  url: string
-): Promise<{ ok: boolean; status: number; text: string }> {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { ...authHeaders() },
-  });
-  const text = await res.text();
-  return { ok: res.ok, status: res.status, text };
-}
-
-type DiscoverFilters = {
-  minCoverage: number;
-  includeComplete: boolean;
-  limit: number;
-};
+const CACHE_PREFIX = "a2b:buildability:discover:v1";
+const PAGE_SIZE = 20;
 
 function readCache(key: string): DiscoverRow[] | null {
-  if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(key);
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.rows)) return null;
-    return parsed.rows as DiscoverRow[];
+    if (!Array.isArray(parsed)) return null;
+    return parsed as DiscoverRow[];
   } catch {
     return null;
   }
 }
 
-function writeCache(key: string, rows: DiscoverRow[]): void {
-  if (typeof window === "undefined") return;
+function writeCache(key: string, rows: DiscoverRow[]) {
   try {
-    sessionStorage.setItem(
-      key,
-      JSON.stringify({ rows, cached_at: Date.now() })
-    );
+    localStorage.setItem(key, JSON.stringify(rows));
   } catch {
-    // ignore cache write failures
+    // ignore
   }
 }
 
-async function fetchDiscover(filters: DiscoverFilters): Promise<DiscoverRow[]> {
-  const params = new URLSearchParams();
-  params.set("min_coverage", filters.minCoverage.toFixed(2));
-  params.set("limit", String(filters.limit));
-  params.set("include_complete", String(filters.includeComplete));
-
-  // Discover should stay "new builds" by default: ALWAYS hide owned sets here.
-  params.set("hide_owned", "true");
-
-  const url = apiUrl(`/api/buildability/discover?${params.toString()}`);
-  const { ok, status, text } = await fetchText(url);
-
-  if (!ok) {
-    throw new Error(`discover failed: ${status} ${text.slice(0, 180)}`);
-  }
-
-  try {
-    const data = JSON.parse(text);
-    return Array.isArray(data) ? (data as DiscoverRow[]) : [];
-  } catch {
-    throw new Error(`discover invalid JSON: ${text.slice(0, 180)}`);
-  }
+function toBuildabilityItem(r: DiscoverRow): BuildabilityItem {
+  return {
+    set_num: r.set_num,
+    name: r.name || r.set_num,
+    year: r.year ?? undefined,
+    img_url: r.img_url ?? undefined,
+    num_parts: r.num_parts ?? undefined,
+    coverage: r.coverage,
+    total_needed: r.total_needed,
+    total_have: r.total_have,
+  };
 }
 
-export default function BuildabilityDiscoverPage() {
+function BuildabilityDiscoverPage() {
   const nav = useNavigate();
 
   const [minPct, setMinPct] = React.useState<number>(90); // default 90%
   const [include100, setInclude100] = React.useState<boolean>(false);
+
+  // Hide owned sets by default; toggle via button in hero
+  const [includeOwned, setIncludeOwned] = React.useState<boolean>(false);
+  const [ownedSetNums, setOwnedSetNums] = React.useState<Set<string>>(new Set());
+
+  // Pagination
+  const [page, setPage] = React.useState<number>(1);
 
   const [rows, setRows] = React.useState<DiscoverRow[] | null>(null);
   const [err, setErr] = React.useState<string>("");
@@ -122,6 +77,36 @@ export default function BuildabilityDiscoverPage() {
   );
 
   const runIdRef = React.useRef(0);
+
+  // Load "My Sets" once so we can hide owned sets in Discover (client-side filter)
+  React.useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/mysets`, {
+          headers: authHeaders(),
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const arr = Array.isArray(data) ? data : data?.sets ?? [];
+        const nums = new Set<string>(
+          (arr || [])
+            .map((s: any) => String(s?.set_num ?? s?.set ?? s?.id ?? "").trim())
+            .filter(Boolean)
+        );
+
+        if (alive) setOwnedSetNums(nums);
+      } catch {
+        // ignore (Discover still works)
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const run = React.useCallback(
     async (options?: { force?: boolean }) => {
@@ -135,32 +120,40 @@ export default function BuildabilityDiscoverPage() {
           setErr("");
           setRows(cached);
           setBusy(false);
+          setPage(1);
           return;
         }
       }
 
-      setErr("");
       setBusy(true);
-      if (!force) setRows(null);
+      setErr("");
 
       try {
-        const minCoverage = Math.max(0, Math.min(1, minPct / 100));
-        const discover = await fetchDiscover({
-          minCoverage,
-          includeComplete: include100,
-          limit: DISCOVER_LIMIT,
-        });
+        const minCoverage = Math.max(0.0, Math.min(1.0, minPct / 100));
+        const url =
+          `${API_BASE}/api/buildability/discover` +
+          `?min_coverage=${encodeURIComponent(minCoverage.toFixed(2))}` +
+          `&limit=${encodeURIComponent(include100 ? 200 : 200)}`;
 
-        if (runIdRef.current !== runId) return;
-        const out = Array.isArray(discover) ? discover.slice() : [];
+        const res = await fetch(url, { headers: authHeaders() });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(t || `HTTP ${res.status}`);
+        }
+
+        const data = (await res.json()) as DiscoverRow[];
+        if (runId !== runIdRef.current) return; // stale
+
+        const out = Array.isArray(data) ? data : [];
         setRows(out);
         writeCache(key, out);
+        setPage(1);
       } catch (e: any) {
-        if (runIdRef.current !== runId) return;
-        setErr(String(e?.message || e));
-        if (!force) setRows([]);
+        if (runId !== runIdRef.current) return;
+        setErr(e?.message || "Failed to load discover results.");
+        setRows([]);
       } finally {
-        if (runIdRef.current === runId) setBusy(false);
+        if (runId === runIdRef.current) setBusy(false);
       }
     },
     [cacheKey, minPct, include100]
@@ -170,27 +163,64 @@ export default function BuildabilityDiscoverPage() {
     run();
   }, [run]);
 
+  // Filter:
+  //  - always hide minifig catalog items if they leak into "sets"
+  //  - hide owned sets by default (toggle)
+  const visibleRows = React.useMemo(() => {
+    if (!rows) return rows;
+
+    let out = rows;
+
+    // 0) Always hide minifig "sets"
+    out = out.filter((r) => {
+      const sn = String(r?.set_num ?? "").toLowerCase();
+      if (sn.startsWith("fig-")) return false;
+
+      const nm = String(r?.name ?? "").toLowerCase();
+      if (nm.includes("minifig") || nm.includes("minifigure")) return false;
+
+      return true;
+    });
+
+    // 1) Hide owned sets by default
+    if (!includeOwned && ownedSetNums.size) {
+      out = out.filter((r) => !ownedSetNums.has(String(r.set_num)));
+    }
+
+    return out;
+  }, [rows, includeOwned, ownedSetNums]);
+
+  // Pagination derived
+  const pageCount = React.useMemo(() => {
+    if (!visibleRows) return 1;
+    return Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+  }, [visibleRows]);
+
+  const pageSafe = Math.min(Math.max(1, page), pageCount);
+
+  React.useEffect(() => {
+    if (page !== pageSafe) setPage(pageSafe);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageSafe]);
+
+  const pagedRows = React.useMemo(() => {
+    if (!visibleRows) return visibleRows;
+    const start = (pageSafe - 1) * PAGE_SIZE;
+    return visibleRows.slice(start, start + PAGE_SIZE);
+  }, [visibleRows, pageSafe]);
+
   return (
     <RequireAuth pageName="Buildability Discover">
       <div className="page">
         <PageHero
           title="Discover builds"
           subtitle="Sets you can almost build from your current inventory."
-          left={
-            <button
-              type="button"
-              onClick={() => nav("/buildability")}
-              className="a2b-hero-button a2b-cta-dark"
-            >
-              Back
-            </button>
-          }
           right={
             <button
               type="button"
+              className="a2b-hero-button"
               onClick={() => run({ force: true })}
               disabled={busy}
-              className="a2b-hero-button"
             >
               {busy ? "Loading..." : "Refresh"}
             </button>
@@ -215,9 +245,7 @@ export default function BuildabilityDiscoverPage() {
                 max={99}
                 step={1}
                 value={minPct}
-                onChange={(e) =>
-                  setMinPct(parseInt(e.target.value || "90", 10))
-                }
+                onChange={(e) => setMinPct(parseInt(e.target.value || "90", 10))}
               />
             </div>
 
@@ -233,25 +261,43 @@ export default function BuildabilityDiscoverPage() {
             <button
               type="button"
               className="hero-pill hero-pill--sort"
-              onClick={() => nav("/my-sets?from=discover")}
+              onClick={() => {
+                setIncludeOwned((v) => !v);
+                setPage(1);
+              }}
               style={{ gap: "0.5rem" }}
             >
-              Show sets I already own
+              {includeOwned ? "Hide sets I already own" : "Show sets I already own"}
             </button>
           </div>
         </PageHero>
 
         <div style={{ padding: "0 1.5rem 2.5rem" }}>
-          <h2
+          <div
             style={{
-              margin: "0 0 0.65rem",
-              fontSize: "1.1rem",
-              fontWeight: 800,
-              color: "#0f172a",
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              gap: "1rem",
             }}
           >
-            Discoverable sets
-          </h2>
+            <h2
+              style={{
+                margin: "0 0 0.65rem",
+                fontSize: "1.1rem",
+                fontWeight: 800,
+                color: "#0f172a",
+              }}
+            >
+              Discoverable sets
+            </h2>
+
+            {visibleRows ? (
+              <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                Showing {pagedRows ? pagedRows.length : 0} of {visibleRows.length}
+              </div>
+            ) : null}
+          </div>
 
           {err ? (
             <div
@@ -273,23 +319,57 @@ export default function BuildabilityDiscoverPage() {
             <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading…</p>
           ) : null}
 
-          {rows ? (
-            rows.length === 0 ? (
+          {pagedRows ? (
+            pagedRows.length === 0 ? (
               <p style={{ fontSize: "0.9rem", color: "#6b7280" }}>
                 No discover results yet.
               </p>
             ) : (
-              <div className="tile-grid">
-                {rows.map((r) => (
-                  <BuildabilityTile
-                    key={r.set_num}
-                    item={toBuildabilityItem(r)}
-                    onOpenDetails={() =>
-                      nav(`/buildability/${encodeURIComponent(r.set_num)}`)
-                    }
-                  />
-                ))}
-              </div>
+              <>
+                <div className="tile-grid">
+                  {pagedRows.map((r) => (
+                    <BuildabilityTile
+                      key={r.set_num}
+                      item={toBuildabilityItem(r)}
+                      onOpenDetails={() =>
+                        nav(`/buildability/${encodeURIComponent(r.set_num)}`)
+                      }
+                    />
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                    marginTop: "1.2rem",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="a2b-hero-button a2b-cta-dark"
+                    disabled={pageSafe <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Prev
+                  </button>
+
+                  <div style={{ fontSize: "0.9rem", color: "#0f172a" }}>
+                    Page <strong>{pageSafe}</strong> of <strong>{pageCount}</strong>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="a2b-hero-button a2b-cta-dark"
+                    disabled={pageSafe >= pageCount}
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
             )
           ) : null}
         </div>
@@ -297,3 +377,5 @@ export default function BuildabilityDiscoverPage() {
     </RequireAuth>
   );
 }
+
+export default BuildabilityDiscoverPage;
