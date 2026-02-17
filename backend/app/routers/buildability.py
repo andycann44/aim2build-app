@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Tuple, Set
+import sqlite3
 
 from app.catalog_db import db, get_catalog_parts_for_set, get_set_num_parts
 from app.routers.auth import get_current_user, User
-from app.routers.inventory import load_inventory_parts
+from app.user_db import user_db
 
 router = APIRouter()
 
@@ -31,21 +32,48 @@ def _get_strict_requirements(set_id: str) -> list[dict]:
 
 def _load_inventory_json(user_id: int) -> List[dict]:
     """
-    Load the current inventory JSON as a list of rows.
-
-    Shape per row (canonical):
-      {
-        "part_num": "3001",
-        "color_id": 5,
-        "qty": 6,
-        "part_img_url": "..."
-      }
+    Single source of truth for inventory:
+      - USER DB table USER_INVENTORY_PARTS
+      - strict (part_num, color_id)
     """
+    rows: List[dict] = []
     try:
-        return load_inventory_parts(user_id)
+        with user_db() as con:
+            # Ensure dict-style row access
+            try:
+                con.row_factory = sqlite3.Row
+            except Exception:
+                pass
+
+            cur = con.execute(
+                """
+                SELECT part_num, color_id, qty
+                FROM USER_INVENTORY_PARTS
+                WHERE user_id = ?
+                  AND COALESCE(qty, 0) > 0
+                """,
+                (int(user_id),),
+            )
+            fetched = cur.fetchall()
+
+            # If row_factory didn't stick, fetched rows may be tuples
+            for r in fetched:
+                if isinstance(r, sqlite3.Row):
+                    pn = (r["part_num"] or "").strip()
+                    cid = int(r["color_id"])
+                    qty = int(r["qty"])
+                else:
+                    pn = (r[0] or "").strip()
+                    cid = int(r[1])
+                    qty = int(r[2])
+
+                if not pn:
+                    continue
+
+                rows.append({"part_num": pn, "color_id": cid, "qty_total": qty})
     except Exception:
-        # If the user file is missing or corrupt, treat as empty inventory.
-        return []
+        pass
+    return rows           
 
 
 def _inventory_map(rows: Optional[List[dict]] = None) -> Dict[Tuple[str, int], int]:
