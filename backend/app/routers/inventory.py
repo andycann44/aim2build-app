@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from app.user_db import user_db
 from app.routers.auth import get_current_user, User
 from app.catalog_db import db as catalog_db
+from app.discover_cache import safe_rebuild_discover_candidates
 
 router = APIRouter()
 
@@ -232,6 +233,7 @@ def _get_catalog_recipe_parts(set_num: str) -> List[Dict[str, Any]]:
         )
     return out
 
+
 # -----------------------
 # Inventory read helpers
 # -----------------------
@@ -343,6 +345,7 @@ def has_any_inventory(current_user: User = Depends(get_current_user)):
             (current_user.id,),
         ).fetchone()
     return {"has_any": row is not None}
+
 
 @router.get("/parts", response_model=List[InventoryPart])
 def get_parts(current_user: User = Depends(get_current_user)):
@@ -510,6 +513,9 @@ def pour_set(
 
         con.commit()
 
+    # Rebuild discover candidates after successful mutation
+    safe_rebuild_discover_candidates(current_user.id)
+
     return {
         "ok": True,
         "set_num": set_id,
@@ -557,6 +563,10 @@ def unpour_set(
                 (current_user.id, set_id),
             )
             con.commit()
+
+            # Rebuild discover candidates after successful mutation
+            safe_rebuild_discover_candidates(current_user.id)
+
             return {
                 "ok": True,
                 "set_num": set_id,
@@ -633,6 +643,9 @@ def unpour_set(
 
         con.commit()
 
+    # Rebuild discover candidates after successful mutation
+    safe_rebuild_discover_candidates(current_user.id)
+
     return {
         "ok": True,
         "set_num": set_id,
@@ -684,12 +697,13 @@ def add_canonical_part(
             status_code=500, detail="insert succeeded but row not found"
         )
 
+    # Rebuild discover candidates after successful mutation
+    safe_rebuild_discover_candidates(current_user.id)
+
     if hasattr(row, "keys"):
         return dict(row)
     return {"user_id": row[0], "part_num": row[1], "color_id": row[2], "qty": row[3]}
 
-
-from fastapi import HTTPException
 
 @router.post("/set-canonical")
 def set_canonical(payload: dict, current_user: User = Depends(get_current_user)):
@@ -771,6 +785,9 @@ def set_canonical(payload: dict, current_user: User = Depends(get_current_user))
 
         con.commit()
 
+    # Rebuild discover candidates after successful mutation
+    safe_rebuild_discover_candidates(current_user.id)
+
     return {"ok": True, "part_num": part_num, "color_id": color_id, "qty": qty, "floor": floor}
 
 
@@ -810,7 +827,13 @@ def decrement_canonical_part(
             (current_user.id, part_num, color_id),
         )
         row = cur.fetchone()
-        current_qty = int(row["qty"]) if (row is not None and hasattr(row, "keys")) else int(row[0]) if row else 0
+        current_qty = (
+            int(row["qty"])
+            if (row is not None and hasattr(row, "keys"))
+            else int(row[0])
+            if row
+            else 0
+        )
 
         if current_qty <= 0:
             return {
@@ -832,7 +855,11 @@ def decrement_canonical_part(
             (current_user.id, part_num, color_id),
         )
         floor_row = cur.fetchone()
-        floor = int(floor_row["floor"]) if (floor_row is not None and hasattr(floor_row, "keys")) else int(floor_row[0] if floor_row else 0)
+        floor = (
+            int(floor_row["floor"])
+            if (floor_row is not None and hasattr(floor_row, "keys"))
+            else int(floor_row[0] if floor_row else 0)
+        )
 
         requested = current_qty - delta
 
@@ -873,6 +900,9 @@ def decrement_canonical_part(
 
         con.commit()
 
+        if changed:
+            safe_rebuild_discover_candidates(current_user.id)
+
         return {
             "ok": True,
             "user_id": current_user.id,
@@ -882,7 +912,8 @@ def decrement_canonical_part(
             "floor": floor,
             "changed": changed,
         }
-        
+
+
 @router.post("/clear-canonical")
 def clear_canonical(current_user: User = Depends(get_current_user)):
     """
@@ -901,4 +932,7 @@ def clear_canonical(current_user: User = Depends(get_current_user)):
             "DELETE FROM user_set_pour_lines WHERE user_id=?", (current_user.id,)
         )
         con.commit()
+
+    safe_rebuild_discover_candidates(current_user.id)
+
     return {"ok": True}

@@ -54,6 +54,11 @@ function toBuildabilityItem(r: DiscoverRow): BuildabilityItem {
   };
 }
 
+function clampInt(n: number, min: number, max: number) {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.trunc(n)));
+}
+
 function BuildabilityDiscoverPage() {
   const nav = useNavigate();
 
@@ -63,6 +68,10 @@ function BuildabilityDiscoverPage() {
   // Hide owned sets by default; toggle via button in hero
   const [includeOwned, setIncludeOwned] = React.useState<boolean>(false);
   const [ownedSetNums, setOwnedSetNums] = React.useState<Set<string>>(new Set());
+
+  // NEW: Parts qty (BOM total_needed) filter - keep as text so user can clear the field
+  const [minNeedText, setMinNeedText] = React.useState<string>("");
+  const [maxNeedText, setMaxNeedText] = React.useState<string>("");
 
   // Pagination
   const [page, setPage] = React.useState<number>(1);
@@ -166,6 +175,7 @@ function BuildabilityDiscoverPage() {
   // Filter:
   //  - always hide minifig catalog items if they leak into "sets"
   //  - hide owned sets by default (toggle)
+  //  - NEW: parts qty filter based on total_needed (BOM sum)
   const visibleRows = React.useMemo(() => {
     if (!rows) return rows;
 
@@ -187,8 +197,20 @@ function BuildabilityDiscoverPage() {
       out = out.filter((r) => !ownedSetNums.has(String(r.set_num)));
     }
 
+    // 2) Parts qty filter (BOM total_needed)
+    const minRaw = (minNeedText || "").trim();
+    const maxRaw = (maxNeedText || "").trim();
+
+    const minN =
+      minRaw === "" ? 0 : clampInt(parseInt(minRaw, 10), 0, 999999999);
+    const maxN =
+      maxRaw === "" ? 0 : clampInt(parseInt(maxRaw, 10), 0, 999999999);
+
+    if (minN > 0) out = out.filter((r) => (r.total_needed ?? 0) >= minN);
+    if (maxN > 0) out = out.filter((r) => (r.total_needed ?? 0) <= maxN);
+
     return out;
-  }, [rows, includeOwned, ownedSetNums]);
+  }, [rows, includeOwned, ownedSetNums, minNeedText, maxNeedText]);
 
   // Pagination derived
   const pageCount = React.useMemo(() => {
@@ -245,7 +267,10 @@ function BuildabilityDiscoverPage() {
                 max={99}
                 step={1}
                 value={minPct}
-                onChange={(e) => setMinPct(parseInt(e.target.value || "90", 10))}
+                onChange={(e) => {
+                  setMinPct(parseInt(e.target.value || "90", 10));
+                  setPage(1);
+                }}
               />
             </div>
 
@@ -253,7 +278,10 @@ function BuildabilityDiscoverPage() {
               <input
                 type="checkbox"
                 checked={include100}
-                onChange={(e) => setInclude100(!!e.target.checked)}
+                onChange={(e) => {
+                  setInclude100(!!e.target.checked);
+                  setPage(1);
+                }}
               />
               <span>Include 100% complete sets</span>
             </label>
@@ -269,6 +297,71 @@ function BuildabilityDiscoverPage() {
             >
               {includeOwned ? "Hide sets I already own" : "Show sets I already own"}
             </button>
+
+            {/* NEW: Parts qty filter (BOM total_needed). Text inputs so clearing works. */}
+            <div
+              className="hero-pill hero-pill--sort"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.5rem 0.75rem",
+              }}
+            >
+              <span style={{ fontWeight: 800 }}>Parts qty</span>
+
+              <span style={{ opacity: 0.8 }}>Min</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="(any)"
+                value={minNeedText}
+                onChange={(e) => {
+                  // allow blank; strip non-digits lightly
+                  const v = (e.target.value || "").replace(/[^\d]/g, "");
+                  setMinNeedText(v);
+                  setPage(1);
+                }}
+                style={{
+                  width: "6.25rem",
+                  padding: "0.3rem 0.4rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid rgba(15,23,42,0.18)",
+                }}
+              />
+
+              <span style={{ opacity: 0.8 }}>Max</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="(any)"
+                value={maxNeedText}
+                onChange={(e) => {
+                  const v = (e.target.value || "").replace(/[^\d]/g, "");
+                  setMaxNeedText(v);
+                  setPage(1);
+                }}
+                style={{
+                  width: "6.25rem",
+                  padding: "0.3rem 0.4rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid rgba(15,23,42,0.18)",
+                }}
+              />
+
+              <button
+                type="button"
+                className="a2b-hero-button"
+                onClick={() => {
+                  setMinNeedText("");
+                  setMaxNeedText("");
+                  setPage(1);
+                }}
+                style={{ padding: "0.35rem 0.6rem" }}
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </PageHero>
 
