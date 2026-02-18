@@ -122,7 +122,7 @@ def discover_buildability(
         FROM agg a
         JOIN sets s
         ON s.set_num = a.set_num
-        WHERE a.total_needed >= 50
+        WHERE a.total_needed >= 53
         AND (CASE
                 WHEN a.total_needed > 0 THEN (1.0 * a.total_have) / a.total_needed
                 ELSE 0.0
