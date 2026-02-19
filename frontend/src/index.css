@@ -406,6 +406,16 @@ body.aim2-root {
   100% { transform: translateX(-50%); }
 }
 
+@keyframes a2b-danger-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.55); }
+  70% { box-shadow: 0 0 0 10px rgba(220,38,38,0.00); }
+  100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.00); }
+}
+
+.a2b-danger-pulse {
+  animation: a2b-danger-pulse 1.6s infinite;
+}
+
 .a2b-lockOverlay {
   position: absolute;
   top: 8px;
