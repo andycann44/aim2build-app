@@ -59,6 +59,21 @@ function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.trunc(n)));
 }
 
+// Helps avoid cross-user cache bleed (new user after wipe still seeing old cached results)
+function authFingerprint(): string {
+  try {
+    const t =
+      localStorage.getItem("token") ||
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("auth_token") ||
+      "";
+    if (!t) return "anon";
+    return `t:${t.slice(-12)}`;
+  } catch {
+    return "anon";
+  }
+}
+
 function BuildabilityDiscoverPage() {
   const nav = useNavigate();
 
@@ -69,7 +84,7 @@ function BuildabilityDiscoverPage() {
   const [includeOwned, setIncludeOwned] = React.useState<boolean>(false);
   const [ownedSetNums, setOwnedSetNums] = React.useState<Set<string>>(new Set());
 
-  // NEW: Parts qty (BOM total_needed) filter - keep as text so user can clear the field
+  // Parts qty (BOM total_needed) filter - keep as text so user can clear the field
   const [minNeedText, setMinNeedText] = React.useState<string>("");
   const [maxNeedText, setMaxNeedText] = React.useState<string>("");
 
@@ -80,9 +95,11 @@ function BuildabilityDiscoverPage() {
   const [err, setErr] = React.useState<string>("");
   const [busy, setBusy] = React.useState<boolean>(false);
 
+  const fp = React.useMemo(() => authFingerprint(), []);
+
   const cacheKey = React.useMemo(
-    () => `${CACHE_PREFIX}:${minPct}:${include100 ? 1 : 0}`,
-    [minPct, include100]
+    () => `${CACHE_PREFIX}:${fp}:${minPct}:${include100 ? 1 : 0}`,
+    [fp, minPct, include100]
   );
 
   const runIdRef = React.useRef(0);
@@ -93,7 +110,7 @@ function BuildabilityDiscoverPage() {
 
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/mysets`, {
+        const res = await fetch(`${API_BASE}/api/mysets?limit=1000`, {
           headers: authHeaders(),
         });
         if (!res.ok) return;
@@ -142,11 +159,11 @@ function BuildabilityDiscoverPage() {
         const url =
           `${API_BASE}/api/buildability/discover` +
           `?min_coverage=${encodeURIComponent(minCoverage.toFixed(2))}` +
-          `&limit=${encodeURIComponent(include100 ? 200 : 200)}`;
+          `&limit=${encodeURIComponent(200)}`;
 
         const res = await fetch(url, { headers: authHeaders() });
         if (!res.ok) {
-          const t = await res.text();
+          const t = await res.text().catch(() => "");
           throw new Error(t || `HTTP ${res.status}`);
         }
 
@@ -165,7 +182,7 @@ function BuildabilityDiscoverPage() {
         if (runId === runIdRef.current) setBusy(false);
       }
     },
-    [cacheKey, minPct, include100]
+    [cacheKey, minPct]
   );
 
   React.useEffect(() => {
@@ -175,7 +192,7 @@ function BuildabilityDiscoverPage() {
   // Filter:
   //  - always hide minifig catalog items if they leak into "sets"
   //  - hide owned sets by default (toggle)
-  //  - NEW: parts qty filter based on total_needed (BOM sum)
+  //  - parts qty filter based on total_needed (BOM sum)
   const visibleRows = React.useMemo(() => {
     if (!rows) return rows;
 
@@ -201,10 +218,8 @@ function BuildabilityDiscoverPage() {
     const minRaw = (minNeedText || "").trim();
     const maxRaw = (maxNeedText || "").trim();
 
-    const minN =
-      minRaw === "" ? 0 : clampInt(parseInt(minRaw, 10), 0, 999999999);
-    const maxN =
-      maxRaw === "" ? 0 : clampInt(parseInt(maxRaw, 10), 0, 999999999);
+    const minN = minRaw === "" ? 0 : clampInt(parseInt(minRaw, 10), 0, 999999999);
+    const maxN = maxRaw === "" ? 0 : clampInt(parseInt(maxRaw, 10), 0, 999999999);
 
     if (minN > 0) out = out.filter((r) => (r.total_needed ?? 0) >= minN);
     if (maxN > 0) out = out.filter((r) => (r.total_needed ?? 0) <= maxN);
@@ -298,7 +313,6 @@ function BuildabilityDiscoverPage() {
               {includeOwned ? "Hide sets I already own" : "Show sets I already own"}
             </button>
 
-            {/* NEW: Parts qty filter (BOM total_needed). Text inputs so clearing works. */}
             <div
               className="hero-pill hero-pill--sort"
               style={{
@@ -317,7 +331,6 @@ function BuildabilityDiscoverPage() {
                 placeholder="(any)"
                 value={minNeedText}
                 onChange={(e) => {
-                  // allow blank; strip non-digits lightly
                   const v = (e.target.value || "").replace(/[^\d]/g, "");
                   setMinNeedText(v);
                   setPage(1);
@@ -408,15 +421,11 @@ function BuildabilityDiscoverPage() {
             </div>
           ) : null}
 
-          {!rows ? (
-            <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading…</p>
-          ) : null}
+          {!rows ? <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading…</p> : null}
 
           {pagedRows ? (
             pagedRows.length === 0 ? (
-              <p style={{ fontSize: "0.9rem", color: "#6b7280" }}>
-                No discover results yet.
-              </p>
+              <p style={{ fontSize: "0.9rem", color: "#6b7280" }}>No discover results yet.</p>
             ) : (
               <>
                 <div className="tile-grid">
@@ -424,9 +433,7 @@ function BuildabilityDiscoverPage() {
                     <BuildabilityTile
                       key={r.set_num}
                       item={toBuildabilityItem(r)}
-                      onOpenDetails={() =>
-                        nav(`/buildability/${encodeURIComponent(r.set_num)}`)
-                      }
+                      onOpenDetails={() => nav(`/buildability/${encodeURIComponent(r.set_num)}`)}
                     />
                   ))}
                 </div>

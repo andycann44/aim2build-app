@@ -321,3 +321,82 @@ def reset_password(req: ResetPasswordRequest):
         con.commit()
 
     return {"ok": True}
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
+def _tables_with_user_id(con) -> list[str]:
+    cur = con.execute(
+        """
+        SELECT m.name
+        FROM sqlite_master m
+        WHERE m.type='table'
+        AND EXISTS (
+          SELECT 1
+          FROM pragma_table_info(m.name)
+          WHERE name='user_id'
+        )
+        ORDER BY m.name
+        """
+    )
+    return [r[0] for r in cur.fetchall()]
+
+
+@router.delete("/me")
+def delete_current_user(
+    payload: DeleteAccountRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Permanently delete the authenticated user and all associated data.
+    Requires password confirmation.
+    """
+    user_id = int(current_user.id)
+    password = (payload.password or "").strip()
+
+    if not password:
+        raise HTTPException(status_code=400, detail="Password is required.")
+
+    try:
+        with db() as con:
+            # Verify password (re-auth)
+            row = con.execute(
+                "SELECT password_hash FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Could not validate credentials",
+                )
+
+            if not verify_password(password, row["password_hash"]):
+                raise HTTPException(status_code=400, detail="Invalid password.")
+
+            # Delete ALL user-scoped tables (covers poured, discover, meta, etc.)
+            for t in _tables_with_user_id(con):
+                con.execute(f"DELETE FROM {t} WHERE user_id = ?", (user_id,))
+
+            # Also delete reset tables (in case schema differs across envs)
+            try:
+                con.execute("DELETE FROM password_resets WHERE user_id = ?", (user_id,))
+            except Exception:
+                pass
+            try:
+                con.execute("DELETE FROM password_reset_tokens WHERE user_id = ?", (user_id,))
+            except Exception:
+                pass
+
+            # Finally delete user
+            con.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            con.commit()
+
+        return {"ok": True}
+
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to delete account")
