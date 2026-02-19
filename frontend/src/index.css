@@ -538,6 +538,18 @@ body.aim2-root {
 
 /* ----------------- GRIDS (LOCKED) ----------------- */
 
+/* Ensure tile frames stretch their inner card to avoid "color slab" gaps */
+.set-tile-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.set-tile {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 /* SET tiles: 2 wide desktop, 1 wide portrait */
 .tile-grid {
   display: grid;
