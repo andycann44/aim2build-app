@@ -174,43 +174,59 @@ def _theme_override_sql(con: sqlite3.Connection) -> Tuple[str, str]:
     return "", "s.theme_id"
 
 
-def _theme_includes_clause(con: sqlite3.Connection, theme_id: int, eff_theme_sql: str) -> Tuple[str, List[int]]:
+def _theme_includes_clause(
+    con: sqlite3.Connection, theme_id: int, eff_theme_sql: str
+) -> Tuple[str, List[int]]:
     """
-    Adds theme includes + per-set theme overrides for theme browsing.
-
     Effective match rules for a requested theme_id:
-      - eff_theme = theme_id
-      - OR eff_theme IN cfg.theme_includes(include_theme_id)
-      - OR s.set_num IN cfg.theme_set_overrides(set_num)
+
+    - eff_theme = theme_id
+    - OR eff_theme IN cfg.theme_includes(include_theme_id)
+        where cfg.theme_includes.theme_id = theme_id
+
+    SAFE:
+    - Fully qualifies cfg columns
+    - Falls back cleanly if cfg DB or table missing
+    - Avoids sqlite 'ambiguous column name: theme_id'
     """
+
     params: List[int] = []
 
-    include_sql = ""
-    if _has_cfg_table(con, "theme_includes"):
-        include_sql = f"""
-            OR {eff_theme_sql} IN (
-                SELECT include_theme_id
-                FROM cfg.theme_includes
-                WHERE theme_id = ?
-                  AND enabled = 1
-            )
-        """
-        params.append(int(theme_id))
+    # Check cfg.theme_includes exists
+    try:
+        row = con.execute(
+            """
+            SELECT 1
+            FROM cfg.sqlite_master
+            WHERE type='table' AND name='theme_includes'
+            LIMIT 1
+            """
+        ).fetchone()
+        has_table = row is not None
+    except Exception:
+        has_table = False
 
-    set_sql = ""
-    if _has_cfg_table(con, "theme_set_overrides"):
-        set_sql = """
-            OR s.set_num IN (
-                SELECT set_num
-                FROM cfg.theme_set_overrides
-                WHERE theme_id = ?
-                  AND enabled = 1
-            )
-        """
-        params.append(int(theme_id))
+    # Fallback if config not present
+    if not has_table:
+        clause = f"({eff_theme_sql} = ?)"
+        return clause, [int(theme_id)]
 
-    clause = f"(({eff_theme_sql} = ?) {include_sql} {set_sql})"
-    return clause, [int(theme_id), *params]
+    # Fully-qualified subquery (no ambiguity possible)
+    clause = f"""
+    (
+    {eff_theme_sql} = ?
+    OR {eff_theme_sql} IN (
+        SELECT cfg.theme_includes.include_theme_id
+        FROM cfg.theme_includes
+        WHERE cfg.theme_includes.theme_id = ?
+    )
+    )
+    """
+
+    params.append(int(theme_id))
+    params.append(int(theme_id))
+
+    return clause, params
 
 
 # -------------------------
