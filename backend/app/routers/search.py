@@ -140,9 +140,11 @@ def _filters_sql(con: sqlite3.Connection) -> Tuple[str, str]:
               ON sf.enabled = 1
              AND (
                     sf.set_num = s.set_num
-                 OR (CASE WHEN instr(sf.set_num,'-')>0 THEN substr(sf.set_num,1,instr(sf.set_num,'-')-1) ELSE sf.set_num END)
-                    =
-                    (CASE WHEN instr(s.set_num,'-')>0 THEN substr(s.set_num,1,instr(s.set_num,'-')-1) ELSE s.set_num END)
+                 OR (
+                      instr(sf.set_num,'-') = 0
+                      AND sf.set_num =
+                        (CASE WHEN instr(s.set_num,'-')>0 THEN substr(s.set_num,1,instr(s.set_num,'-')-1) ELSE s.set_num END)
+                 )
                 )
             """
         )
