@@ -3,6 +3,16 @@
 // Keep backward-compat exports (saveToken) so older components don't crash.
 
 export const TOKEN_KEY = "a2b_token";
+export const AUTH_CHANGED_EVENT = "a2b:auth-changed";
+
+function emitAuthChanged() {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+  } catch {
+    // ignore
+  }
+}
 
 export function getToken(): string | null {
   try {
@@ -23,6 +33,8 @@ export function setToken(token: string) {
     localStorage.setItem(TOKEN_KEY, token);
   } catch {
     // ignore
+  } finally {
+    emitAuthChanged();
   }
 }
 
@@ -61,5 +73,7 @@ export function clearAuth() {
     localStorage.removeItem("user");
   } catch {
     // ignore
+  } finally {
+    emitAuthChanged();
   }
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { API_BASE } from "../api/client";
-import { authHeaders, clearAuth, getToken } from "../utils/auth";
+import { authHeaders, clearAuth, getToken, AUTH_CHANGED_EVENT } from "../utils/auth";
 import { useLocation, useNavigate } from "react-router-dom";
 
 // Public routes (accessible when logged out): "/", "/search", "/privacy", "/terms", "/about",
@@ -47,6 +47,7 @@ function GateScreen({ title, detail }: { title: string; detail?: string }) {
 const AppGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = React.useState<GateState>("checking");
   const [authed, setAuthed] = React.useState(false);
+  const [authTick, setAuthTick] = React.useState(0);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -55,6 +56,20 @@ const AppGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isAuthRoute = path.startsWith("/account") || path.startsWith("/reset-password");
   const protectedPrefixes = ["/my-sets", "/wishlist", "/inventory", "/settings"];
   const isProtectedRoute = protectedPrefixes.some((p) => path === p || path.startsWith(`${p}/`));
+  const protectedKey = isProtectedRoute ? path : "";
+
+  React.useEffect(() => {
+    const onAuthChanged = () => setAuthTick((t) => t + 1);
+    const onFocus = () => setAuthTick((t) => t + 1);
+
+    window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged as EventListener);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged as EventListener);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -116,7 +131,7 @@ const AppGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authTick, protectedKey]);
 
   React.useEffect(() => {
     if (state !== "ready") return;
