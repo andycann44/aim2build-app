@@ -48,7 +48,7 @@ async function fetchInventoryWithImages(): Promise<InventoryRow[]> {
   // ✅ hard redirect on expired/invalid session
   if (res.status === 401) {
     localStorage.removeItem("a2b_token");
-    window.location.href = "/login";
+    window.location.href = "/account?mode=login&reason=expired";
     throw new Error("401 Unauthorized");
   }
 
@@ -73,7 +73,7 @@ async function postAddCanonical(part_num: string, color_id: number, qty: number)
   // ✅ hard redirect on expired/invalid session
   if (res.status === 401) {
     localStorage.removeItem("a2b_token");
-    window.location.href = "/login";
+    window.location.href = "/account?mode=login&reason=expired";
     throw new Error("401 Unauthorized");
   }
 
@@ -98,7 +98,7 @@ async function postDecCanonical(part_num: string, color_id: number, qty: number)
   // ✅ hard redirect on expired/invalid session
   if (res.status === 401) {
     localStorage.removeItem("a2b_token");
-    window.location.href = "/login";
+    window.location.href = "/account?mode=login&reason=expired";
     throw new Error("401 Unauthorized");
   }
 

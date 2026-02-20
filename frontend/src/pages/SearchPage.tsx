@@ -66,7 +66,7 @@ const SearchPage: React.FC = () => {
 
   const nextUrl = `${location.pathname.toLowerCase()}${location.search}`;
   const goLogin = useCallback(() => {
-    navigate(`/login?next=${encodeURIComponent(nextUrl)}`);
+    navigate(`/account?mode=login&next=${encodeURIComponent(nextUrl)}`);
   }, [navigate, nextUrl]);
 
   const hasAuth = () => {

@@ -56,7 +56,7 @@ const ResetPasswordPage: React.FC = () => {
 
       setInfo("Password updated. Redirecting you to sign in…");
       setTimeout(() => {
-        navigate(`/login?next=${encodeURIComponent(nextParam)}`, { replace: true });
+        navigate(`/account?mode=login&next=${encodeURIComponent(nextParam)}`, { replace: true });
       }, 500);
     } catch (err: any) {
       const msg =

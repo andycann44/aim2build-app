@@ -41,7 +41,7 @@ const InventoryPage: React.FC = () => {
 
       if (res.status === 401) {
         localStorage.removeItem("a2b_token");
-        window.location.href = "/login";
+        window.location.href = "/account?mode=login&reason=expired";
         return;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
