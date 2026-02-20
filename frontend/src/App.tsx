@@ -1,9 +1,9 @@
 import React from "react";
-import { Routes, Route, NavLink, Navigate, useNavigate } from "react-router-dom";
+import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import StagingBanner from "./components/StagingBanner";
+import Footer from "./components/Footer";
 
-
-import Footer from "./components/Footer";import HomePage from "./pages/HomePage";
+import HomePage from "./pages/HomePage";
 import SearchPage from "./pages/SearchPage";
 import MySetsPage from "./pages/MySetsPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -14,8 +14,6 @@ import InventoryEditPage from "./pages/InventoryEditPage";
 
 import BuildabilityOverviewPage from "./pages/BuildabilityOverviewPage";
 import BuildabilityDiscoverPage from "./pages/BuildabilityDiscoverPage";
-import TermsPage from "./pages/TermsPage";
-import PrivacyPage from "./pages/PrivacyPage";
 import BuildabilityDetailsPage from "./pages/BuildabilityDetailsPage";
 import MissingPartsPage from "./pages/MissingPartsPage";
 
@@ -27,19 +25,21 @@ import AccountPage from "./pages/AccountPage";
 import SettingsPage from "./pages/SettingsPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
+
 import AdminPage from "./pages/AdminPage";
 import DebugCatalogImagesPage from "./pages/DebugCatalogImagesPage";
 
 export default function App() {
-  const navigate = useNavigate();
-
   return (
     <div className="app-shell">
       <div className="app-maxwidth">
         <aside className="app-sidebar">
-          <a href="/" className="brand" aria-label="Aim2Build home">
+          {/* IMPORTANT: use client-side routing (no full reload) */}
+          <NavLink to="/" end className="brand" aria-label="Aim2Build home">
             <img src="/branding/a2b.png" alt="Aim2Build" className="brand-logo" />
-          </a>
+          </NavLink>
 
           <nav className="app-nav">
             <NavLink
@@ -157,9 +157,7 @@ export default function App() {
 
               {/* Admin / Debug */}
               <Route path="/admin" element={<AdminPage />} />
-              {import.meta.env.DEV && (
-                <Route path="/debug/catalog-images" element={<DebugCatalogImagesPage />} />
-              )}
+              {import.meta.env.DEV && <Route path="/debug/catalog-images" element={<DebugCatalogImagesPage />} />}
 
               {/* Catch-all */}
               <Route path="*" element={<Navigate to="/" replace />} />
