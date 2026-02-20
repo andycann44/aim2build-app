@@ -32,15 +32,7 @@ export function saveToken(token: string) {
 }
 
 export function clearToken() {
-  try {
-    localStorage.removeItem(TOKEN_KEY);
-    // also clear legacy keys so you don't get “half logged-in” states
-    localStorage.removeItem("token");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("aim2build_token");
-  } catch {
-    // ignore
-  }
+  clearAuth();
 }
 
 export function authHeaders(): Record<string, string> {
@@ -56,4 +48,18 @@ export function extractAccessToken(data: any): string {
     (data && typeof data.token === "string" && data.token) ||
     "";
   return t;
+}
+
+export function clearAuth() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    // also clear legacy keys so you don't get “half logged-in” states
+    localStorage.removeItem("token");
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("aim2build_token");
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("user");
+  } catch {
+    // ignore
+  }
 }
