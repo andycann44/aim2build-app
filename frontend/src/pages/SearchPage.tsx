@@ -18,6 +18,30 @@ import PageHero from "../components/PageHero";
 const API = API_BASE;
 const PAGE_SIZE = 60;
 
+function boostExactNameFirst<T extends { name?: string | null }>(items: T[], rawQuery: string) {
+  const q = (rawQuery || "").trim().toLowerCase();
+  if (!q) return items;
+
+  const exact: T[] = [];
+  const starts: T[] = [];
+  const word: T[] = [];
+  const rest: T[] = [];
+
+  const wordRe = new RegExp(`\\b${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+
+  for (const it of items) {
+    const name = (it.name || "").trim();
+    const n = name.toLowerCase();
+
+    if (n === q) exact.push(it);
+    else if (n.startsWith(q)) starts.push(it);
+    else if (wordRe.test(name)) word.push(it);
+    else rest.push(it);
+  }
+
+  return [...exact, ...starts, ...word, ...rest];
+}
+
 const SearchPage: React.FC = () => {
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<SetSummary[]>([]);
@@ -227,7 +251,7 @@ const SearchPage: React.FC = () => {
       try {
         const resp = await searchSetsPaged(trimmed, pageToLoad, PAGE_SIZE, false, sort);
 
-        setResults(resp.results ?? []);
+        setResults(boostExactNameFirst(resp.results ?? [], trimmed));
         setLastQuery(trimmed);
         setPageNum(resp.page ?? pageToLoad);
         setTotal(resp.total ?? 0);

@@ -141,7 +141,7 @@ const AppGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
 
   if (!authed && isProtectedRoute && !isAuthRoute) {
-    return <GateScreen title="Checking status…" detail="Redirecting to login…" />;
+    return <GateScreen title="Checking status…" detail="Just a moment while we verify the service." />;
   }
 
   return <>{children}</>;

@@ -105,6 +105,12 @@ const res = await fetch(`${API}/api/auth/forgot-password`, {
 }
 
 const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const path = location.pathname || "/";
+  const isAccountRoute = path.startsWith("/account");
+
   const [mode, setMode] = useState<Mode>(() => defaultMode ?? "login");
 
   const [email, setEmail] = useState("");
@@ -121,9 +127,6 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode }) => {
 
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [resetUrl, setResetUrl] = useState<string | null>(null);
-
-  const location = useLocation();
-  const navigate = useNavigate();
 
   const nextParam = useMemo(() => {
     const sp = new URLSearchParams(location.search || "");
@@ -281,6 +284,8 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode }) => {
   const title =
     mode === "login" ? "Sign in" : mode === "register" ? "Create an account" : "Reset your password";
 
+  if (!isAccountRoute) return null;
+
   return (
     <div
       className="auth-panel card"
@@ -334,27 +339,29 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode }) => {
           <div>
             <p style={{ marginBottom: "0.75rem", fontWeight: 600 }}>You’re logged in.</p>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              style={{
-                marginTop: "0.25rem",
-                width: "100%",
-                padding: "0.95rem 1rem",
-                borderRadius: "999px",
-                border: "2px solid rgba(255,255,255,0.95)",
-                fontWeight: 800,
-                fontSize: "0.95rem",
-                letterSpacing: "0.05em",
-                textTransform: "uppercase",
-                cursor: "pointer",
-                background: "linear-gradient(135deg,#f97316,#facc15,#22c55e)",
-                color: "#111827",
-                boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
-              }}
-            >
-              Log out
-            </button>
+            {isAccountRoute && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                style={{
+                  marginTop: "0.25rem",
+                  width: "100%",
+                  padding: "0.95rem 1rem",
+                  borderRadius: "999px",
+                  border: "2px solid rgba(255,255,255,0.95)",
+                  fontWeight: 800,
+                  fontSize: "0.95rem",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  background: "linear-gradient(135deg,#f97316,#facc15,#22c55e)",
+                  color: "#111827",
+                  boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
+                }}
+              >
+                Log out
+              </button>
+            )}
           </div>
         ) : (
           <>
