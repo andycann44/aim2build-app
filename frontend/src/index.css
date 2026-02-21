@@ -1697,3 +1697,13 @@ body.aim2-root {
 .a2b-footer-icon:hover{
   border-color: rgba(255,255,255,0.55);
 }
+
+/* v1 stability: disable animated gradient borders (iOS scroll repaint issue) */
+.demo-banner.tile-style::before,
+.a2b-lockOverlay::before,
+.a2b-category-tile::before,
+.a2b-filter-tile::before {
+  animation: none !important;
+  background: none !important;
+  content: none !important;
+}

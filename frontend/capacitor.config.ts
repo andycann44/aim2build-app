@@ -5,8 +5,9 @@ const config: CapacitorConfig = {
   appName: "Aim2Build",
   webDir: "dist",
   server: {
-    url: "http://127.0.0.1:5173",
-    cleartext: true
+  url: "https://aim2build.co.uk",
+  cleartext: false,
+  allowNavigation: ["aim2build.co.uk", "*.aim2build.co.uk"]
   }
 };
 
