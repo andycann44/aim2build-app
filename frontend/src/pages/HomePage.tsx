@@ -6,15 +6,34 @@ import PageHero from "../components/PageHero";
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
+
+  function isAuthed(): boolean {
+    try {
+      const t =
+        localStorage.getItem("a2b_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("access_token") ||
+        localStorage.getItem("auth_token") ||
+        "";
+      return !!t;
+    } catch {
+      return false;
+    }
+  }
+
+  function openBuildabilityDetails(setNum: string) {
+    const base = `/buildability/${encodeURIComponent(setNum)}`;
+    navigate(isAuthed() ? base : `${base}?demo=1`);
+  }
+
   const [featured, setFeatured] = useState<SetSummary[]>([]);
   const [loadingFeatured, setLoadingFeatured] = useState(false);
+
   const handleFeaturedClick = useCallback(
     (setNum: string) => {
-      const token =
-        localStorage.getItem("a2b_token") || localStorage.getItem("token") || "";
-      const demo = token ? "" : "?demo=1";
-      navigate(`/buildability/${encodeURIComponent(setNum)}${demo}`);
+      openBuildabilityDetails(setNum);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [navigate]
   );
 
@@ -38,7 +57,8 @@ const HomePage: React.FC = () => {
           try {
             const res = await searchSets(sn);
             const match =
-              res.find((s) => s.set_num === sn) || res.find((s) => s.set_num.startsWith(sn));
+              res.find((s) => s.set_num === sn) ||
+              res.find((s) => String(s.set_num || "").startsWith(sn));
             if (match) results.push(match);
           } catch {
             // ignore individual failures
@@ -88,6 +108,7 @@ const HomePage: React.FC = () => {
           >
             Go to Search
           </button>
+
           <button
             type="button"
             onClick={() => navigate("/buildability")}
@@ -140,7 +161,7 @@ const HomePage: React.FC = () => {
               <div
                 key={s.set_num}
                 onClick={() => handleFeaturedClick(s.set_num)}
-                style={{ cursor: "default" }}
+                style={{ cursor: "pointer" }}
               >
                 <SetTile
                   set={{
@@ -190,7 +211,9 @@ const HomePage: React.FC = () => {
             }}
           >
             <li>Backend API running on aim2build.co.uk</li>
-            <li>Search &amp; catalog endpoints powered by the Aim2Build LEGO set database</li>
+            <li>
+              Search &amp; catalog endpoints powered by the Aim2Build LEGO set database
+            </li>
             <li>Buildability engine comparing your inventory to sets</li>
           </ul>
         </div>
@@ -221,8 +244,8 @@ const HomePage: React.FC = () => {
             User accounts, personalised suggestions and proper onboarding.
           </p>
           <p style={{ margin: 0 }}>
-            You&apos;ll start here, log in, and Aim2Build will show you what you can build with the
-            LEGO you already own.
+            You&apos;ll start here, log in, and Aim2Build will show you what you can
+            build with the LEGO you already own.
           </p>
         </div>
       </div>

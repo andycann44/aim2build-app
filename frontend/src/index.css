@@ -1720,3 +1720,79 @@ body.aim2-root {
     border: 2px solid rgba(34, 197, 94, 0.6) !important;
   }
 }
+/* --- Buildability Discover hero: iOS portrait safety --- */
+
+.a2b-discover-hero__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+/* Fix "Min buildability70%" (ensure spacing) */
+.a2b-discover-hero__controls .hero-sliderMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+/* Ensure slider row can grow/shrink nicely */
+.a2b-discover-hero__controls .hero-sliderRow {
+  flex: 1 1 260px;
+  min-width: 240px;
+}
+
+/* Keep checkbox row readable */
+.a2b-discover-hero__controls .hero-checkRow {
+  flex: 1 1 260px;
+  min-width: 240px;
+}
+
+/* Pills shouldn't force overflow */
+.a2b-discover-hero__controls .hero-pill {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+/* iPhone portrait (15/15 Pro/Pro Max widths live around here) */
+@media (max-width: 520px) {
+  .a2b-discover-hero__controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+  }
+
+  .a2b-discover-hero__controls .hero-sliderRow,
+  .a2b-discover-hero__controls .hero-checkRow {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Make the slider itself full width */
+  .a2b-discover-hero__controls input[type="range"] {
+    width: 100%;
+  }
+
+  /* Parts qty row: stack into a clean grid */
+  .a2b-discover-hero__controls .hero-pill.hero-pill--sort {
+    width: 100%;
+  }
+
+  /* Your Parts qty container is a hero-pill; force wrapping + full-width inputs on iPhone */
+  .a2b-discover-hero__controls .hero-pill.hero-pill--sort[style] {
+    flex-wrap: wrap !important;
+    justify-content: flex-start;
+    gap: 0.5rem !important;
+  }
+
+  /* Inputs + Clear button go full width if needed */
+  .a2b-discover-hero__controls input[type="text"] {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .a2b-discover-hero__controls .a2b-hero-button {
+    width: 100%;
+  }
+}

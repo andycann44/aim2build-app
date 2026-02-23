@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE } from "../api/client";
 import BuildabilityTile, { BuildabilityItem } from "../components/BuildabilityTile";
 import PageHero from "../components/PageHero";
@@ -59,6 +59,10 @@ function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.trunc(n)));
 }
 
+function _is401(res: Response) {
+  return res.status === 401 || res.status === 403;
+}
+
 // Helps avoid cross-user cache bleed (new user after wipe still seeing old cached results)
 function authFingerprint(): string {
   try {
@@ -74,7 +78,7 @@ function authFingerprint(): string {
   }
 }
 
-function BuildabilityDiscoverPage() {
+function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
   const nav = useNavigate();
 
   const [minPct, setMinPct] = React.useState<number>(90); // default 90%
@@ -96,7 +100,6 @@ function BuildabilityDiscoverPage() {
   const [busy, setBusy] = React.useState<boolean>(false);
 
   const fp = React.useMemo(() => authFingerprint(), []);
-
   const cacheKey = React.useMemo(
     () => `${CACHE_PREFIX}:${fp}:${minPct}:${include100 ? 1 : 0}`,
     [fp, minPct, include100]
@@ -106,6 +109,8 @@ function BuildabilityDiscoverPage() {
 
   // Load "My Sets" once so we can hide owned sets in Discover (client-side filter)
   React.useEffect(() => {
+    if (demo) return;
+
     let alive = true;
 
     (async () => {
@@ -113,6 +118,12 @@ function BuildabilityDiscoverPage() {
         const res = await fetch(`${API_BASE}/api/mysets?limit=1000`, {
           headers: authHeaders(),
         });
+
+        if (_is401(res)) {
+          // let RequireAuth handle the main gating, but keep behaviour consistent
+          return;
+        }
+
         if (!res.ok) return;
 
         const data = await res.json();
@@ -132,7 +143,7 @@ function BuildabilityDiscoverPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [demo]);
 
   const run = React.useCallback(
     async (options?: { force?: boolean }) => {
@@ -162,6 +173,15 @@ function BuildabilityDiscoverPage() {
           `&limit=${encodeURIComponent(200)}`;
 
         const res = await fetch(url, { headers: authHeaders() });
+
+        if (_is401(res)) {
+          if (!demo) {
+            const from = encodeURIComponent("/buildability/discover");
+            window.location.href = `/account?mode=login&reason=expired&from=${from}`;
+          }
+          return;
+        }
+
         if (!res.ok) {
           const t = await res.text().catch(() => "");
           throw new Error(t || `HTTP ${res.status}`);
@@ -182,7 +202,7 @@ function BuildabilityDiscoverPage() {
         if (runId === runIdRef.current) setBusy(false);
       }
     },
-    [cacheKey, minPct]
+    [cacheKey, minPct, demo]
   );
 
   React.useEffect(() => {
@@ -247,235 +267,309 @@ function BuildabilityDiscoverPage() {
   }, [visibleRows, pageSafe]);
 
   return (
-    <RequireAuth pageName="Buildability Discover">
-      <div className="page">
-        <PageHero
-          title="Discover builds"
-          subtitle="Sets you can almost build from your current inventory."
-          right={
+    <div className="page">
+      <PageHero
+        title="Discover builds"
+        subtitle="Sets you can almost build from your current inventory."
+        right={
+          <button
+            type="button"
+            className="a2b-hero-button"
+            onClick={() => run({ force: true })}
+            disabled={busy}
+          >
+            {busy ? "Loading..." : "Refresh"}
+          </button>
+        }
+      >
+        <div
+          className="a2b-discover-hero__controls"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "0.6rem",
+            alignItems: "center",
+          }}
+        >
+          <div className="hero-sliderRow">
+            <div className="hero-sliderMeta">
+              <span>Min buildability</span>
+              <strong>{minPct}%</strong>
+            </div>
+            <input
+              type="range"
+              min={50}
+              max={99}
+              step={1}
+              value={minPct}
+              onChange={(e) => {
+                setMinPct(parseInt(e.target.value || "90", 10));
+                setPage(1);
+              }}
+            />
+          </div>
+
+          <label className="hero-checkRow">
+            <input
+              type="checkbox"
+              checked={include100}
+              onChange={(e) => {
+                setInclude100(!!e.target.checked);
+                setPage(1);
+              }}
+            />
+            <span>Include 100% complete sets</span>
+          </label>
+
+          <button
+            type="button"
+            className="hero-pill hero-pill--sort"
+            onClick={() => {
+              setIncludeOwned((v) => !v);
+              setPage(1);
+            }}
+            style={{ gap: "0.5rem" }}
+          >
+            {includeOwned ? "Hide sets I already own" : "Show sets I already own"}
+          </button>
+
+          <div
+            className="hero-pill hero-pill--sort"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.5rem 0.75rem",
+            }}
+          >
+            <span style={{ fontWeight: 800 }}>Parts qty</span>
+
+            <span style={{ opacity: 0.8 }}>Min</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="(any)"
+              value={minNeedText}
+              onChange={(e) => {
+                const v = (e.target.value || "").replace(/[^\d]/g, "");
+                setMinNeedText(v);
+                setPage(1);
+              }}
+              style={{
+                width: "6.25rem",
+                padding: "0.3rem 0.4rem",
+                borderRadius: "0.5rem",
+                border: "1px solid rgba(15,23,42,0.18)",
+              }}
+            />
+
+            <span style={{ opacity: 0.8 }}>Max</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="(any)"
+              value={maxNeedText}
+              onChange={(e) => {
+                const v = (e.target.value || "").replace(/[^\d]/g, "");
+                setMaxNeedText(v);
+                setPage(1);
+              }}
+              style={{
+                width: "6.25rem",
+                padding: "0.3rem 0.4rem",
+                borderRadius: "0.5rem",
+                border: "1px solid rgba(15,23,42,0.18)",
+              }}
+            />
+
             <button
               type="button"
               className="a2b-hero-button"
-              onClick={() => run({ force: true })}
-              disabled={busy}
-            >
-              {busy ? "Loading..." : "Refresh"}
-            </button>
-          }
-        >
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.6rem",
-              alignItems: "center",
-            }}
-          >
-            <div className="hero-sliderRow">
-              <div className="hero-sliderMeta">
-                <span>Min buildability</span>
-                <strong>{minPct}%</strong>
-              </div>
-              <input
-                type="range"
-                min={50}
-                max={99}
-                step={1}
-                value={minPct}
-                onChange={(e) => {
-                  setMinPct(parseInt(e.target.value || "90", 10));
-                  setPage(1);
-                }}
-              />
-            </div>
-
-            <label className="hero-checkRow">
-              <input
-                type="checkbox"
-                checked={include100}
-                onChange={(e) => {
-                  setInclude100(!!e.target.checked);
-                  setPage(1);
-                }}
-              />
-              <span>Include 100% complete sets</span>
-            </label>
-
-            <button
-              type="button"
-              className="hero-pill hero-pill--sort"
               onClick={() => {
-                setIncludeOwned((v) => !v);
+                setMinNeedText("");
+                setMaxNeedText("");
                 setPage(1);
               }}
-              style={{ gap: "0.5rem" }}
+              style={{ padding: "0.35rem 0.6rem" }}
             >
-              {includeOwned ? "Hide sets I already own" : "Show sets I already own"}
+              Clear
             </button>
-
-            <div
-              className="hero-pill hero-pill--sort"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.5rem 0.75rem",
-              }}
-            >
-              <span style={{ fontWeight: 800 }}>Parts qty</span>
-
-              <span style={{ opacity: 0.8 }}>Min</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="(any)"
-                value={minNeedText}
-                onChange={(e) => {
-                  const v = (e.target.value || "").replace(/[^\d]/g, "");
-                  setMinNeedText(v);
-                  setPage(1);
-                }}
-                style={{
-                  width: "6.25rem",
-                  padding: "0.3rem 0.4rem",
-                  borderRadius: "0.5rem",
-                  border: "1px solid rgba(15,23,42,0.18)",
-                }}
-              />
-
-              <span style={{ opacity: 0.8 }}>Max</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="(any)"
-                value={maxNeedText}
-                onChange={(e) => {
-                  const v = (e.target.value || "").replace(/[^\d]/g, "");
-                  setMaxNeedText(v);
-                  setPage(1);
-                }}
-                style={{
-                  width: "6.25rem",
-                  padding: "0.3rem 0.4rem",
-                  borderRadius: "0.5rem",
-                  border: "1px solid rgba(15,23,42,0.18)",
-                }}
-              />
-
-              <button
-                type="button"
-                className="a2b-hero-button"
-                onClick={() => {
-                  setMinNeedText("");
-                  setMaxNeedText("");
-                  setPage(1);
-                }}
-                style={{ padding: "0.35rem 0.6rem" }}
-              >
-                Clear
-              </button>
-            </div>
           </div>
-        </PageHero>
+        </div>
+      </PageHero>
 
-        <div style={{ padding: "0 1.5rem 2.5rem" }}>
-          <div
+      {demo ? (
+        <div className="demo-banner tile-style">
+          <strong>DEMO MODE</strong>
+          <div style={{ marginTop: 4 }}>
+            You're viewing a demo. Sign in or create an account to use your real inventory and save
+            progress.
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <a href="/account?mode=login">Sign in</a> &middot;{" "}
+            <a href="/account?mode=signup">Create account</a>
+          </div>
+        </div>
+      ) : null}
+
+      <div style={{ padding: "0 1.5rem 2.5rem" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            gap: "1rem",
+          }}
+        >
+          <h2
             style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              gap: "1rem",
+              margin: "0 0 0.65rem",
+              fontSize: "1.1rem",
+              fontWeight: 800,
+              color: "#0f172a",
             }}
           >
-            <h2
-              style={{
-                margin: "0 0 0.65rem",
-                fontSize: "1.1rem",
-                fontWeight: 800,
-                color: "#0f172a",
-              }}
-            >
-              Discoverable sets
-            </h2>
+            Discoverable sets
+          </h2>
 
-            {visibleRows ? (
-              <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
-                Showing {pagedRows ? pagedRows.length : 0} of {visibleRows.length}
-              </div>
-            ) : null}
-          </div>
-
-          {err ? (
-            <div
-              style={{
-                marginBottom: "1rem",
-                padding: "0.75rem 1rem",
-                borderRadius: "0.75rem",
-                background: "rgba(239,68,68,0.08)",
-                border: "1px solid rgba(239,68,68,0.55)",
-                color: "#b91c1c",
-                fontSize: "0.9rem",
-              }}
-            >
-              {err}
+          {visibleRows ? (
+            <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+              Showing {pagedRows ? pagedRows.length : 0} of {visibleRows.length}
             </div>
           ) : null}
+        </div>
 
-          {!rows ? <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading…</p> : null}
+        {err ? (
+          <div
+            style={{
+              marginBottom: "1rem",
+              padding: "0.75rem 1rem",
+              borderRadius: "0.75rem",
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.55)",
+              color: "#b91c1c",
+              fontSize: "0.9rem",
+            }}
+          >
+            {err}
+          </div>
+        ) : null}
 
-          {pagedRows ? (
-            pagedRows.length === 0 ? (
-              <p style={{ fontSize: "0.9rem", color: "#6b7280" }}>No discover results yet.</p>
-            ) : (
-              <>
-                <div className="tile-grid">
-                  {pagedRows.map((r) => (
-                    <BuildabilityTile
-                      key={r.set_num}
-                      item={toBuildabilityItem(r)}
-                      onOpenDetails={() => nav(`/buildability/${encodeURIComponent(r.set_num)}`)}
-                    />
-                  ))}
-                </div>
+        {!rows ? <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>Loading…</p> : null}
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    gap: "0.6rem",
-                    marginTop: "1.2rem",
+        {pagedRows ? (
+          pagedRows.length === 0 ? (
+            <>
+              <p style={{ fontSize: "0.9rem", color: "#6b7280", marginBottom: "0.75rem" }}>
+                No results at <strong>{minPct}%</strong>.
+              </p>
+
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="a2b-hero-button a2b-cta-dark"
+                  onClick={() => {
+                    setMinPct(80);
+                    setPage(1);
                   }}
                 >
-                  <button
-                    type="button"
-                    className="a2b-hero-button a2b-cta-dark"
-                    disabled={pageSafe <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    Prev
-                  </button>
+                  Try 80%
+                </button>
 
-                  <div style={{ fontSize: "0.9rem", color: "#0f172a" }}>
-                    Page <strong>{pageSafe}</strong> of <strong>{pageCount}</strong>
-                  </div>
+                <button
+                  type="button"
+                  className="a2b-hero-button a2b-cta-dark"
+                  onClick={() => {
+                    setMinPct(70);
+                    setPage(1);
+                  }}
+                >
+                  Try 70%
+                </button>
 
-                  <button
-                    type="button"
-                    className="a2b-hero-button a2b-cta-dark"
-                    disabled={pageSafe >= pageCount}
-                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                  >
-                    Next
-                  </button>
+                <button
+                  type="button"
+                  className="a2b-hero-button a2b-cta-dark"
+                  onClick={() => {
+                    setMinNeedText("");
+                    setMaxNeedText("");
+                    setIncludeOwned(false);
+                    setPage(1);
+                  }}
+                >
+                  Clear filters
+                </button>
+
+                <button
+                  type="button"
+                  className="a2b-hero-button"
+                  onClick={() => run({ force: true })}
+                  disabled={busy}
+                >
+                  {busy ? "Loading..." : "Refresh"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="tile-grid">
+                {pagedRows.map((r) => (
+                  <BuildabilityTile
+                    key={r.set_num}
+                    item={toBuildabilityItem(r)}
+                    onOpenDetails={() => nav(`/buildability/${encodeURIComponent(r.set_num)}`)}
+                  />
+                ))}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "0.6rem",
+                  marginTop: "1.2rem",
+                }}
+              >
+                <button
+                  type="button"
+                  className="a2b-hero-button a2b-cta-dark"
+                  disabled={pageSafe <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Prev
+                </button>
+
+                <div style={{ fontSize: "0.9rem", color: "#0f172a" }}>
+                  Page <strong>{pageSafe}</strong> of <strong>{pageCount}</strong>
                 </div>
-              </>
-            )
-          ) : null}
-        </div>
+
+                <button
+                  type="button"
+                  className="a2b-hero-button a2b-cta-dark"
+                  disabled={pageSafe >= pageCount}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </>
+          )
+        ) : null}
       </div>
-    </RequireAuth>
+    </div>
   );
+}
+
+function BuildabilityDiscoverPage() {
+  const location = useLocation();
+  const demo = new URLSearchParams(location.search).get("demo") === "1";
+
+  const content = <BuildabilityDiscoverInner demo={demo} />;
+
+  if (demo) return content;
+
+  return <RequireAuth pageName="Buildability Discover">{content}</RequireAuth>;
 }
 
 export default BuildabilityDiscoverPage;
