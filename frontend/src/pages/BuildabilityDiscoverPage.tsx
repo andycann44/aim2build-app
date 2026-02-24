@@ -351,7 +351,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
               inputMode="numeric"
               placeholder="(any)"
               value={minNeedText}
-              onChange={(e) => {
+              onChange={(e) => {  
                 const v = (e.target.value || "").replace(/[^\d]/g, "");
                 setMinNeedText(v);
                 setPage(1);

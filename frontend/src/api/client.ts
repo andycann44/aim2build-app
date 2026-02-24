@@ -10,8 +10,17 @@ export type AuthResult = {
 // LOCKED: Deployed builds must always use same-origin (/api/*).
 // Local dev can override with VITE_API_BASE, but NEVER allow localhost on a real domain.
 
+import { Capacitor } from "@capacitor/core";
+
+// --- API base ---
+// LOCKED: Deployed builds must always use same-origin (/api/*).
+// Local dev can override with VITE_API_BASE, but NEVER allow localhost on a real domain.
+// iOS (Capacitor native) in local bundle mode must call the real backend host.
+
 const raw = ((import.meta as any).env?.VITE_API_BASE as string | undefined)?.trim() ?? "";
 const cleaned = raw.replace(/\/+$/, "");
+
+const isNative = typeof window !== "undefined" && Capacitor.isNativePlatform();
 
 const isRealSite =
   typeof window !== "undefined" &&
@@ -21,7 +30,13 @@ const isRealSite =
 const looksLikeLocal =
   /(^|\/\/)(localhost|127\.0\.0\.1)(:|\/|$)/i.test(cleaned);
 
-export const API_BASE: string = isRealSite && looksLikeLocal ? "" : cleaned;
+// Native app (capacitor://localhost) => always call prod backend
+// (Change to staging if you want: https://staging.aim2build.co.uk)
+export const API_BASE: string = isNative
+  ? "https://aim2build.co.uk"
+  : isRealSite && looksLikeLocal
+    ? ""
+    : cleaned;
 
 export interface SetSummary {
   set_num: string;
