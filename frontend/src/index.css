@@ -1711,14 +1711,51 @@ body.aim2-root {
 /* === iOS Safari: Stop rainbow border repaint on scroll === */
 @supports (-webkit-touch-callout: none) {
 
-  .set-tile-frame {
-    overflow: hidden !important;
-  }
+  /* === iOS Safari: stop rainbow flash by isolating gradient layer === */
+.set-tile-frame{
+  position: relative;
+  overflow: hidden !important;
+  background: #ffffff !important;   /* solid base */
+  border: 2px solid rgba(34, 197, 94, 0.6) !important;
+}
 
-  .set-tile-frame {
-    background: none !important;
-    border: 2px solid rgba(34, 197, 94, 0.6) !important;
-  }
+/* gradient on its own layer, behind content */
+.set-tile-frame::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgb(249, 115, 22),
+    rgb(250, 204, 21),
+    rgb(34, 197, 94),
+    rgb(56, 189, 248),
+    rgb(99, 102, 241),
+    rgb(99, 102, 241)
+  );
+  z-index: 0;
+}
+
+.set-tile-frame > *{
+  position: relative;
+  z-index: 1;
+}
+
+
+/* === iOS WKWebView: prevent hero gradient "rainbow flash" during bounce/first-paint === */
+html, body, #root {
+  height: 100%;
+  background: #eef2f7; /* match app base */
+}
+
+body {
+  overscroll-behavior: none;
+}
+
+/* ensure the main page container has a solid base behind hero */
+.page {
+  background: #eef2f7;
 }
 /* --- Buildability Discover hero: iOS portrait safety --- */
 
