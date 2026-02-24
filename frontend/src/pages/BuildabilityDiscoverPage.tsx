@@ -266,6 +266,8 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
     return visibleRows.slice(start, start + PAGE_SIZE);
   }, [visibleRows, pageSafe]);
 
+  console.log("A2B_IOS_MARKER discover-pill-OK 2026-02-24-0957");
+
   return (
     <div className="page">
       <PageHero
