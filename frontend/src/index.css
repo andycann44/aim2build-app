@@ -1774,17 +1774,7 @@ body.aim2-root {
     width: 100%;
   }
 
-  /* Parts qty row: stack into a clean grid */
-  .a2b-discover-hero__controls .hero-pill.hero-pill--sort {
-    width: 100%;
-  }
 
-  /* Your Parts qty container is a hero-pill; force wrapping + full-width inputs on iPhone */
-  .a2b-discover-hero__controls .hero-pill.hero-pill--sort[style] {
-    flex-wrap: wrap !important;
-    justify-content: flex-start;
-    gap: 0.5rem !important;
-  }
 
   /* Inputs + Clear button go full width if needed */
   .a2b-discover-hero__controls input[type="text"] {

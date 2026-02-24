@@ -14,6 +14,17 @@ from app.routers.buildability import _load_inventory_json  # MUST match compare 
 router = APIRouter(tags=["buildability"])
 
 
+def _cdn_set_img_url(set_num: str) -> str | None:
+    """
+    LOCKED RULE: Images must resolve via Aim2Build CDN (Cloudflare/R2) only.
+    We do NOT return Rebrickable URLs to clients.
+    """
+    sn = (set_num or "").strip()
+    if not sn:
+        return None
+    return f"https://img.aim2build.co.uk/static/set_images/{sn}.jpg"
+
+
 @router.get("/discover")
 def discover_buildability(
     min_coverage: float = Query(0.0, ge=0.0, le=1.0),
@@ -69,7 +80,7 @@ def discover_buildability(
         con.execute(
             "CREATE INDEX IF NOT EXISTS idx_temp_inv_pc ON temp_inv(part_num, color_id)"
         )
-    
+
         sql = """
         WITH common_parts AS (
             SELECT sp.part_num
@@ -149,12 +160,14 @@ def discover_buildability(
         for row in rows:
             # con.row_factory usually yields dict-like rows; keep fallback tuple unpack
             try:
+                set_num = str(row["set_num"])
                 out.append(
                     {
-                        "set_num": str(row["set_num"]),
+                        "set_num": set_num,
                         "name": row["name"],
                         "year": int(row["year"]) if row["year"] is not None else None,
-                        "img_url": row["img_url"],
+                        # IMPORTANT: always return Aim2Build CDN URL (not Rebrickable)
+                        "img_url": _cdn_set_img_url(set_num),
                         "num_parts": int(row["num_parts"]) if row["num_parts"] is not None else None,
                         "theme_id": int(row["theme_id"]) if row["theme_id"] is not None else None,
                         "total_needed": int(row["total_needed"]) if row["total_needed"] is not None else 0,
@@ -174,12 +187,14 @@ def discover_buildability(
                     total_have,
                     coverage,
                 ) = row
+                sn = str(set_num)
                 out.append(
                     {
-                        "set_num": str(set_num),
+                        "set_num": sn,
                         "name": name,
                         "year": int(year) if year is not None else None,
-                        "img_url": img_url,
+                        # IMPORTANT: always return Aim2Build CDN URL (not Rebrickable)
+                        "img_url": _cdn_set_img_url(sn),
                         "num_parts": int(num_parts) if num_parts is not None else None,
                         "theme_id": int(theme_id) if theme_id is not None else None,
                         "total_needed": int(total_needed) if total_needed is not None else 0,

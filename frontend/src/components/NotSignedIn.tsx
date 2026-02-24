@@ -1,21 +1,24 @@
 import React, { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import AuthPanel from "./AuthPanel";
 import PageHero from "./PageHero";
 
 type Props = { pageName?: string };
 
 const heroCopy = (pageName?: string) => {
-  switch ((pageName || "").toLowerCase()) {
+  const key = (pageName || "").toLowerCase();
+  if (key.includes("buildability")) {
+    return {
+      title: "Buildability",
+      subtitle: "Sign in to see buildability for your sets.",
+    };
+  }
+
+  switch (key) {
     case "wishlist":
       return {
         title: "Wishlist",
         subtitle: "You need to be logged in to view your wishlist.",
-      };
-    case "buildability":
-      return {
-        title: "Buildability",
-        subtitle: "Sign in to see buildability for your sets.",
       };
     case "inventory":
       return {
@@ -44,39 +47,44 @@ const heroCopy = (pageName?: string) => {
 const NotSignedIn: React.FC<Props> = ({ pageName }) => {
   const copy = useMemo(() => heroCopy(pageName), [pageName]);
   const navigate = useNavigate();
+  const location = useLocation();
+  const isBuildability = (pageName || "").toLowerCase().includes("buildability");
+  const nextPath = `${location.pathname || ""}${location.search || ""}`;
 
   return (
     <div className="page" style={{ width: "100%" }}>
       <PageHero title={copy.title} subtitle={copy.subtitle} />
 
-      <div
-        style={{
-          marginTop: "0.8rem",
-          display: "flex",
-          gap: "0.75rem",
-          flexWrap: "wrap",
-          justifyContent: "center",
-        }}
-      >
-        <button
-          type="button"
-          className="a2b-hero-button"
-          onClick={() => navigate("/account?mode=login")}
+      {!isBuildability && (
+        <div
+          style={{
+            marginTop: "0.8rem",
+            display: "flex",
+            gap: "0.75rem",
+            flexWrap: "wrap",
+            justifyContent: "center",
+          }}
         >
-          Sign in
-        </button>
-        <button
-          type="button"
-          className="a2b-hero-button a2b-cta-dark"
-          onClick={() => navigate("/account?mode=signup")}
-        >
-          Create account
-        </button>
-      </div>
+          <button
+            type="button"
+            className="a2b-hero-button"
+            onClick={() => navigate("/account?mode=login")}
+          >
+            Sign in
+          </button>
+          <button
+            type="button"
+            className="a2b-hero-button a2b-cta-dark"
+            onClick={() => navigate("/account?mode=signup")}
+          >
+            Create account
+          </button>
+        </div>
+      )}
 
       {/* Auth panel */}
       <div style={{ maxWidth: "720px", margin: "0 auto 2rem", width: "100%" }}>
-        <AuthPanel />
+        <AuthPanel allowNonAccount={isBuildability} nextPath={nextPath} />
       </div>
     </div>
   );

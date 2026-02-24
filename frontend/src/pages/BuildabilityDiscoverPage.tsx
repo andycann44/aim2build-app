@@ -323,7 +323,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
 
           <button
             type="button"
-            className="hero-pill hero-pill--sort"
+            className="hero-pill"
             onClick={() => {
               setIncludeOwned((v) => !v);
               setPage(1);
@@ -334,7 +334,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
           </button>
 
           <div
-            className="hero-pill hero-pill--sort"
+            className="hero-pill"
             style={{
               display: "flex",
               alignItems: "center",
@@ -344,7 +344,8 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
           >
             <span style={{ fontWeight: 800 }}>Parts qty</span>
 
-            <span style={{ opacity: 0.8 }}>Min</span>
+            <div className="hero-partsBubble" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
+              <span style={{ opacity: 0.8 }}>Min</span>
             <input
               type="text"
               inputMode="numeric"
@@ -394,6 +395,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
             >
               Clear
             </button>
+            </div>
           </div>
         </div>
       </PageHero>

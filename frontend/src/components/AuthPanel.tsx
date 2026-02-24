@@ -8,6 +8,8 @@ const API = API_BASE;
 type AuthPanelProps = {
   onAuthed?: () => void;
   defaultMode?: Mode;
+  allowNonAccount?: boolean;
+  nextPath?: string;
 };
 
 type AuthResult = {
@@ -104,12 +106,13 @@ const res = await fetch(`${API}/api/auth/forgot-password`, {
   return { ok: false, error: detail };
 }
 
-const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode }) => {
+const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode, allowNonAccount, nextPath }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
   const path = location.pathname || "/";
   const isAccountRoute = path.startsWith("/account");
+  const canRender = isAccountRoute || !!allowNonAccount;
 
   const [mode, setMode] = useState<Mode>(() => defaultMode ?? "login");
 
@@ -129,10 +132,11 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode }) => {
   const [resetUrl, setResetUrl] = useState<string | null>(null);
 
   const nextParam = useMemo(() => {
+    if (nextPath && nextPath.startsWith("/")) return nextPath;
     const sp = new URLSearchParams(location.search || "");
     const n = sp.get("next");
     return n && n.startsWith("/") ? n : "/search";
-  }, [location.search]);
+  }, [location.search, nextPath]);
 
   useEffect(() => {
     const existing = getToken();
@@ -284,7 +288,7 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode }) => {
   const title =
     mode === "login" ? "Sign in" : mode === "register" ? "Create an account" : "Reset your password";
 
-  if (!isAccountRoute) return null;
+  if (!canRender) return null;
 
   return (
     <div
