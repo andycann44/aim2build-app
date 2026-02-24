@@ -38,6 +38,21 @@ export const API_BASE: string = isNative
     ? ""
     : cleaned;
 
+
+// --- Discover cache invalidation ---
+// Discover caches results in localStorage (a2b:buildability:discover:*).
+// Any mutation to inventory or mysets can make cached results stale.
+function clearDiscoverCache() {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("a2b:buildability:discover:")) localStorage.removeItem(k);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+
 export interface SetSummary {
   set_num: string;
   name: string;
@@ -170,12 +185,16 @@ export async function pourSet(set_num: string): Promise<void> {
   await json(`/api/inventory/pour-set?set=${encodeURIComponent(set_num)}`, {
     method: "POST",
   });
+
+  clearDiscoverCache();
 }
 
 export async function unpourSet(set_num: string): Promise<void> {
   await json(`/api/inventory/unpour-set?set=${encodeURIComponent(set_num)}`, {
     method: "POST",
   });
+
+  clearDiscoverCache();
 }
 
 export async function searchParts(
@@ -323,10 +342,14 @@ export async function getMySets(): Promise<SetSummary[]> {
 
 export async function addMySet(set_num: string): Promise<void> {
   await json(`/api/mysets/add?set=${encodeURIComponent(set_num)}`, { method: "POST" });
+
+  clearDiscoverCache();
 }
 
 export async function removeMySet(set_num: string): Promise<void> {
   await json(`/api/mysets/remove?set=${encodeURIComponent(set_num)}`, { method: "DELETE" });
+
+  clearDiscoverCache();
 }
 
 export async function getWishlist(): Promise<SetSummary[]> {
@@ -348,6 +371,8 @@ export async function getInventoryParts(): Promise<InventoryPart[]> {
 
 export async function clearInventory(): Promise<void> {
   await json(`/api/inventory/clear?confirm=YES`, { method: "DELETE" });
+
+  clearDiscoverCache();
 }
 
 export async function getBuildability(set_num: string): Promise<BuildabilityResult> {
