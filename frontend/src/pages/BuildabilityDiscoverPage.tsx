@@ -106,7 +106,15 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
   );
 
   const runIdRef = React.useRef(0);
+  const abortRef = React.useRef<AbortController | null>(null);
+  const debounceRef = React.useRef<NodeJS.Timeout | null>(null);
 
+    React.useEffect(() => {
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, []);
+  
   // Load "My Sets" once so we can hide owned sets in Discover (client-side filter)
   React.useEffect(() => {
     if (demo) return;
@@ -151,6 +159,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
       const key = cacheKey;
       const runId = ++runIdRef.current;
 
+      // Serve cache (fast)
       if (!force) {
         const cached = readCache(key);
         if (cached) {
@@ -162,6 +171,13 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
         }
       }
 
+      // Cancel any in-flight request BEFORE starting a new one
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       setBusy(true);
       setErr("");
 
@@ -170,9 +186,16 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
         const url =
           `${API_BASE}/api/buildability/discover` +
           `?min_coverage=${encodeURIComponent(minCoverage.toFixed(2))}` +
-          `&limit=${encodeURIComponent(200)}`;
+          `&limit=${encodeURIComponent(200)}` +
+          `&include_100=${include100 ? "1" : "0"}`;
 
-        const res = await fetch(url, { headers: authHeaders() });
+        const res = await fetch(url, {
+          headers: authHeaders(),
+          signal: controller.signal,
+        });
+
+        // If another run() started, ignore this response
+        if (runId !== runIdRef.current) return;
 
         if (_is401(res)) {
           if (!demo) {
@@ -188,13 +211,16 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
         }
 
         const data = (await res.json()) as DiscoverRow[];
-        if (runId !== runIdRef.current) return; // stale
+        if (runId !== runIdRef.current) return;
 
         const out = Array.isArray(data) ? data : [];
         setRows(out);
         writeCache(key, out);
         setPage(1);
       } catch (e: any) {
+        // Abort is expected when slider changes quickly
+        if (e?.name === "AbortError") return;
+
         if (runId !== runIdRef.current) return;
         setErr(e?.message || "Failed to load discover results.");
         setRows([]);
@@ -202,12 +228,24 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
         if (runId === runIdRef.current) setBusy(false);
       }
     },
-    [cacheKey, minPct, demo]
+    [cacheKey, minPct, include100, demo]
   );
 
   React.useEffect(() => {
-    run();
-  }, [run]);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(() => {
+      run();
+    }, 350);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [minPct, include100]);
 
   // Filter:
   //  - always hide minifig catalog items if they leak into "sets"
@@ -348,55 +386,55 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
 
             <div className="hero-partsBubble" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
               <span style={{ opacity: 0.8 }}>Min</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="(any)"
-              value={minNeedText}
-              onChange={(e) => {  
-                const v = (e.target.value || "").replace(/[^\d]/g, "");
-                setMinNeedText(v);
-                setPage(1);
-              }}
-              style={{
-                width: "6.25rem",
-                padding: "0.3rem 0.4rem",
-                borderRadius: "0.5rem",
-                border: "1px solid rgba(15,23,42,0.18)",
-              }}
-            />
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="(any)"
+                value={minNeedText}
+                onChange={(e) => {
+                  const v = (e.target.value || "").replace(/[^\d]/g, "");
+                  setMinNeedText(v);
+                  setPage(1);
+                }}
+                style={{
+                  width: "6.25rem",
+                  padding: "0.3rem 0.4rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid rgba(15,23,42,0.18)",
+                }}
+              />
 
-            <span style={{ opacity: 0.8 }}>Max</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="(any)"
-              value={maxNeedText}
-              onChange={(e) => {
-                const v = (e.target.value || "").replace(/[^\d]/g, "");
-                setMaxNeedText(v);
-                setPage(1);
-              }}
-              style={{
-                width: "6.25rem",
-                padding: "0.3rem 0.4rem",
-                borderRadius: "0.5rem",
-                border: "1px solid rgba(15,23,42,0.18)",
-              }}
-            />
+              <span style={{ opacity: 0.8 }}>Max</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="(any)"
+                value={maxNeedText}
+                onChange={(e) => {
+                  const v = (e.target.value || "").replace(/[^\d]/g, "");
+                  setMaxNeedText(v);
+                  setPage(1);
+                }}
+                style={{
+                  width: "6.25rem",
+                  padding: "0.3rem 0.4rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid rgba(15,23,42,0.18)",
+                }}
+              />
 
-            <button
-              type="button"
-              className="a2b-hero-button"
-              onClick={() => {
-                setMinNeedText("");
-                setMaxNeedText("");
-                setPage(1);
-              }}
-              style={{ padding: "0.35rem 0.6rem" }}
-            >
-              Clear
-            </button>
+              <button
+                type="button"
+                className="a2b-hero-button"
+                onClick={() => {
+                  setMinNeedText("");
+                  setMaxNeedText("");
+                  setPage(1);
+                }}
+                style={{ padding: "0.35rem 0.6rem" }}
+              >
+                Clear
+              </button>
             </div>
           </div>
         </div>
