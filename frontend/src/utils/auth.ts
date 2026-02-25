@@ -77,3 +77,23 @@ export function clearAuth() {
     emitAuthChanged();
   }
 }
+export function isLoggedIn(): boolean {
+  return !!getToken();
+}
+
+function clearDiscoverCache() {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("a2b:buildability:discover:")) {
+        localStorage.removeItem(k);
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function logoutNow() {
+  clearAuth();
+  clearDiscoverCache();
+}

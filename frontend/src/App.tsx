@@ -3,7 +3,7 @@ import { Routes, Route, NavLink, Navigate, useNavigate } from "react-router-dom"
 import StagingBanner from "./components/StagingBanner";
 
 
-import Footer from "./components/Footer";import HomePage from "./pages/HomePage";
+import Footer from "./components/Footer"; import HomePage from "./pages/HomePage";
 import SearchPage from "./pages/SearchPage";
 import MySetsPage from "./pages/MySetsPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -26,6 +26,7 @@ import SetPartsPage from "./pages/SetPartsPage";
 import AccountPage from "./pages/AccountPage";
 import SettingsPage from "./pages/SettingsPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import { isLoggedIn, logoutNow } from "./utils/auth";
 
 import AdminPage from "./pages/AdminPage";
 import DebugCatalogImagesPage from "./pages/DebugCatalogImagesPage";
@@ -114,6 +115,19 @@ export default function App() {
               <span>Settings</span>
               <span className="app-nav-link-indicator">›</span>
             </NavLink>
+            {isLoggedIn() && (
+              <button
+                type="button"
+                className="app-nav-link"
+                onClick={() => {
+                  logoutNow();
+                  window.location.href = "/account?mode=login&reason=logout";
+                }}
+              >
+                <span>Log out</span>
+                <span className="app-nav-link-indicator">›</span>
+              </button>
+            )}
           </nav>
 
           <div className="app-sidebar-footer">Aim2Build</div>
