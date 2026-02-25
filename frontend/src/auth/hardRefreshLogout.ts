@@ -1,29 +1,17 @@
+// frontend/src/auth/hardRefreshLogout.ts
 import { clearAuth } from "../utils/auth";
 
-function isReloadNavigation(): boolean {
-  if (typeof performance === "undefined") return false;
-
+// Only allow this behaviour in LOCAL dev (never in prod/app store builds).
+export function hardRefreshLogout() {
   try {
-    const nav = performance.getEntriesByType?.("navigation")?.[0] as
-      | PerformanceNavigationTiming
-      | undefined;
-    if (nav?.type === "reload") return true;
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1";
+    if (!isLocal) return;
+
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const isReload = nav?.type === "reload";
+    if (isReload) clearAuth();
   } catch {
     // ignore
   }
-
-  // Legacy fallback
-  try {
-    const legacyNav = (performance as any).navigation;
-    return legacyNav && legacyNav.type === 1;
-  } catch {
-    return false;
-  }
-}
-
-export function hardRefreshLogout(): boolean {
-  if (typeof window === "undefined") return false;
-  const isReload = isReloadNavigation();
-  if (isReload) clearAuth();
-  return isReload;
 }

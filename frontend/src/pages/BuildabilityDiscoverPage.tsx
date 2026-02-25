@@ -63,7 +63,7 @@ function _is401(res: Response) {
   return res.status === 401 || res.status === 403;
 }
 
-// Helps avoid cross-user cache bleed (new user after wipe still seeing old cached results)
+// Avoid cross-user cache bleed (new user after wipe still seeing old cached results)
 function authFingerprint(): string {
   try {
     const t =
@@ -81,18 +81,15 @@ function authFingerprint(): string {
 function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
   const nav = useNavigate();
 
-  const [minPct, setMinPct] = React.useState<number>(90); // default 90%
+  const [minPct, setMinPct] = React.useState<number>(90);
   const [include100, setInclude100] = React.useState<boolean>(false);
 
-  // Hide owned sets by default; toggle via button in hero
   const [includeOwned, setIncludeOwned] = React.useState<boolean>(false);
   const [ownedSetNums, setOwnedSetNums] = React.useState<Set<string>>(new Set());
 
-  // Parts qty (BOM total_needed) filter - keep as text so user can clear the field
   const [minNeedText, setMinNeedText] = React.useState<string>("");
   const [maxNeedText, setMaxNeedText] = React.useState<string>("");
 
-  // Pagination
   const [page, setPage] = React.useState<number>(1);
 
   const [rows, setRows] = React.useState<DiscoverRow[] | null>(null);
@@ -107,14 +104,8 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
 
   const runIdRef = React.useRef(0);
   const abortRef = React.useRef<AbortController | null>(null);
-  const debounceRef = React.useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    React.useEffect(() => {
-    return () => {
-      if (abortRef.current) abortRef.current.abort();
-    };
-  }, []);
-  
   // Load "My Sets" once so we can hide owned sets in Discover (client-side filter)
   React.useEffect(() => {
     if (demo) return;
@@ -127,11 +118,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
           headers: authHeaders(),
         });
 
-        if (_is401(res)) {
-          // let RequireAuth handle the main gating, but keep behaviour consistent
-          return;
-        }
-
+        if (_is401(res)) return;
         if (!res.ok) return;
 
         const data = await res.json();
@@ -144,7 +131,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
 
         if (alive) setOwnedSetNums(nums);
       } catch {
-        // ignore (Discover still works)
+        // ignore
       }
     })();
 
@@ -159,7 +146,13 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
       const key = cacheKey;
       const runId = ++runIdRef.current;
 
-      // Serve cache (fast)
+      // cancel any in-flight request BEFORE starting a new one
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       if (!force) {
         const cached = readCache(key);
         if (cached) {
@@ -170,13 +163,6 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
           return;
         }
       }
-
-      // Cancel any in-flight request BEFORE starting a new one
-      if (abortRef.current) {
-        abortRef.current.abort();
-      }
-      const controller = new AbortController();
-      abortRef.current = controller;
 
       setBusy(true);
       setErr("");
@@ -194,8 +180,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
           signal: controller.signal,
         });
 
-        // If another run() started, ignore this response
-        if (runId !== runIdRef.current) return;
+        if (runId !== runIdRef.current) return; // stale
 
         if (_is401(res)) {
           if (!demo) {
@@ -218,9 +203,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
         writeCache(key, out);
         setPage(1);
       } catch (e: any) {
-        // Abort is expected when slider changes quickly
         if (e?.name === "AbortError") return;
-
         if (runId !== runIdRef.current) return;
         setErr(e?.message || "Failed to load discover results.");
         setRows([]);
@@ -231,32 +214,26 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
     [cacheKey, minPct, include100, demo]
   );
 
+  // Debounce when changing filters
   React.useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
     debounceRef.current = setTimeout(() => {
       run();
     }, 350);
 
     return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [minPct, include100]);
+  }, [minPct, include100, run]);
 
-  // Filter:
-  //  - always hide minifig catalog items if they leak into "sets"
-  //  - hide owned sets by default (toggle)
-  //  - parts qty filter based on total_needed (BOM sum)
+  // Filter rows client-side
   const visibleRows = React.useMemo(() => {
     if (!rows) return rows;
 
     let out = rows;
 
-    // 0) Always hide minifig "sets"
+    // Always hide minifig "sets"
     out = out.filter((r) => {
       const sn = String(r?.set_num ?? "").toLowerCase();
       if (sn.startsWith("fig-")) return false;
@@ -267,12 +244,12 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
       return true;
     });
 
-    // 1) Hide owned sets by default
+    // Hide owned sets by default
     if (!includeOwned && ownedSetNums.size) {
       out = out.filter((r) => !ownedSetNums.has(String(r.set_num)));
     }
 
-    // 2) Parts qty filter (BOM total_needed)
+    // Parts qty filter (BOM total_needed)
     const minRaw = (minNeedText || "").trim();
     const maxRaw = (maxNeedText || "").trim();
 
@@ -285,7 +262,6 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
     return out;
   }, [rows, includeOwned, ownedSetNums, minNeedText, maxNeedText]);
 
-  // Pagination derived
   const pageCount = React.useMemo(() => {
     if (!visibleRows) return 1;
     return Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
@@ -304,7 +280,7 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
     return visibleRows.slice(start, start + PAGE_SIZE);
   }, [visibleRows, pageSafe]);
 
-  console.log("A2B_IOS_MARKER discover-pill-OK 2026-02-24-0957");
+  console.log("A2B_DISCOVER_UI=v1");
 
   return (
     <div className="page">
@@ -384,7 +360,10 @@ function BuildabilityDiscoverInner({ demo }: { demo: boolean }) {
           >
             <span style={{ fontWeight: 800 }}>Parts qty</span>
 
-            <div className="hero-partsBubble" style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
+            <div
+              className="hero-partsBubble"
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}
+            >
               <span style={{ opacity: 0.8 }}>Min</span>
               <input
                 type="text"
@@ -610,7 +589,6 @@ function BuildabilityDiscoverPage() {
   const content = <BuildabilityDiscoverInner demo={demo} />;
 
   if (demo) return content;
-
   return <RequireAuth pageName="Buildability Discover">{content}</RequireAuth>;
 }
 

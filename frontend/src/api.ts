@@ -1,16 +1,14 @@
-import type { SetSummary, InventoryPart } from "./api/client";
+import type { SetSummary } from "./api/client";
 
 // Local-first: override with VITE_API_BASE when needed
 const API =
   (import.meta as any)?.env?.VITE_API_BASE || "";
-
+const TOKEN_KEY = "a2b_token";
 function getToken(): string | null {
   try {
     // adjust these keys if your app stores token under a different name
     return (
-      localStorage.getItem("a2b_token") ||
-      localStorage.getItem("a2b_token") ||
-      localStorage.getItem("a2b_token")
+      localStorage.getItem(TOKEN_KEY) 
     );
   } catch {
     return null;
@@ -174,24 +172,31 @@ export async function addSetPartsToInventory(set_num: string): Promise<void> {
   }
 }
 
-/**
- * Fetch your current brick inventory.
- * Backend: GET /api/inventory/parts
- * Canonical shape:
- *   { part_num, color_id, qty_total, part_img_url }
- * (compat: accept qty/ img_url if still present)
- */
+export interface InventoryPart {
+  part_num: string;
+  color_id: number;
+  qty_total: number;
+  part_img_url?: string | null;
+}
+
 export async function fetchInventoryParts(): Promise<InventoryPart[]> {
   const url = `${API}/api/inventory/parts`;
-  const data = await authGetJson<any[]>(url);
+  const dataAny = (await authGetJson(url)) as any;
 
-  if (!Array.isArray(data)) return [];
+  if (!Array.isArray(dataAny)) return [];
 
-  return data.map((raw: any): InventoryPart => ({
-    part_num: String(raw.part_num ?? ""),
-    color_id: Number(raw.color_id ?? 0),
-    qty_total: Number(raw.qty_total ?? raw.qty ?? 0),
-    img_url: raw.img_url ?? null,
-    part_img_url: raw.part_img_url ?? null,
-  }));
+  return dataAny
+    .map((raw: any): InventoryPart => {
+      const part_num = String(raw?.part_num ?? "").trim();
+      const color_id = Number(raw?.color_id ?? 0);
+      const qty_total = Number(raw?.qty_total ?? 0);
+
+      return {
+        part_num,
+        color_id: Number.isFinite(color_id) ? color_id : 0,
+        qty_total: Number.isFinite(qty_total) ? qty_total : 0,
+        part_img_url: raw?.part_img_url ?? null,
+      };
+    })
+    .filter((p) => p.part_num.length > 0);
 }

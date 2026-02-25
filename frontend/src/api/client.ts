@@ -272,7 +272,7 @@ export async function addInventoryPart(
 ): Promise<any> {
   const payload = { part_num, color_id, qty };
 
-  const res = await fetch(`${API_BASE}/api/inventory/add`, {
+  const res = await fetch(`${API_BASE}/api/inventory/add-canonical`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -370,7 +370,7 @@ export async function getInventoryParts(): Promise<InventoryPart[]> {
 }
 
 export async function clearInventory(): Promise<void> {
-  await json(`/api/inventory/clear?confirm=YES`, { method: "DELETE" });
+  await json(`/api/inventory/clear-canonical`, { method: "POST" });
 
   clearDiscoverCache();
 }

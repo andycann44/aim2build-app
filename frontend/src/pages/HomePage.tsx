@@ -210,11 +210,11 @@ const HomePage: React.FC = () => {
               color: "#cbd5f5",
             }}
           >
-            <li>Backend API running on aim2build.co.uk</li>
-            <li>
-              Search &amp; catalog endpoints powered by the Aim2Build LEGO set database
-            </li>
-            <li>Buildability engine comparing your inventory to sets</li>
+            <li>Secure user accounts with persistent login</li>
+            <li>Personal inventory tracking (strict part + colour matching)</li>
+            <li>Buildability engine showing what you can build from your inventory</li>
+            <li>Real LEGO set catalog powered by the Aim2Build database</li>
+            <li>Canonical inventory add / decrement endpoints (stable)</li>
           </ul>
         </div>
 
@@ -241,12 +241,12 @@ const HomePage: React.FC = () => {
             Coming next
           </h3>
           <p style={{ margin: 0, marginBottom: "0.35rem" }}>
-            User accounts, personalised suggestions and proper onboarding.
+            Smarter build suggestions. Not just what you can build, but what you should build next from your inventory.
           </p>
           <p style={{ margin: 0 }}>
-            You&apos;ll start here, log in, and Aim2Build will show you what you can
-            build with the LEGO you already own.
+            You&apos;re already logged in — add your LEGO, and Aim2Build will show what you can build.
           </p>
+
         </div>
       </div>
     </div>
