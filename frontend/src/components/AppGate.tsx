@@ -8,7 +8,18 @@ interface AppGateProps {
 // Centralized auth check (match your token keys used elsewhere)
 function isAuthed(): boolean {
   try {
-    const t = localStorage.getItem("a2b_token") || "";
+    const t =
+      localStorage.getItem("a2b_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("auth_token") ||
+      "";
+
+    // migrate legacy -> canonical once
+    if (t && !localStorage.getItem("a2b_token")) {
+      localStorage.setItem("a2b_token", t);
+    }
+
     return !!t;
   } catch {
     return false;
