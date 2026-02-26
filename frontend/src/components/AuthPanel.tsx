@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE } from "../api/client";
-import { getToken, saveToken, clearToken } from "../utils/auth";
+import { getToken, setToken, clearAuth } from "../utils/auth";
 
 const API = API_BASE;
 
@@ -33,11 +33,11 @@ function isValidEmail(email: string): boolean {
 }
 
 async function loginRequest(email: string, password: string): Promise<AuthResult> {
-const res = await fetch(`${API}/api/auth/login`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ email, password }),
-});
+  const res = await fetch(`${API}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
   if (res.ok) {
     const data = await res.json().catch(() => null);
     const token: string | undefined = data?.access_token || data?.token;
@@ -58,11 +58,11 @@ const res = await fetch(`${API}/api/auth/login`, {
 }
 
 async function registerRequest(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
-const res = await fetch(`${API}/api/auth/register`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ email, password }),
-});
+  const res = await fetch(`${API}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
   if (res.ok) return { ok: true };
 
   let data: any = null;
@@ -79,11 +79,11 @@ const res = await fetch(`${API}/api/auth/register`, {
 }
 
 async function forgotPasswordRequest(email: string): Promise<ForgotResult> {
-const res = await fetch(`${API}/api/auth/forgot-password`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ email }),
-});
+  const res = await fetch(`${API}/api/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
   let data: any = null;
   try {
     data = await res.json();
@@ -176,7 +176,7 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode, allowNonAc
   };
 
   const handleLogout = () => {
-    clearToken();
+    clearAuth();
     setIsLoggedIn(false);
     setMode("login");
     setEmail("");
@@ -254,7 +254,7 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode, allowNonAc
         return;
       }
 
-      if (result.token) saveToken(result.token);
+      if (result.token) setToken(result.token);
 
       setIsLoggedIn(true);
       finishAuthed();
@@ -278,7 +278,7 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode, allowNonAc
       return;
     }
 
-    if (login.token) saveToken(login.token);
+    if (login.token) setToken(login.token);
 
     setIsLoggedIn(true);
     setInfo("Welcome! Your account has been created.");
@@ -519,13 +519,13 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onAuthed, defaultMode, allowNonAc
                   ? mode === "login"
                     ? "Signing in…"
                     : mode === "register"
-                    ? "Creating account…"
-                    : "Sending…"
+                      ? "Creating account…"
+                      : "Sending…"
                   : mode === "login"
-                  ? "Sign in"
-                  : mode === "register"
-                  ? "Create account"
-                  : "Send reset link"}
+                    ? "Sign in"
+                    : mode === "register"
+                      ? "Create account"
+                      : "Send reset link"}
               </button>
             </form>
 

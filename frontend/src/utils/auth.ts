@@ -16,21 +16,23 @@ function emitAuthChanged() {
 
 export function getToken(): string | null {
   try {
-    return (
-      localStorage.getItem(TOKEN_KEY) ||
-      // legacy keys (keep for compatibility)
-      localStorage.getItem("token") ||
-      localStorage.getItem("access_token") ||
-      localStorage.getItem("aim2build_token")
-    );
+    return localStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
   }
 }
 
 export function setToken(token: string) {
+
+
   try {
     localStorage.setItem(TOKEN_KEY, token);
+
+    // purge legacy keys so they can never override again
+    localStorage.removeItem("token");
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("aim2build_token");
+    localStorage.removeItem("auth_token");
   } catch {
     // ignore
   } finally {
