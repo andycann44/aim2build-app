@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Sequence, Any
+from typing import Callable, Dict, List, Optional, Sequence, Any, Set
 
 from .csv_std import csv_module as csv
 from .db import db
@@ -469,6 +469,11 @@ def _ensure_exists(base_dir: str, filename: str) -> str:
     return path
 
 
+def _get_table_columns(con, table: str) -> Set[str]:
+    rows = con.execute(f"PRAGMA table_info(\"{table}\")").fetchall()
+    return {row[1] for row in rows}
+
+
 def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
     path = _ensure_exists(base_dir, spec.filename)
     with open(path, newline="", encoding="utf-8") as fh:
@@ -476,13 +481,21 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
         if reader.fieldnames is None:
             raise ValueError(f"{spec.filename} has no header")
 
-        con.execute(f"DROP TABLE IF EXISTS {spec.table}")
         col_defs = ", ".join(f"{col.name} {col.sql_type}" for col in spec.columns)
-        con.execute(f"CREATE TABLE {spec.table} ({col_defs})")
+        con.execute(f"CREATE TABLE IF NOT EXISTS {spec.table} ({col_defs})")
 
-        placeholders = ", ".join("?" for _ in spec.columns)
-        col_names = ", ".join(col.name for col in spec.columns)
-        insert_sql = f"INSERT OR REPLACE INTO {spec.table} ({col_names}) VALUES ({placeholders})"
+        db_cols = {row[1] for row in con.execute(f"PRAGMA table_info({spec.table})")}
+        csv_cols = set(reader.fieldnames or [])
+        extra = sorted(csv_cols - db_cols)
+        if extra:
+            print(f"[a2b] {spec.table}: ignoring CSV-only columns: {extra[:20]}")
+        insert_cols = [c for c in spec.columns if c.name in db_cols and c.name in csv_cols]
+        if not insert_cols:
+            raise ValueError(f"No matching columns for {spec.table} between CSV and DB")
+
+        placeholders = ", ".join("?" for _ in insert_cols)
+        col_names = ", ".join(col.name for col in insert_cols)
+        insert_sql = f"INSERT OR IGNORE INTO {spec.table} ({col_names}) VALUES ({placeholders})"
 
         batch: List[List[Any]] = []
         inserted = 0
@@ -491,8 +504,8 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
                 continue
             values: List[Any] = []
             skip_row = False
-            for col in spec.columns:
-                value = col.extractor(row)
+            for col in insert_cols:
+                value = row.get(col.name, "")
                 if col.required and value in (None, ""):
                     skip_row = True
                     break
@@ -512,72 +525,6 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
 
 def _build_summary_tables(con) -> Dict[str, int]:
     summary_counts: Dict[str, int] = {}
-
-    con.execute("DROP TABLE IF EXISTS inventory_parts_summary")
-    con.execute(
-        """
-        CREATE TABLE inventory_parts_summary(
-            set_num  TEXT NOT NULL,
-            part_num TEXT NOT NULL,
-            color_id INTEGER NOT NULL,
-            quantity INTEGER NOT NULL,
-            PRIMARY KEY (set_num, part_num, color_id)
-        )
-        """
-    )
-    con.execute(
-        """
-        WITH latest AS (
-            SELECT set_num, MAX(COALESCE(version, 0)) AS version
-            FROM inventories
-            GROUP BY set_num
-        )
-        INSERT INTO inventory_parts_summary(set_num, part_num, color_id, quantity)
-        SELECT inv.set_num,
-               ip.part_num,
-               COALESCE(ip.color_id, 0) AS color_id,
-               COALESCE(SUM(COALESCE(ip.quantity, 0)), 0) AS qty
-        FROM inventories AS inv
-        JOIN latest AS l
-          ON l.set_num = inv.set_num
-         AND COALESCE(inv.version, 0) = COALESCE(l.version, 0)
-        JOIN inventory_parts AS ip
-          ON ip.inventory_id = inv.inventory_id
-        WHERE COALESCE(ip.is_spare, 0) = 0
-        GROUP BY inv.set_num, ip.part_num, ip.color_id
-        """
-    )
-    summary_counts["inventory_parts_summary"] = con.execute(
-        "SELECT COUNT(*) FROM inventory_parts_summary"
-    ).fetchone()[0]
-
-    con.execute("CREATE INDEX IF NOT EXISTS idx_invparts_summary_set ON inventory_parts_summary(set_num)")
-    con.execute(
-        "CREATE INDEX IF NOT EXISTS idx_invparts_summary_part_color ON inventory_parts_summary(part_num, color_id)"
-    )
-
-    con.execute("DROP TABLE IF EXISTS set_parts")
-    con.execute(
-        """
-        CREATE TABLE set_parts(
-            set_num  TEXT NOT NULL,
-            part_num TEXT NOT NULL,
-            color_id INTEGER NOT NULL,
-            qty_per_set INTEGER NOT NULL,
-            PRIMARY KEY (set_num, part_num, color_id)
-        )
-        """
-    )
-    con.execute(
-        """
-        INSERT INTO set_parts(set_num, part_num, color_id, qty_per_set)
-        SELECT set_num, part_num, color_id, quantity
-        FROM inventory_parts_summary
-        """
-    )
-    summary_counts["set_parts"] = con.execute("SELECT COUNT(*) FROM set_parts").fetchone()[0]
-
-    con.execute("CREATE INDEX IF NOT EXISTS idx_set_parts_lookup ON set_parts(set_num, part_num, color_id)")
 
     con.execute("CREATE INDEX IF NOT EXISTS idx_sets_num ON sets(set_num)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_sets_theme ON sets(theme_id)")
