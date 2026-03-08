@@ -67,6 +67,9 @@ class ColumnSpec:
     extractor: Callable[[Dict[str, str]], Any]
     required: bool = False
 
+    def extract(self, row: Dict[str, str]) -> Any:
+        return self.extractor(row)
+
 
 @dataclass
 class DatasetSpec:
@@ -484,18 +487,36 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
         col_defs = ", ".join(f"{col.name} {col.sql_type}" for col in spec.columns)
         con.execute(f"CREATE TABLE IF NOT EXISTS {spec.table} ({col_defs})")
 
-        db_cols = {row[1] for row in con.execute(f"PRAGMA table_info({spec.table})")}
+        table_info_rows = con.execute(f"PRAGMA table_info({spec.table})").fetchall()
+        db_cols = {row[1] for row in table_info_rows}
         csv_cols = set(reader.fieldnames or [])
+        csv_cols_normalized = set(csv_cols)
+        value_aliases: Dict[str, str] = {}
+        if spec.table == "inventories" and "id" in csv_cols and "inventory_id" not in csv_cols:
+            csv_cols_normalized.add("inventory_id")
+            value_aliases["inventory_id"] = "id"
+        if spec.table == "inventories":
+            inv_pk = any(row[1] == "inventory_id" and row[5] == 1 for row in table_info_rows)
+            if not inv_pk:
+                con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_inventories_inventory_id ON inventories(inventory_id)")
         extra = sorted(csv_cols - db_cols)
         if extra:
             print(f"[a2b] {spec.table}: ignoring CSV-only columns: {extra[:20]}")
-        insert_cols = [c for c in spec.columns if c.name in db_cols and c.name in csv_cols]
+        insert_cols = [c for c in spec.columns if c.name in db_cols and c.name in csv_cols_normalized]
         if not insert_cols:
             raise ValueError(f"No matching columns for {spec.table} between CSV and DB")
 
         placeholders = ", ".join("?" for _ in insert_cols)
         col_names = ", ".join(col.name for col in insert_cols)
-        insert_sql = f"INSERT OR IGNORE INTO {spec.table} ({col_names}) VALUES ({placeholders})"
+        if spec.table == "inventories":
+            update_cols = [c.name for c in insert_cols if c.name != "inventory_id"]
+            update_clause = ", ".join(f"{col}=excluded.{col}" for col in update_cols)
+            insert_sql = (
+                f"INSERT INTO inventories ({col_names}) VALUES ({placeholders}) "
+                f"ON CONFLICT(inventory_id) DO UPDATE SET {update_clause}"
+            )
+        else:
+            insert_sql = f"INSERT OR IGNORE INTO {spec.table} ({col_names}) VALUES ({placeholders})"
 
         batch: List[List[Any]] = []
         inserted = 0
@@ -505,7 +526,7 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
             values: List[Any] = []
             skip_row = False
             for col in insert_cols:
-                value = row.get(col.name, "")
+                value = col.extract(row)
                 if col.required and value in (None, ""):
                     skip_row = True
                     break
@@ -514,12 +535,14 @@ def _load_dataset(con, base_dir: str, spec: DatasetSpec) -> int:
                 continue
             batch.append(values)
             if len(batch) >= 1000:
+                before = con.total_changes
                 con.executemany(insert_sql, batch)
-                inserted += len(batch)
+                inserted += con.total_changes - before
                 batch.clear()
         if batch:
+            before = con.total_changes
             con.executemany(insert_sql, batch)
-            inserted += len(batch)
+            inserted += con.total_changes - before
     return inserted
 
 
@@ -549,4 +572,3 @@ def import_catalog(dir_path: str) -> Dict[str, Any]:
         summary = _build_summary_tables(con)
 
     return {"ok": True, "dir": base_dir, "inserted": inserted, "summary": summary}
-
